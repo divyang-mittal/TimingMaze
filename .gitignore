@@ -1,0 +1,17 @@
+*.mp4
+*.png
+*.pkl
+*.csv
+log/
+**/__pycache__/
+players/__pycache__/
+render/
+.DS_Store
+.idea/
+.vscode/
+.venv/
+results.log
+result.csv
+testing.py
+testing.sh
+amoeba_game_test.py
