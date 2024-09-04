@@ -16,9 +16,8 @@ from players.default_player import Player as DefaultPlayer
 from collections import deque as queue
 import queue as queue2
 
-# Direction vectors
-
 class TimingMazeGame:
+    # Direction vectors
     dRow = [0, 1, 0, -1]
     dCol = [-1, 0, 1, 0]
 
@@ -277,6 +276,19 @@ class TimingMazeGame:
                 print("Retrying to generate a valid maze...")
 
         print("Maze created successfully...")
+
+        # To save the maze in a json file
+        # data = {
+        #     "frequencies": self.map_frequencies.tolist(),
+        #     "start_pos": self.cur_pos.tolist(),
+        #     "end_pos": self.end_pos.tolist()
+        # }
+        # filename = 'data.json'
+        # with open(filename, 'w') as json_file:
+        #     json.dump(data, json_file, indent=4)
+        #
+        # print(f"JSON file '{filename}' created successfully.")
+
         self.map_state = self.map_frequencies.copy()
 
         if self.use_gui:
@@ -290,6 +302,19 @@ class TimingMazeGame:
             self.play_game()
 
     def validate_maze(self):
+        # Check the size of the map
+        if self.map_frequencies.shape != (constants.map_dim, constants.map_dim, 4):
+            print("Error with map size")
+            return False
+
+        # Check that all doors have a frequency between 0 and max_door_frequency
+        for i in range(constants.map_dim):
+            for j in range(constants.map_dim):
+                for k in range(4):
+                    if self.map_frequencies[i][j][k] < 0 or self.map_frequencies[i][j][k] > self.max_door_frequency:
+                        print("Error with frequency")
+                        return False
+
         # Check that all boundary doors have n=0 in map_frequencies.
         for i in range(constants.map_dim):
             if self.map_frequencies[0][i][constants.DOWN] != 0:
