@@ -1,29 +1,39 @@
 import json
 import os
+import sys
+import threading
 import time
 import signal
 import numpy as np
 import math
-import matplotlib.pyplot as plt
-from matplotlib import colors
+import pygame
 from timing_maze_state import TimingMazeState
+from constants import *
 import constants
 from utils import *
 from glob import glob
 from players.default_player import Player as DefaultPlayer
 from collections import deque as queue
+import queue as queue2
 
 # Direction vectors
-dRow = [0, 1, 0, -1]
-dCol = [-1, 0, 1, 0]
 
 class TimingMazeGame:
+    dRow = [0, 1, 0, -1]
+    dCol = [-1, 0, 1, 0]
+
+    # Colors
+    COLORS = {
+        'player': GREEN,
+        'flag': RED,
+        'door': BLACK
+    }
+
     def __init__(self, args):
         self.cur_pos = None
         self.end_pos = None
         self.start_time = time.time()
         self.use_gui = not args.no_gui
-        self.use_vid = not args.no_vid
         self.do_logging = not args.disable_logging
         if not self.use_gui:
             self.use_timeout = not args.disable_timeout
@@ -88,28 +98,76 @@ class TimingMazeGame:
         self.map_state = np.zeros((constants.map_dim, constants.map_dim, 4), dtype=int)
         self.map_frequencies = np.zeros((constants.map_dim, constants.map_dim, 4), dtype=int)
 
-        self.after_last_move = None
-        self.history = []
-
-        self.initialize(args.maze)
         self.add_player(args.player)
-        self.play_game()
-        self.end_time = time.time()
+        self.initialize(args.maze)
 
-        print("\nTime taken: {}\nValid moves: {}\n".format(self.end_time - self.start_time, self.valid_moves))
+    def draw_grid(self):
+        for x in range(0, WINDOW_SIZE, CELL_SIZE):
+            for y in range(0, WINDOW_SIZE, CELL_SIZE):
+                rect = pygame.Rect(x, y, CELL_SIZE, CELL_SIZE)
+                pygame.draw.rect(self.screen, WHITE, rect, 1)
 
-        if self.use_vid:
-            if not self.use_gui:
-                print("Rendering Frames...")
-                self.frame_rendering_post()
-                final_time = time.time()
-                print("\nTime taken to render frames: {}\n".format(final_time - self.end_time))
-            print("Creating Video...\n")
-            os.system(
-                "convert -delay 5 -loop 0 $(ls -1 render/*.png | sort -V) -quality 95 {}.mp4".format(args.vid_name))
+    def draw_player(self, cur_pos):
+        x, y = cur_pos
+        # Flip this value as the y-axis is flipped in pygame
+        y = constants.map_dim - y - 1
+        pygame.draw.rect(self.screen, self.COLORS['player'], pygame.Rect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE))
 
-        if self.use_gui:
-            plt.show()
+    def draw_flag(self):
+        x, y = self.end_pos[0], self.end_pos[1]
+        # Flip this value as the y-axis is flipped in pygame
+        y = constants.map_dim - y - 1
+        pygame.draw.rect(self.screen, self.COLORS['flag'], pygame.Rect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE))
+
+    def draw_door(self, doors):
+        for x in range(constants.map_dim):
+            for col in range(constants.map_dim):
+                # Flip this value as the y-axis is flipped in pygame
+                y = constants.map_dim - col - 1
+                print(x, y, doors[x][y])
+                for direction in range(4):
+                    if doors[x][y][direction] != 1:
+                        if direction == constants.LEFT:
+                            start_pos = (x * CELL_SIZE, y * CELL_SIZE)
+                            end_pos = (x * CELL_SIZE, y * CELL_SIZE + CELL_SIZE)
+                        elif direction == constants.RIGHT:
+                            start_pos = (x * CELL_SIZE + CELL_SIZE, y * CELL_SIZE)
+                            end_pos = (x * CELL_SIZE + CELL_SIZE, y * CELL_SIZE + CELL_SIZE)
+                        elif direction == constants.UP:
+                            start_pos = (x * CELL_SIZE, y * CELL_SIZE)
+                            end_pos = (x * CELL_SIZE + CELL_SIZE, y * CELL_SIZE)
+                        elif direction == constants.DOWN:
+                            start_pos = (x * CELL_SIZE, y * CELL_SIZE + CELL_SIZE)
+                            end_pos = (x * CELL_SIZE + CELL_SIZE, y * CELL_SIZE + CELL_SIZE)
+
+                        pygame.draw.line(self.screen, self.COLORS['door'], start_pos, end_pos, 2)
+
+    def pygame_loop(self, q, cur_pos, map_state):
+        pygame.init()
+        # Initialize screen
+        self.screen = pygame.display.set_mode((WINDOW_SIZE, WINDOW_SIZE))
+        pygame.display.set_caption('Timing Maze Game')
+        running = True
+
+        while running:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+
+            while not q.empty():
+                cur_pos, map_state, running = q.get()
+
+            self.screen.fill(WHITE)
+            self.draw_grid()
+            self.draw_player(cur_pos)
+            self.draw_flag()
+            self.draw_door(map_state)
+            pygame.display.flip()
+            # Add a small delay to reduce CPU usage
+            time.sleep(constants.GUI_SLEEP/3)
+        pygame.quit()
+        sys.exit()
 
     def add_player(self, player_in):
         if player_in in constants.possible_players:
@@ -219,12 +277,17 @@ class TimingMazeGame:
                 print("Retrying to generate a valid maze...")
 
         print("Maze created successfully...")
-        self.map_state = self.map_frequencies
+        self.map_state = self.map_frequencies.copy()
 
         if self.use_gui:
-            self.frame_rendering()
-        if self.use_vid:
-            self.history.append(self.get_state())
+            q = queue2.Queue()
+            bg_thread = threading.Thread(target=self.play_game, args=(q,), daemon=True)
+            bg_thread.start()
+            print("pygame", 0)
+
+            self.pygame_loop(q, self.cur_pos.copy(), self.map_state.copy())
+        else:
+            self.play_game()
 
     def validate_maze(self):
         # Check that all boundary doors have n=0 in map_frequencies.
@@ -251,8 +314,7 @@ class TimingMazeGame:
             print("Error with end")
             return False
 
-
-        # Check if all cells are reachable from one-another,
+        # Check if all cells are reachable from one-another
         # Create an undirected graph and check if the map is valid by looking for islands in the graph.
 
         # Create a graph of the map with the doors as edges and a valid path if both doors are open at anytime.
@@ -298,19 +360,23 @@ class TimingMazeGame:
             for door_type in range(4):
                 if graph[row][col][door_type] == 1:
                     # Get the adjacent cell
-                    adj_x = row + dRow[door_type]
-                    adj_y = col + dCol[door_type]
+                    adj_x = row + self.dRow[door_type]
+                    adj_y = col + self.dCol[door_type]
                     if 0 <= adj_x < constants.map_dim and  0 <= adj_y < constants.map_dim and visited[adj_x][adj_y] == 0:
                         q.append((adj_x, adj_y))
                         visited[adj_x][adj_y] = 1
 
         return visited_count == constants.total_cells
 
-    def play_game(self):
+    def play_game(self, q=None):
+        # Sleep needed to let pygame initialize
+        time.sleep(constants.GUI_SLEEP)
+
         while self.turns != self.max_turns:
             self.turns += 1
-            self.play_turn()
+            self.play_turn(q)
             print("Turn {} complete".format(self.turns))
+
             if self.cur_pos[0] == self.end_pos[0] and self.cur_pos[1] == self.end_pos[1]:
                 self.goal_reached = True
                 print("Goal reached!\n\n Turns taken: {}\n".format(self.turns))
@@ -319,13 +385,19 @@ class TimingMazeGame:
         if not self.goal_reached:
             print("Goal not reached...\n\n")
 
+        if self.use_gui:
+            q.put((self.cur_pos.copy(), self.map_state.copy(), False))
+
+        self.end_time = time.time()
+        print("\nTime taken: {}\nValid moves: {}\n".format(self.end_time - self.start_time, self.valid_moves))
+
 
     # Check that the map has a start and end door.
     # Need to check if all cells are reachable from one another,
     # For this if a pair of doors between two cells are both non-zero. Then, This intersection between the two cells is a valid path otherwise not.
     # So we can create an undirected graph and check if the map is valid by looking for islands in the graph.
 
-    def play_turn(self):
+    def play_turn(self, q):
         # Get the drone visual for a radius of r
         maze_state, is_end_visible = self.get_drone_visual()
 
@@ -365,11 +437,12 @@ class TimingMazeGame:
             print("Invalid move")
             self.logger.info("Invalid move from {} as it doesn't follow the return format".format(self.player_name))
 
+        if self.use_gui:
+            q.put((self.cur_pos.copy(), self.map_state.copy(), True))
+
         self.update_door_state()
         if self.use_gui:
-            self.frame_rendering()
-        if self.use_vid:
-            self.history.append(self.get_state())
+            time.sleep(constants.GUI_SLEEP)
 
     @staticmethod
     def is_valid(row, col, vis):
@@ -532,8 +605,8 @@ class TimingMazeGame:
 
             # Go to the adjacent cells
             for i in range(4):
-                adj_x = row + dRow[i]
-                adj_y = col + dCol[i]
+                adj_x = row + self.dRow[i]
+                adj_y = col + self.dCol[i]
                 if self.is_valid(adj_x, adj_y, vis):
                     q.append((adj_x, adj_y))
                     vis[adj_x][adj_y] = True
@@ -597,127 +670,3 @@ class TimingMazeGame:
         return_dict['map_state'] = self.map_state
         return_dict['cur_pos'] = self.cur_pos
         return return_dict
-
-    #     ax.set_xticklabels([])
-    #     ax.set_yticklabels([])
-    #     ax.xaxis.set_ticks_position("none")
-    #     ax.yaxis.set_ticks_position("none")
-    #
-    #     ax.set_aspect(1)
-    #     ax.invert_yaxis()
-    #
-    #     msg = "In progress..."
-    def frame_rendering(self):
-        plt.clf()
-        plt.title(
-            "Turn {} - (m = {}, Radius = {})".format(self.turns, self.max_door_frequency, self.radius))
-        ax = plt.gca()
-
-        cmap = colors.ListedColormap(["#000000", "#666666", "#90EE90", "#02FFFF"])
-        bounds = [-1, 0, 1, 2, 3]
-        norm = colors.BoundaryNorm(bounds, cmap.N)
-        x, y = np.meshgrid(list(range(100)), list(range(100)))
-        plt.pcolormesh(
-            x + 0.5,
-            y + 0.5,
-            np.transpose(self.map_state),
-            cmap=cmap,
-            norm=norm,
-        )
-        '''
-        for x, y in state['bacteria']:
-            plt.plot(
-                x + 0.5,
-                y + 0.5,
-                color="black",
-                marker="o",
-                markersize=1,
-                markeredgecolor="black",
-            )
-        '''
-        ax.set_xlim([0, 100])
-        ax.set_ylim([0, 100])
-        msg = "In progress..."
-        if self.cur_pos == self.end_pos:
-            msg = "End position reached!"
-        elif self.turns == self.max_turns:
-            msg = "Goal not achieved."
-        elif self.turns == 0:
-            msg = "Starting state."
-
-        cell_values = [["{}".format(self.map_state)], [msg]]
-
-        plt.table(
-            cellText=cell_values,
-            cellLoc='center',
-            rowLabels=['Map Size'],
-            colLabels=[self.player_name],
-        )
-        plt.savefig("render/{}.png".format(self.turns))
-
-        if self.use_gui:
-            plt.pause(0.025)
-
-    def frame_rendering_post(self):
-        os.makedirs("render", exist_ok=True)
-
-        old_files = glob("render/*.png")
-        for f in old_files:
-            os.remove(f)
-
-        for i, state in enumerate(self.history):
-            plt.clf()
-            plt.title("Turn {} - (m = {}, A = {}, d = {})".format(i, self.cur_pos, self.start_size, self.density))
-            ax = plt.gca()
-
-            cmap = colors.ListedColormap(["#000000", "#666666", "#90EE90", "#02FFFF"])
-            bounds = [-1, 0, 1, 2, 3]
-            norm = colors.BoundaryNorm(bounds, cmap.N)
-            x, y = np.meshgrid(list(range(100)), list(range(100)))
-            plt.pcolormesh(
-                x + 0.5,
-                y + 0.5,
-                np.transpose(state['map_state']),
-                cmap=cmap,
-                norm=norm,
-            )
-            '''
-            for x, y in state['bacteria']:
-                plt.plot(
-                    x + 0.5,
-                    y + 0.5,
-                    color="black",
-                    marker="o",
-                    markersize=1,
-                    markeredgecolor="black",
-                )
-            '''
-            ax.set_xticklabels([])
-            ax.set_yticklabels([])
-            ax.xaxis.set_ticks_position("none")
-            ax.yaxis.set_ticks_position("none")
-
-            ax.set_aspect(1)
-            ax.set_xlim([0, 100])
-            ax.set_ylim([0, 100])
-            ax.invert_yaxis()
-
-            msg = "In progress..."
-            cur_pos = state['cur_pos']
-            if cur_pos[0] == self.end_pos[0] and cur_pos[1] == self.end_pos[1]:
-                msg = "Goal reached!"
-            elif i == self.max_turns:
-                msg = "Goal size not achieved."
-            elif i == 0:
-                msg = "Starting state."
-
-            cell_values = [["{}".format(state['map_state'])], [msg]]
-
-            plt.table(
-                cellText=cell_values,
-                cellLoc='center',
-                rowLabels=['Maze state'],
-                colLabels=[self.player_name],
-            )
-
-            plt.savefig("render/{}.png".format(i))

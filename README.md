@@ -1,4 +1,4 @@
-# Project 4: Amoeba
+# Project 1: Timing Maze Game
 
 ## Citation and License
 This project belongs to Department of Computer Science, Columbia University. It may be used for educational purposes under Creative Commons **with proper attribution and citation** for the author TAs **Divyang Mittal (First Author) and the Instructor, Prof. Kenneth Ross**.

@@ -24,3 +24,13 @@ OPEN = 2
 BOUNDARY = 3
 
 timeout = 60 * 10
+
+CELL_SIZE = 9
+WINDOW_SIZE = map_dim * CELL_SIZE
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+BLUE = (0, 0, 255)
+
+GUI_SLEEP = 1

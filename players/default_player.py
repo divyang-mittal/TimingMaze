@@ -79,7 +79,6 @@ class Player:
                     if (maze_state[0] == -1 and maze_state[1] == 0 and maze_state[2] == constants.UP
                             and maze_state[3] == constants.OPEN):
                         return constants.DOWN
-            print(4)
             return constants.WAIT
         else:
             if direction[constants.RIGHT] == constants.OPEN:
