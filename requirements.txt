@@ -1,6 +1,4 @@
 numpy
-remi
-matplotlib
 scipy==1.9.3
 pandas
 pygame
