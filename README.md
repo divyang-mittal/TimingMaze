@@ -1,7 +1,7 @@
 # Project 1: Timing Maze Game
 
 ## Citation and License
-This project belongs to Department of Computer Science, Columbia University. It may be used for educational purposes under Creative Commons **with proper attribution and citation** for the author TAs **Divyang Mittal (First Author) and the Instructor, Prof. Kenneth Ross**.
+This project belongs to Department of Computer Science, Columbia University. It may be used for educational purposes under Creative Commons **with proper attribution and citation** for the author TAs **Divyang Mittal (First Author), Raavi Gupta and the Instructor, Prof. Kenneth Ross**.
 
 ## Summary
 
@@ -18,6 +18,7 @@ Divyang Mittal
 
 ### Teaching Assistants for Course
 1. Divyang Mittal
+2. Raavi Gupta
 
 ### All course projects
 
@@ -30,8 +31,6 @@ Install simulator packages only
 ```bash
 pip install -r requirements.txt
 ```
-
-Note: ImageMagick is needed for the video to be rendered.
 
 ## Usage
 
