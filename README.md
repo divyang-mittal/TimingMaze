@@ -32,6 +32,11 @@ Install simulator packages only
 pip install -r requirements.txt
 ```
 
+To install tkinter on macOS, run the following command:
+```bash
+brew install python-tk@3.X
+```
+
 ## Usage
 
 ```bash

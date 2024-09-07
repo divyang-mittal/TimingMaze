@@ -34,6 +34,8 @@ class TimingMazeGame:
         self.start_time = time.time()
         self.use_gui = not args.no_gui
         self.do_logging = not args.disable_logging
+        self.is_paused = False
+
         if not self.use_gui:
             self.use_timeout = not args.disable_timeout
         else:
@@ -141,6 +143,23 @@ class TimingMazeGame:
 
                         pygame.draw.line(self.screen, self.COLORS['door'], start_pos, end_pos, 2)
 
+    def draw_button(self):
+        """Draw a 'Pause' button."""
+        button_color = (0, 255, 0) if not self.is_paused else (255, 0, 0)
+        pygame.draw.rect(self.screen, button_color, (700, 20, 80, 40))  # Draw button
+        font = pygame.font.SysFont(None, 55)
+        button_text = font.render("Pause" if not self.is_paused else "Resume", True, (0, 0, 0))
+        self.screen.blit(button_text, (705, 25))  # Display button text
+
+    def toggle_pause(self):
+        """Toggle the game's paused state."""
+        self.is_paused = not self.is_paused
+
+    def check_button_click(self, pos):
+        """Check if the 'Pause' button was clicked."""
+        if 700 <= pos[0] <= 780 and 20 <= pos[1] <= 60:  # Button coordinates
+            self.toggle_pause()
+
     def pygame_loop(self, q, cur_pos, map_state):
         pygame.init()
         # Initialize screen
@@ -153,6 +172,8 @@ class TimingMazeGame:
                 if event.type == pygame.QUIT:
                     pygame.quit()
                     sys.exit()
+                elif event.type == pygame.MOUSEBUTTONDOWN:
+                    self.check_button_click(pygame.mouse.get_pos())
 
             while not q.empty():
                 cur_pos, map_state, running = q.get()
@@ -162,6 +183,7 @@ class TimingMazeGame:
             self.draw_player(cur_pos)
             self.draw_flag()
             self.draw_door(map_state)
+            self.draw_button()
             pygame.display.flip()
             # Add a small delay to reduce CPU usage
             time.sleep(constants.GUI_SLEEP/3)

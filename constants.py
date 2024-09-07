@@ -34,3 +34,5 @@ GREEN = (0, 255, 0)
 BLUE = (0, 0, 255)
 
 GUI_SLEEP = 1
+
+# pause, fast forward , number of turns on ui, start position, two doors visible
