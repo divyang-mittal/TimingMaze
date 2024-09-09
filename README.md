@@ -24,9 +24,7 @@ Divyang Mittal
 
 ## Installation
 
-Requires **python3.6** or higher
-
-Install simulator packages only
+Requires **python3.10** or higher
 
 ```bash
 pip install -r requirements.txt
@@ -39,10 +37,13 @@ brew install python-tk@3.X
 
 ## Usage
 
+To view all options use python3 main.py -h
 ```bash
-python main.py
+python3 main.py [-m/--max_door_frequency] [-r/--radius] [-s/--seed] [-mz/--maze] [-sc/--scale] [-T/--turns] 
+      [-ng/--no_gui] [-p/--player]
 ```
 
 ## Debugging
 
-The code generates a `log/debug.log` (detailed), `log/results.log` (minimal) and `log\<player_name>.log` (logs from player) on every execution, detailing all the turns and steps in the game.
+The code generates a `log/debug.log` (detailed), `log/results.log` (minimal) and `log\<player_name>.log` 
+(logs from player) on every execution, detailing all the turns and steps in the game.

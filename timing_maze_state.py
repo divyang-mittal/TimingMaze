@@ -1,5 +1,5 @@
 class TimingMazeState:
-    def __init__(self, maze_state, is_end_visible, end_y, end_x):
+    def __init__(self, maze_state, is_end_visible, end_x, end_y):
         """
             Args:
                 maze_state (List[List[int]]): 2D list of integers representing the maze state
