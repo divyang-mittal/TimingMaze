@@ -664,13 +664,13 @@ class TimingMazeGame:
 
                 # Draw the cell's doors based on door_states
                 if self.map_state[i][j][constants.UP] != 1:  # Top door
-                    self.canvas.create_line(x1, y1, x2, y1, fill="blue")
+                    self.canvas.create_line(x1, y1+0.5, x2, y1+0.5, fill="blue", width = 0.5)
                 if self.map_state[i][j][constants.RIGHT] != 1:  # Right door
-                    self.canvas.create_line(x2, y1, x2, y2, fill="blue")
+                    self.canvas.create_line(x2-0.5, y1, x2-0.5, y2, fill="blue", width = 0.5)
                 if self.map_state[i][j][constants.DOWN] != 1:  # Bottom door
-                    self.canvas.create_line(x1, y2, x2, y2, fill="red")
+                    self.canvas.create_line(x1, y2-0.5, x2, y2-0.5, fill="red", width = 0.5)
                 if self.map_state[i][j][constants.LEFT] != 1:  # Left door
-                    self.canvas.create_line(x1, y1, x1, y2, fill="red")
+                    self.canvas.create_line(x1+0.5, y1, x1+0.5, y2, fill="red", width = 0.5)
 
         # Mark the start, cur, and end positions
         self.mark_position(self.start_pos, "green")
