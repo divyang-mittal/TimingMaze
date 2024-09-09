@@ -715,4 +715,4 @@ class TimingMazeGame:
         if withCircle:
             cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
             r = self.radius*constants.CELL_SIZE
-            self.canvas.create_oval(cx - r, cy - r, cx + r, cy + r, fill="", outline="lightblue", width=1)
+            self.canvas.create_oval(cx - r, cy - r, cx + r, cy + r, fill="", outline="blue", width=1)
