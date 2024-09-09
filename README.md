@@ -6,8 +6,8 @@ This project belongs to Department of Computer Science, Columbia University. It 
 ## Summary
 
 Course: COMS 4444 Programming and Problem Solving (Fall 2024)  
-Problem Description: http://www.cs.columbia.edu/~kar/4444f22/node21.html  
-Course Website: http://www.cs.columbia.edu/~kar/4444f22  
+Problem Description: https://www.cs.columbia.edu/~kar/4444f24/node18.html 
+Course Website: https://www.cs.columbia.edu/~kar/4444f24/
 University: Columbia University  
 Instructor: Prof. Kenneth Ross  
 Project Language: Python
