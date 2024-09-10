@@ -4,11 +4,13 @@ import os
 import numpy as np
 
 max_door_frequency = 15
+capped_door_frequency = 3
+
 
 map_frequencies = np.ones((100, 100, 4), dtype=int)
 
-cur_pos = np.array([25, 25])
-end_pos = np.array([75, 75])
+cur_pos = np.array([0, 0])
+end_pos = np.array([99, 99])
 
 LEFT = 0
 UP = 1
@@ -18,11 +20,9 @@ DOWN = 3
 for i in range(100):
     for j in range(100):
         for k in range(4):
-            if np.random.default_rng().random() < 0.05:
-                map_frequencies[i][j][k] = 0
-            else:
-                map_frequencies[i][j][k] = np.random.default_rng().integers(1, max_door_frequency)
+            map_frequencies[i][j][k] = np.random.default_rng().integers(1, min(capped_door_frequency, max_door_frequency)+1)
 
+# TODO: move to the bottom
 for i in range (100):
     map_frequencies[0][i][LEFT] = 0
     map_frequencies[99][i][RIGHT] = 0
@@ -37,7 +37,7 @@ data = {
     "end_pos": end_pos.tolist()
 }
 
-filename = 'g1_hard.json'
+filename = 'g1_easy.json'
 with open(os.path.join(os.path.dirname(__file__), filename), 'w') as json_file:
     json.dump(data, json_file, indent=4)
 
