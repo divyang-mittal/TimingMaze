@@ -47,3 +47,7 @@ python3 main.py [-m/--max_door_frequency] [-r/--radius] [-s/--seed] [-mz/--maze]
 
 The code generates a `log/debug.log` (detailed), `log/results.log` (minimal) and `log\<player_name>.log` 
 (logs from player) on every execution, detailing all the turns and steps in the game.
+
+python3 main.py -m 5 -r 40 -s 7 -mz "maps/default/simple.json" -ng
+
+maze_state = [[x1, y1, door_type_1, door_state_1], [x2, y2, door_type_2, door_state_2] [x, y, door_type_3, door_state_3]]
