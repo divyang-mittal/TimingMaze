@@ -15,3 +15,10 @@ result.csv
 testing.py
 testing.sh
 amoeba_game_test.py
+venv/
+env/
+*.pyc
+__pycache__/
+project1/lib/
+project1/bin/
+project1/pyvenv.cfg
