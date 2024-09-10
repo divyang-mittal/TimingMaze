@@ -356,7 +356,8 @@ class TimingMazeGame:
 
         # Create the state object for the player
         before_state = TimingMazeState(maze_state, is_end_visible,
-                                       self.end_pos[0]-self.cur_pos[0], self.end_pos[1]-self.cur_pos[1])
+                                       self.end_pos[0]-self.cur_pos[0], self.end_pos[1]-self.cur_pos[1],
+                                       self.start_pos[0]-self.cur_pos[0], self.start_pos[1]-self.cur_pos[1])
         returned_action = None
         if not self.player_timeout:
             player_start = time.time()
