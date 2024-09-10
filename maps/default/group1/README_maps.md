@@ -27,4 +27,3 @@ What makes a map not difficult:
 
 - taking many steps to complete the route
 - taking an indirect route
--
