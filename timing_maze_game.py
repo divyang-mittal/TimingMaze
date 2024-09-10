@@ -208,16 +208,17 @@ class TimingMazeGame:
         print("Maze created successfully...")
 
         # Uncomment to save the maze in a json file
-        # data = {
-        #     "frequencies": self.map_frequencies.tolist(),
-        #     "start_pos": self.cur_pos.tolist(),
-        #     "end_pos": self.end_pos.tolist()
-        # }
-        # filename = 'data.json'
-        # with open(filename, 'w') as json_file:
-        #     json.dump(data, json_file, indent=4)
-        #
-        # print(f"JSON file '{filename}' created successfully.")
+        data = {
+            "frequencies": self.map_frequencies.tolist(),
+            "start_pos": self.cur_pos.tolist(),
+            "end_pos": self.end_pos.tolist()
+        }
+        filename = 'data.json'
+        file_path = os.path.join(os.getcwd(), filename)
+        with open(filename, 'w') as json_file:
+            json.dump(data, json_file, indent=4)
+        
+        print(f"JSON file '{filename}' created successfully at {file_path}")
 
         self.map_state = self.map_frequencies.copy()
 
