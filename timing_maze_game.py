@@ -268,6 +268,10 @@ class TimingMazeGame:
             print("Error with end")
             return False
 
+        if self.cur_pos[0] == self.end_pos[0] and self.cur_pos[1] == self.end_pos[1]:
+            print("Error with start and end")
+            return False
+
         # Check if all cells are reachable from one-another
         # Create an undirected graph and check if the map is valid by looking for islands in the graph.
 
@@ -710,11 +714,11 @@ class TimingMazeGame:
     def mark_position(self, pos, color, withCircle = False):
         x, y = pos
 
-        x1, y1 = self.x_offset + x * constants.CELL_SIZE + 2, self.y_offset + y * constants.CELL_SIZE + 2
-        x2, y2 = x1+5, y1+5
+        x1, y1 = self.x_offset + x * constants.CELL_SIZE + constants.CELL_SIZE / 5, self.y_offset + y * constants.CELL_SIZE + constants.CELL_SIZE / 5
+        x2, y2 = x1 + constants.CELL_SIZE * 2/3, y1 + constants.CELL_SIZE * 2/3
         self.canvas.create_rectangle(x1, y1, x2, y2, fill=color)
 
         if withCircle:
-            cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
+            cx, cy = self.x_offset + x * constants.CELL_SIZE + constants.CELL_SIZE/2, self.y_offset + y * constants.CELL_SIZE + constants.CELL_SIZE/2
             r = self.radius*constants.CELL_SIZE
             self.canvas.create_oval(cx - r, cy - r, cx + r, cy + r, fill="", outline="blue", width=1)
