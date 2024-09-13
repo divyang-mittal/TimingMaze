@@ -51,7 +51,7 @@ class G6_Player:
         pass
 
     def __explore(self) -> Move:
-        return Move.LEFT
+        return Move.LEFT.value
 
     def __exploit(self, current_state: TimingMazeState) -> Move:
         if random.random() < 0.1:
