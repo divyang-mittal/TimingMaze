@@ -54,9 +54,6 @@ class G6_Player:
         return Move.LEFT
 
     def __exploit(self, current_state: TimingMazeState) -> Move:
-        print(f"Start: x: {current_state.start_x}, y: {current_state.start_y}")
-        print(f"End: x: {current_state.end_x}, y: {current_state.end_y}")
-
         if random.random() < 0.1:
             return random.choice(list(Move))
 
