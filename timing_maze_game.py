@@ -214,10 +214,11 @@ class TimingMazeGame:
         #     "end_pos": self.end_pos.tolist()
         # }
         # filename = 'data.json'
+        # file_path = os.path.join(os.getcwd(), filename)
         # with open(filename, 'w') as json_file:
         #     json.dump(data, json_file, indent=4)
         #
-        # print(f"JSON file '{filename}' created successfully.")
+        # print(f"JSON file '{filename}' created successfully at {file_path}")
 
         self.map_state = self.map_frequencies.copy()
 
@@ -265,6 +266,10 @@ class TimingMazeGame:
 
         if self.end_pos[0] < 0 or self.end_pos[0] >= constants.map_dim or self.end_pos[1] < 0 or self.end_pos[1] >= constants.map_dim:
             print("Error with end")
+            return False
+
+        if self.cur_pos[0] == self.end_pos[0] and self.cur_pos[1] == self.end_pos[1]:
+            print("Error with start and end")
             return False
 
         # Check if all cells are reachable from one-another
@@ -709,11 +714,11 @@ class TimingMazeGame:
     def mark_position(self, pos, color, withCircle = False):
         x, y = pos
 
-        x1, y1 = self.x_offset + x * constants.CELL_SIZE + 2, self.y_offset + y * constants.CELL_SIZE + 2
-        x2, y2 = x1+5, y1+5
+        x1, y1 = self.x_offset + x * constants.CELL_SIZE + constants.CELL_SIZE / 5, self.y_offset + y * constants.CELL_SIZE + constants.CELL_SIZE / 5
+        x2, y2 = x1 + constants.CELL_SIZE * 2/3, y1 + constants.CELL_SIZE * 2/3
         self.canvas.create_rectangle(x1, y1, x2, y2, fill=color)
 
         if withCircle:
-            cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
+            cx, cy = self.x_offset + x * constants.CELL_SIZE + constants.CELL_SIZE/2, self.y_offset + y * constants.CELL_SIZE + constants.CELL_SIZE/2
             r = self.radius*constants.CELL_SIZE
             self.canvas.create_oval(cx - r, cy - r, cx + r, cy + r, fill="", outline="blue", width=1)
