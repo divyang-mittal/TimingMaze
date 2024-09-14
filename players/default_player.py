@@ -2,9 +2,84 @@ import os
 import pickle
 import numpy as np
 import logging
+from utils import get_divisors
 
 import constants
 from timing_maze_state import TimingMazeState
+
+class MemoryDoor:
+    def __init__(self):
+        self.is_certain_freq = False
+        self.observations = {} # {turn : 1 - Closed / 2 - Open / 3 - Boundary}
+        self.freq_distribution = []
+
+    def update_observations(self, door_state, turn):
+        # Updates observed freqs, runs get_freq
+        self.observations[turn] = door_state
+        self.freq_distribution = self.get_freq()
+        if len(self.freq_distribution) == 1:
+            self.is_certain_freq = True
+    
+    def get_freq(self):
+        # Tries to find the frequency given observed, returns a probability distribution
+        possible_open_frequencies = set()
+        closed_frequencies = set()
+
+        # Iterate over the frequency conditions
+        for freq, status in self.observations.items():
+            if status == 2:
+                # Add all divisors of the frequency if it's open
+                if not possible_open_frequencies:
+                    possible_open_frequencies = get_divisors(freq)
+                else:
+                    possible_open_frequencies &= get_divisors(freq)
+            else:
+                # Add all divisors of the closed frequency
+                closed_frequencies |= get_divisors(freq)
+
+        # Remove any closed frequencies from the possible open set
+        possible_open_frequencies -= closed_frequencies
+
+        # Assign equal probabilities to each remaining frequency
+        total_frequencies = len(possible_open_frequencies)
+        probability_distribution = {
+            freq: 1/total_frequencies for 
+            freq in possible_open_frequencies} if total_frequencies > 0 else {}
+
+        return probability_distribution
+    
+
+class MemorySquare:
+    def __init__(self):
+        left = MemoryDoor()
+        up = MemoryDoor()
+        right = MemoryDoor()
+        down = MemoryDoor()
+        self.doors = {constants.LEFT:left, constants.UP:up, constants.RIGHT:right, constants.DOWN:down}
+
+class PlayerMemory:
+    def __init__(self, map_size: int = 100):
+        self.memory = [[MemorySquare() for _ in range(map_size * 2)] for _ in range(map_size * 2)]
+        self.pos = (map_size, map_size)
+    
+    def update_memory(self, state, turn):
+        # state = [door] = (row_offset, col_offset, door_type, door_status)
+        for s in state:
+            square = self.memory[self.pos[0] + s[0]][self.pos[1] + s[1]]
+            door = square.doors[s[2]]
+            door_state = s[3]
+            door.update_observations(door_state, turn)
+
+    def update_pos(self, move):
+        if move == constants.LEFT:
+            self.pos[1] -= 1
+        if move == constants.UP:
+            self.pos[0] -= 1
+        if move == constants.RIGHT:
+            self.pos[1] += 1
+        if move == constants.DOWN:
+            self.pos[0] += 1
+
 
 
 class Player:
