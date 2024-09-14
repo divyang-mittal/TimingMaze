@@ -1,4 +1,5 @@
 from timing_maze_game import TimingMazeGame
+import tkinter as tk
 
 
 class Namespace:
