@@ -68,6 +68,12 @@ class Player:
         # we want to build graph with PlayerMemory (self.memory)
         currentGraph = build_graph_from_memory(self.memory)
         minDistanceArray, parent = findShortestPathsToEachNode(currentGraph, (100, 100), turnNumber=self.turn)
+
+        ## Look at minDistance Array and see where we can get too.. And decide where to go.
+        currentGraph.reconstruct_path(parent, (100, 100), ##"Node we want to go to"##)
+
+
+        
         # currentGraph.visualize_graph_in_grid()
         print("yay")
         # if self.turn % 10 == 0 and self.turn != 0:
