@@ -5,6 +5,9 @@ import networkx as nx
 import matplotlib.pyplot as plt
 from math import lcm
 import constants
+from utils import get_divisors
+import numpy as np
+
 
 
 class MemoryDoor:
@@ -49,6 +52,25 @@ class MemoryDoor:
 
         return probability_distribution
     
+    def roll_freq(self):
+        # Returns a frequency based on the distribution
+            # Calculate cumulative distribution
+        cumulative_dist = []
+        cumulative_sum = 0
+        for freq, prob in self.freq_distribution.items():
+            cumulative_sum += prob
+            cumulative_dist.append((cumulative_sum, freq))
+        
+        rand = np.random.random()
+        
+        # Choose the frequency based on the random number
+        for cumulative_prob, freq in cumulative_dist:
+            if rand <= cumulative_prob:
+                return freq
+
+        # In case the random number is exactly 1, return the last frequency
+        return cumulative_dist[-1][1]
+        
 
 class MemorySquare:
     def __init__(self):
@@ -80,20 +102,6 @@ class PlayerMemory:
             self.pos[1] += 1
         if move == constants.DOWN:
             self.pos[0] += 1
-
-def addEdgeFrequencies(mem_map) -> list[list[Square]]:
-    mapDim = len(mem_map)
-    for i in range(mapDim):
-        for j in range(mapDim):
-            if i == 0:
-                mem_map[i][j].upFreq = 0
-            if i == mapDim - 1:
-                mem_map[i][j].downFreq = 0
-            if j == 0:
-                mem_map[i][j].leftFreq = 0
-            if j == mapDim - 1:
-                mem_map[i][j].rightFreq = 0
-    return mem_map
 
 class MazeGraph:
     def __init__(self, graph: dict = {}):
@@ -214,29 +222,29 @@ def build_graph_from_memory(player_memory: PlayerMemory) -> MazeGraph:
             if j > 0:
                 leftSquare: MemorySquare = player_memory.memory[i][j - 1]
                 graph.add_bidirectional_edge((i, j), neighbors['left'],
-                                             currMemSquare.doors[constants.LEFT],
-                                            leftSquare.doors[constants.RIGHT])
+                                                currMemSquare.doors[constants.LEFT].roll_freq(),
+                                                leftSquare.doors[constants.RIGHT].roll_freq())
 
             # Right neighbor exists 
             if j < len(player_memory.memory[0]) - 1:  
                 rightSquare: MemorySquare = player_memory.memory[i][j + 1]
                 graph.add_bidirectional_edge((i, j), neighbors['right'],
-                                              currMemSquare.doors[constants.RIGHT],
-                                                rightSquare.doors[constants.LEFT])
+                                                currMemSquare.doors[constants.RIGHT].roll_freq(),
+                                                rightSquare.doors[constants.LEFT].roll_freq())
             
             # Up neighbor exists 
             if i > 0: 
                 upSquare: MemorySquare = player_memory.memory[i - 1][j]
                 graph.add_bidirectional_edge((i, j), neighbors['up'],
-                                              currMemSquare.doors[constants.UP],
-                                                upSquare.doors[constants.DOWN])
+                                                currMemSquare.doors[constants.UP].roll_freq(),
+                                                upSquare.doors[constants.DOWN].roll_freq())
             
             # Down neighbor exists
             if i < len(player_memory.memory) - 1:
                 downSquare: MemorySquare = player_memory.memory[i + 1][j]
                 graph.add_bidirectional_edge((i, j), neighbors['down'],
-                                              currMemSquare.doors[constants.DOWN],
-                                                downSquare.upFreq)
+                                                currMemSquare.doors[constants.DOWN].roll_freq(),
+                                                downSquare.doors[constants.UP].roll_freq())
 
     return graph
 
