@@ -30,16 +30,16 @@ class MemoryDoor:
         closed_frequencies = set()
 
         # Iterate over the frequency conditions
-        for freq, status in self.observations.items():
+        for turn, status in self.observations.items():
             if status == 2:
                 # Add all divisors of the frequency if it's open
                 if not possible_open_frequencies:
-                    possible_open_frequencies = get_divisors(freq)
+                    possible_open_frequencies = get_divisors(turn)
                 else:
-                    possible_open_frequencies &= get_divisors(freq)
+                    possible_open_frequencies &= get_divisors(turn)
             else:
                 # Add all divisors of the closed frequency
-                closed_frequencies |= get_divisors(freq)
+                closed_frequencies |= get_divisors(turn)
 
         # Remove any closed frequencies from the possible open set
         possible_open_frequencies -= closed_frequencies
@@ -90,6 +90,8 @@ class PlayerMemory:
     def update_memory(self, state, turn):
         # state = [door] = (row_offset, col_offset, door_type, door_status)
         for s in state:
+            if s[0] == -1 and s[1] == 0:
+                print("ya")
             square = self.memory[self.pos[0] + s[0]][self.pos[1] + s[1]]
             door = square.doors[s[2]]
             door_state = s[3]
