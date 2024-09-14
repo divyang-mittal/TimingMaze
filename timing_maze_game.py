@@ -8,7 +8,7 @@ from timing_maze_state import TimingMazeState
 from constants import *
 import constants
 from utils import *
-from players.default_player import Player as DefaultPlayer
+from players.g6_player import G6_Player as DefaultPlayer
 from collections import deque as queue
 import tkinter as tk
 
