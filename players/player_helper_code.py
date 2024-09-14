@@ -7,14 +7,14 @@ from math import lcm
 import constants
 from utils import get_divisors
 import numpy as np
-
+import heapq
 
 
 class MemoryDoor:
     def __init__(self):
         self.is_certain_freq = False
         self.observations = {} # {turn : 1 - Closed / 2 - Open / 3 - Boundary}
-        self.freq_distribution = []
+        self.freq_distribution = {}
 
     def update_observations(self, door_state, turn):
         # Updates observed freqs, runs get_freq
@@ -55,6 +55,8 @@ class MemoryDoor:
     def roll_freq(self):
         # Returns a frequency based on the distribution
             # Calculate cumulative distribution
+        if self.freq_distribution == {}:
+            return 0
         cumulative_dist = []
         cumulative_sum = 0
         for freq, prob in self.freq_distribution.items():
@@ -183,7 +185,10 @@ class MazeGraph:
         # Draw edge labels (combined frequency of the adjacent doors)
         edge_labels = nx.get_edge_attributes(G, 'weight')
         nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels)
-        plt.show()
+        print("making graph")
+        plt.savefig("graph.png", format="png", dpi=300)
+
+        # plt.show()
 
 def reconstruct_path(parent, startNode, targetNode):
     """Helper function to reconstruct the path from startNode to targetNode using the parent dictionary."""
@@ -249,4 +254,62 @@ def build_graph_from_memory(player_memory: PlayerMemory) -> MazeGraph:
     return graph
 
 
+def findShortestPathsToEachNode(graph: MazeGraph, startNode: tuple, turnNumber: int):
+    dimension = graph.getMazeDimension()
+
+    # Initialize the minDistanceArray with infinity
+    minDistanceArray = [[float('inf')] * dimension for _ in range(dimension)]
+    minDistanceArray[startNode[0]][startNode[1]] = 0  # Start node has distance 0
+
+    # Initialize the parent dictionary to track the shortest path and the turn when we moved to this node
+    # parent[(x, y)] = (parentNode, turnWeMovedToNode)
+    parent = {startNode: (None, turnNumber)}  # Initially at startNode at the given turnNumber
+
+    # Min-heap stores (distance, (x, y) node)
+    minHeap = [(0, startNode)]  # Start node with distance 0
+
+    visitedNodes = set()
+
+    # Process the heap until it is empty
+    while minHeap:
+        turnsToCurrentNode, currentNode = heapq.heappop(minHeap)
+        currentXCoord, currentYCoord = currentNode
+
+        # Skip node if already visited
+        if currentNode in visitedNodes:
+            continue
+
+        visitedNodes.add(currentNode)
+
+        # Get neighbors of the current node from the graph
+        neighbors: dict[tuple, int] = graph.getNeighbors(currentNode)
+        # {(0, 1): [3, 4],
+        # 
+        #  (1, 0): [3, 1]}
+
+        for (xCoordNeighbour, yCoordNeighbour), (node1Freq, node2Freq) in neighbors.items():
+            # Combined Frequency of the doors
+            if node1Freq == 0 or node2Freq == 0:
+                combinedFrequencey = float('inf')
+            else:
+                # LCM is the combined frequency of the doors
+                combinedFrequencey = lcm(node1Freq, node2Freq)
+    
+            # Determine the turn number when we reach this node
+            turnWeWillBeAtThisNode = turnNumber + turnsToCurrentNode
+
+            # Calculate the number of turns we need to wait for the door to open
+            turnsToWait = (combinedFrequencey - (turnWeWillBeAtThisNode % combinedFrequencey)) % combinedFrequencey
+            # at the node at turn 19. 19 % 12 = 7... 12 -7 = 5  % combinedFrequencey = 5
+
+            newTurnsToGetToNeighbor = turnsToCurrentNode + turnsToWait + 1
+
+            # Update the neighbor's distance if a shorter path is found
+            if newTurnsToGetToNeighbor < minDistanceArray[xCoordNeighbour][yCoordNeighbour]:
+                minDistanceArray[xCoordNeighbour][yCoordNeighbour] = newTurnsToGetToNeighbor
+                # Store both the parent node and the turn at which we moved to this neighbor
+                parent[(xCoordNeighbour, yCoordNeighbour)] = (currentNode, turnWeWillBeAtThisNode + turnsToWait + 1)
+                heapq.heappush(minHeap, (newTurnsToGetToNeighbor, (xCoordNeighbour, yCoordNeighbour)))
+
+    return minDistanceArray, parent  # Return both distances and paths
 

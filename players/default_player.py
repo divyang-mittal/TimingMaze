@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import networkx as nx # pip install networkx
 import matplotlib.pyplot as plt # pip install matplotlib
 from math import lcm
-from player_helper_code import generateMemoryMap, build_graph_from_memory, MazeGraph, Square
+from players.player_helper_code import build_graph_from_memory, MazeGraph, PlayerMemory, findShortestPathsToEachNode, reconstruct_path
 
 
 import constants
@@ -63,80 +63,88 @@ class Player:
         """
 
         self.memory.update_memory(current_percept.maze_state, self.turn)
+        # currentGraph = build_graph_from_memory(self.memory)
 
-        currentGraph = build_graph_from_memory(self.memory)
         # we want to build graph with PlayerMemory (self.memory)
+        currentGraph = build_graph_from_memory(self.memory)
+        minDistanceArray, parent = findShortestPathsToEachNode(currentGraph, (100, 100), turnNumber=self.turn)
+        # currentGraph.visualize_graph_in_grid()
+        print("yay")
+        # if self.turn % 10 == 0 and self.turn != 0:
+            
 
+        self.turn += 1
+        return constants.WAIT
 
-        direction = [0, 0, 0, 0]
-        for maze_state in current_percept.maze_state:
-            if maze_state[0] == 0 and maze_state[1] == 0:
-                direction[maze_state[2]] = maze_state[3]
+        # direction = [0, 0, 0, 0]
+        # for maze_state in current_percept.maze_state:
+        #     if maze_state[0] == 0 and maze_state[1] == 0:
+        #         direction[maze_state[2]] = maze_state[3]
 
-        if current_percept.is_end_visible:
-            if abs(current_percept.end_x) >= abs(current_percept.end_y):
-                if current_percept.end_x > 0 and direction[constants.RIGHT] == constants.OPEN:
-                    for maze_state in current_percept.maze_state:
-                        if (maze_state[0] == 1 and maze_state[1] == 0 and maze_state[2] == constants.LEFT
-                                and maze_state[3] == constants.OPEN):
-                            return constants.RIGHT
-                if current_percept.end_x < 0 and direction[constants.LEFT] == constants.OPEN:
-                    for maze_state in current_percept.maze_state:
-                        if (maze_state[0] == -1 and maze_state[1] == 0 and maze_state[2] == constants.RIGHT
-                                and maze_state[3] == constants.OPEN):
-                            return constants.LEFT
-                if current_percept.end_y < 0 and direction[constants.UP] == constants.OPEN:
-                    for maze_state in current_percept.maze_state:
-                        if (maze_state[0] == 0 and maze_state[1] == -1 and maze_state[2] == constants.DOWN
-                                and maze_state[3] == constants.OPEN):
-                            return constants.UP
-                if current_percept.end_y > 0 and direction[constants.DOWN] == constants.OPEN:
-                    for maze_state in current_percept.maze_state:
-                        if (maze_state[0] == 0 and maze_state[1] == 1 and maze_state[2] == constants.UP
-                                and maze_state[3] == constants.OPEN):
-                            return constants.DOWN
-                return constants.WAIT
-            else:
-                if current_percept.end_y < 0 and direction[constants.UP] == constants.OPEN:
-                    for maze_state in current_percept.maze_state:
-                        if (maze_state[0] == 0 and maze_state[1] == -1 and maze_state[2] == constants.DOWN
-                                and maze_state[3] == constants.OPEN):
-                            return constants.UP
-                if current_percept.end_y > 0 and direction[constants.DOWN] == constants.OPEN:
-                    for maze_state in current_percept.maze_state:
-                        if (maze_state[0] == 0 and maze_state[1] == 1 and maze_state[2] == constants.UP
-                                and maze_state[3] == constants.OPEN):
-                            return constants.DOWN
-                if current_percept.end_x > 0 and direction[constants.RIGHT] == constants.OPEN:
-                    for maze_state in current_percept.maze_state:
-                        if (maze_state[0] == 1 and maze_state[1] == 0 and maze_state[2] == constants.LEFT
-                                and maze_state[3] == constants.OPEN):
-                            return constants.RIGHT
-                if current_percept.end_x < 0 and direction[constants.LEFT] == constants.OPEN:
-                    for maze_state in current_percept.maze_state:
-                        if (maze_state[0] == -1 and maze_state[1] == 0 and maze_state[2] == constants.RIGHT
-                                and maze_state[3] == constants.OPEN):
-                            return constants.LEFT
-                return constants.WAIT
-        else:
-            if direction[constants.LEFT] == constants.OPEN:
-                for maze_state in current_percept.maze_state:
-                    if (maze_state[0] == -1 and maze_state[1] == 0 and maze_state[2] == constants.RIGHT
-                            and maze_state[3] == constants.OPEN):
-                        return constants.LEFT
-            if direction[constants.DOWN] == constants.OPEN:
-                for maze_state in current_percept.maze_state:
-                    if (maze_state[0] == 0 and maze_state[1] == 1 and maze_state[2] == constants.UP
-                            and maze_state[3] == constants.OPEN):
-                        return constants.DOWN
-            if direction[constants.RIGHT] == constants.OPEN:
-                for maze_state in current_percept.maze_state:
-                    if (maze_state[0] == 1 and maze_state[1] == 0 and maze_state[2] == constants.LEFT
-                            and maze_state[3] == constants.OPEN):
-                        return constants.RIGHT
-            if direction[constants.UP] == constants.OPEN:
-                for maze_state in current_percept.maze_state:
-                    if (maze_state[0] == 0 and maze_state[1] == -1 and maze_state[2] == constants.DOWN
-                            and maze_state[3] == constants.OPEN):
-                        return constants.UP
-            return constants.WAIT
+        # if current_percept.is_end_visible:
+        #     if abs(current_percept.end_x) >= abs(current_percept.end_y):
+        #         if current_percept.end_x > 0 and direction[constants.RIGHT] == constants.OPEN:
+        #             for maze_state in current_percept.maze_state:
+        #                 if (maze_state[0] == 1 and maze_state[1] == 0 and maze_state[2] == constants.LEFT
+        #                         and maze_state[3] == constants.OPEN):
+        #                     return constants.RIGHT
+        #         if current_percept.end_x < 0 and direction[constants.LEFT] == constants.OPEN:
+        #             for maze_state in current_percept.maze_state:
+        #                 if (maze_state[0] == -1 and maze_state[1] == 0 and maze_state[2] == constants.RIGHT
+        #                         and maze_state[3] == constants.OPEN):
+        #                     return constants.LEFT
+        #         if current_percept.end_y < 0 and direction[constants.UP] == constants.OPEN:
+        #             for maze_state in current_percept.maze_state:
+        #                 if (maze_state[0] == 0 and maze_state[1] == -1 and maze_state[2] == constants.DOWN
+        #                         and maze_state[3] == constants.OPEN):
+        #                     return constants.UP
+        #         if current_percept.end_y > 0 and direction[constants.DOWN] == constants.OPEN:
+        #             for maze_state in current_percept.maze_state:
+        #                 if (maze_state[0] == 0 and maze_state[1] == 1 and maze_state[2] == constants.UP
+        #                         and maze_state[3] == constants.OPEN):
+        #                     return constants.DOWN
+        #         return constants.WAIT
+        #     else:
+        #         if current_percept.end_y < 0 and direction[constants.UP] == constants.OPEN:
+        #             for maze_state in current_percept.maze_state:
+        #                 if (maze_state[0] == 0 and maze_state[1] == -1 and maze_state[2] == constants.DOWN
+        #                         and maze_state[3] == constants.OPEN):
+        #                     return constants.UP
+        #         if current_percept.end_y > 0 and direction[constants.DOWN] == constants.OPEN:
+        #             for maze_state in current_percept.maze_state:
+        #                 if (maze_state[0] == 0 and maze_state[1] == 1 and maze_state[2] == constants.UP
+        #                         and maze_state[3] == constants.OPEN):
+        #                     return constants.DOWN
+        #         if current_percept.end_x > 0 and direction[constants.RIGHT] == constants.OPEN:
+        #             for maze_state in current_percept.maze_state:
+        #                 if (maze_state[0] == 1 and maze_state[1] == 0 and maze_state[2] == constants.LEFT
+        #                         and maze_state[3] == constants.OPEN):
+        #                     return constants.RIGHT
+        #         if current_percept.end_x < 0 and direction[constants.LEFT] == constants.OPEN:
+        #             for maze_state in current_percept.maze_state:
+        #                 if (maze_state[0] == -1 and maze_state[1] == 0 and maze_state[2] == constants.RIGHT
+        #                         and maze_state[3] == constants.OPEN):
+        #                     return constants.LEFT
+        #         return constants.WAIT
+        # else:
+        #     if direction[constants.LEFT] == constants.OPEN:
+        #         for maze_state in current_percept.maze_state:
+        #             if (maze_state[0] == -1 and maze_state[1] == 0 and maze_state[2] == constants.RIGHT
+        #                     and maze_state[3] == constants.OPEN):
+        #                 return constants.LEFT
+        #     if direction[constants.DOWN] == constants.OPEN:
+        #         for maze_state in current_percept.maze_state:
+        #             if (maze_state[0] == 0 and maze_state[1] == 1 and maze_state[2] == constants.UP
+        #                     and maze_state[3] == constants.OPEN):
+        #                 return constants.DOWN
+        #     if direction[constants.RIGHT] == constants.OPEN:
+        #         for maze_state in current_percept.maze_state:
+        #             if (maze_state[0] == 1 and maze_state[1] == 0 and maze_state[2] == constants.LEFT
+        #                     and maze_state[3] == constants.OPEN):
+        #                 return constants.RIGHT
+        #     if direction[constants.UP] == constants.OPEN:
+        #         for maze_state in current_percept.maze_state:
+        #             if (maze_state[0] == 0 and maze_state[1] == -1 and maze_state[2] == constants.DOWN
+        #                     and maze_state[3] == constants.OPEN):
+        #                 return constants.UP
+            # return constants.WAIT
