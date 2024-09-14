@@ -1,6 +1,7 @@
 import numpy as np
-from constants import LEFT
 import logging
+import random
+
 from players.g6_player.data import Move
 from timing_maze_state import TimingMazeState
 
@@ -33,13 +34,12 @@ class G6_Player:
         # Bug: Move Enum is not an int and will not be accepted as a move
         self.turn += 1
 
-        print(f"x: {current_percept.start_x}, y: {current_percept.start_y}")
-        if not self.known_target:
+        if not current_percept.end_x and not current_percept.end_y:
             # SEARCH FOR TARGET
-            return self.__explore()
+            return int(self.__explore().value)
 
         # GO TO TARGET
-        return self.__exploit()
+        return int(self.__exploit(current_percept).value)
 
     def __update_maze(self) -> dict[str, int]:
         # Update current maze with new info from the drone
@@ -53,5 +53,20 @@ class G6_Player:
     def __explore(self) -> Move:
         return Move.LEFT.value
 
-    def __exploit(self) -> Move:
-        return Move.RIGHT.value
+    def __exploit(self, current_state: TimingMazeState) -> Move:
+        if random.random() < 0.1:
+            return random.choice(list(Move))
+
+        if 0 > current_state.end_x:
+            return Move.LEFT
+
+        if 0 < current_state.end_x:
+            return Move.RIGHT
+
+        if 0 > current_state.end_y:
+            return Move.UP
+
+        if 0 < current_state.end_y:
+            return Move.DOWN
+
+        return Move.WAIT
