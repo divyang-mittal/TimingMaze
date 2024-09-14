@@ -3,6 +3,12 @@ import pickle
 import numpy as np
 import logging
 from utils import get_divisors
+from dataclasses import dataclass
+import networkx as nx # pip install networkx
+import matplotlib.pyplot as plt # pip install matplotlib
+from math import lcm
+from player_helper_code import generateMemoryMap, build_graph_from_memory, MazeGraph, Square
+
 
 import constants
 from timing_maze_state import TimingMazeState
@@ -15,10 +21,11 @@ class MemoryDoor:
 
     def update_observations(self, door_state, turn):
         # Updates observed freqs, runs get_freq
-        self.observations[turn] = door_state
-        self.freq_distribution = self.get_freq()
-        if len(self.freq_distribution) == 1:
-            self.is_certain_freq = True
+        if not self.is_certain_freq:
+            self.observations[turn] = door_state
+            self.freq_distribution = self.get_freq()
+            if len(self.freq_distribution) == 1:
+                self.is_certain_freq = True
     
     def get_freq(self):
         # Tries to find the frequency given observed, returns a probability distribution
@@ -114,6 +121,8 @@ class Player:
         self.logger = logger
         self.maximum_door_frequency = maximum_door_frequency
         self.radius = radius
+        self.memory = PlayerMemory()
+        self.turn = 1
 
     def move(self, current_percept) -> int:
         """Function which retrieves the current state of the amoeba map and returns an amoeba movement
@@ -128,6 +137,13 @@ class Player:
                     RIGHT = 2
                     DOWN = 3
         """
+
+        self.memory.update_memory(current_percept.maze_state, self.turn)
+
+        currentGraph = build_graph_from_memory(self.memory)
+        # we want to build graph with PlayerMemory (self.memory)
+
+
         direction = [0, 0, 0, 0]
         for maze_state in current_percept.maze_state:
             if maze_state[0] == 0 and maze_state[1] == 0:

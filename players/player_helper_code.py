@@ -4,16 +4,82 @@ from dataclasses import dataclass
 import networkx as nx
 import matplotlib.pyplot as plt
 from math import lcm
+import constants
 
-@dataclass
-class Square():
-    leftFreq: int
-    upFreq: int
-    rightFreq: int
-    downFreq: int
 
-def getFourRandomInts(lowerBound=0, upperBound=4) -> list[int]:
-    return [random.randint(lowerBound, upperBound) for _ in range(4)]
+class MemoryDoor:
+    def __init__(self):
+        self.is_certain_freq = False
+        self.observations = {} # {turn : 1 - Closed / 2 - Open / 3 - Boundary}
+        self.freq_distribution = []
+
+    def update_observations(self, door_state, turn):
+        # Updates observed freqs, runs get_freq
+        if not self.is_certain_freq:
+            self.observations[turn] = door_state
+            self.freq_distribution = self.get_freq()
+            if len(self.freq_distribution) == 1:
+                self.is_certain_freq = True
+    
+    def get_freq(self):
+        # Tries to find the frequency given observed, returns a probability distribution
+        possible_open_frequencies = set()
+        closed_frequencies = set()
+
+        # Iterate over the frequency conditions
+        for freq, status in self.observations.items():
+            if status == 2:
+                # Add all divisors of the frequency if it's open
+                if not possible_open_frequencies:
+                    possible_open_frequencies = get_divisors(freq)
+                else:
+                    possible_open_frequencies &= get_divisors(freq)
+            else:
+                # Add all divisors of the closed frequency
+                closed_frequencies |= get_divisors(freq)
+
+        # Remove any closed frequencies from the possible open set
+        possible_open_frequencies -= closed_frequencies
+
+        # Assign equal probabilities to each remaining frequency
+        total_frequencies = len(possible_open_frequencies)
+        probability_distribution = {
+            freq: 1/total_frequencies for 
+            freq in possible_open_frequencies} if total_frequencies > 0 else {}
+
+        return probability_distribution
+    
+
+class MemorySquare:
+    def __init__(self):
+        left = MemoryDoor()
+        up = MemoryDoor()
+        right = MemoryDoor()
+        down = MemoryDoor()
+        self.doors = {constants.LEFT:left, constants.UP:up, constants.RIGHT:right, constants.DOWN:down}
+
+class PlayerMemory:
+    def __init__(self, map_size: int = 100):
+        self.memory = [[MemorySquare() for _ in range(map_size * 2)] for _ in range(map_size * 2)]
+        self.pos = (map_size, map_size)
+    
+    def update_memory(self, state, turn):
+        # state = [door] = (row_offset, col_offset, door_type, door_status)
+        for s in state:
+            square = self.memory[self.pos[0] + s[0]][self.pos[1] + s[1]]
+            door = square.doors[s[2]]
+            door_state = s[3]
+            door.update_observations(door_state, turn)
+
+    def update_pos(self, move):
+        if move == constants.LEFT:
+            self.pos[1] -= 1
+        if move == constants.UP:
+            self.pos[0] -= 1
+        if move == constants.RIGHT:
+            self.pos[1] += 1
+        if move == constants.DOWN:
+            self.pos[0] += 1
 
 def addEdgeFrequencies(mem_map) -> list[list[Square]]:
     mapDim = len(mem_map)
@@ -28,18 +94,6 @@ def addEdgeFrequencies(mem_map) -> list[list[Square]]:
             if j == mapDim - 1:
                 mem_map[i][j].rightFreq = 0
     return mem_map
-
-# Generate array of Square objects
-def generateMemoryMap(dim: int) -> list[list[Square]]:
-    memMap = []
-    for i in range(dim):
-        row = []
-        for j in range(dim):
-            # we can add some logic here to make certain things happen
-            row.append(Square(*getFourRandomInts(lowerBound=0, upperBound=4)))
-        memMap.append(row)
-    memMap = addEdgeFrequencies(memMap)
-    return memMap
 
 class MazeGraph:
     def __init__(self, graph: dict = {}):
@@ -63,7 +117,7 @@ class MazeGraph:
         return self.graph[node]
     
 
-    def visualize_graph_in_grid(self, minDistanceArray=None, parent=None, startNode=None, targetNode=None):
+    def visualize_graph_in_grid(self, minDistanceArray=None, parent=None, startNode=None, targetNode=None, figsize=30):
         G = nx.Graph()
         
         # Add nodes and edges from adjacency list 
@@ -82,7 +136,7 @@ class MazeGraph:
         
         grid_dim = len(self.graph) ** 0.5 # Square root of number of nodes
         grid_dim_int = int(grid_dim) # Square root should always be an int for a square grid.
-        plt.figure(figsize=(30, 30))  
+        plt.figure(figsize=(figsize, figsize))  
         # Define positions for nodes in a grid layout
         pos = {(i, j): (j, -i) for i in range(grid_dim_int) for j in range(grid_dim_int)}
         
@@ -133,13 +187,13 @@ def reconstruct_path(parent, startNode, targetNode):
     path.reverse()  # Reverse the path to get it from start to target
     return path
 
-def build_graph_from_memory(map_memory:list[list[Square]]) -> MazeGraph:
+def build_graph_from_memory(player_memory: PlayerMemory) -> MazeGraph:
     graph = MazeGraph()
 
     # Iterate through the map_memory and add edges to the graph
-    for i in range(len(map_memory)):
-        for j in range(len(map_memory[0])):
-            current_square = map_memory[i][j]
+    for i in range(len(player_memory.memory)): # i is the row index
+        for j in range(len(player_memory.memory[0])): # j is the column index
+            currMemSquare: MemorySquare = player_memory.memory[i][j]
 
             # Coordinates for neighboring cells
             neighbors = {
@@ -148,28 +202,41 @@ def build_graph_from_memory(map_memory:list[list[Square]]) -> MazeGraph:
                 'up': (i - 1, j),
                 'down': (i + 1, j)
             }
+            # test = [[(0,0),(0,1), (0,2), (0,3), (0,4)],
+            #  [(1,0),(1,1), (1,2), (1,3), (1,4)],
+            #  [(2,0),(2,1), (2,2), (2,3), (2,4)],
+            #  [(3,0),(3,1), (3,2), (3,3), (3,4)],
+            #  [(4,0),(4,1), (4,2), (4,3), (4,4)]]
             
             # Add edges based on door frequencies and valid neighboring cells
             
             # Left neighbor exists 
             if j > 0:
-                leftSquare = map_memory[i][j - 1]
-                graph.add_bidirectional_edge((i, j), neighbors['left'], current_square.leftFreq, leftSquare.rightFreq)
+                leftSquare: MemorySquare = player_memory.memory[i][j - 1]
+                graph.add_bidirectional_edge((i, j), neighbors['left'],
+                                             currMemSquare.doors[constants.LEFT],
+                                            leftSquare.doors[constants.RIGHT])
 
             # Right neighbor exists 
-            if j < len(map_memory[0]) - 1:  
-                rightSquare = map_memory[i][j + 1]
-                graph.add_bidirectional_edge((i, j), neighbors['right'], current_square.rightFreq, rightSquare.leftFreq)
+            if j < len(player_memory.memory[0]) - 1:  
+                rightSquare: MemorySquare = player_memory.memory[i][j + 1]
+                graph.add_bidirectional_edge((i, j), neighbors['right'],
+                                              currMemSquare.doors[constants.RIGHT],
+                                                rightSquare.doors[constants.LEFT])
             
             # Up neighbor exists 
             if i > 0: 
-                upSquare = map_memory[i - 1][j]
-                graph.add_bidirectional_edge((i, j), neighbors['up'], current_square.upFreq, upSquare.downFreq)
+                upSquare: MemorySquare = player_memory.memory[i - 1][j]
+                graph.add_bidirectional_edge((i, j), neighbors['up'],
+                                              currMemSquare.doors[constants.UP],
+                                                upSquare.doors[constants.DOWN])
             
             # Down neighbor exists
-            if i < len(map_memory) - 1:
-                downSquare = map_memory[i + 1][j]
-                graph.add_bidirectional_edge((i, j), neighbors['down'], current_square.downFreq, downSquare.upFreq)
+            if i < len(player_memory.memory) - 1:
+                downSquare: MemorySquare = player_memory.memory[i + 1][j]
+                graph.add_bidirectional_edge((i, j), neighbors['down'],
+                                              currMemSquare.doors[constants.DOWN],
+                                                downSquare.upFreq)
 
     return graph
 
