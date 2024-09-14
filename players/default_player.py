@@ -55,6 +55,25 @@ class MemoryDoor:
 
         return probability_distribution
     
+    def roll_freq(self):
+        # Returns a frequency based on the distribution
+            # Calculate cumulative distribution
+        cumulative_dist = []
+        cumulative_sum = 0
+        for freq, prob in self.probability_distribution.items():
+            cumulative_sum += prob
+            cumulative_dist.append((cumulative_sum, freq))
+        
+        rand = np.random.random()
+        
+        # Choose the frequency based on the random number
+        for cumulative_prob, freq in cumulative_dist:
+            if rand <= cumulative_prob:
+                return freq
+
+        # In case the random number is exactly 1, return the last frequency
+        return cumulative_dist[-1][1]
+    
 
 class MemorySquare:
     def __init__(self):
