@@ -100,26 +100,42 @@ class Player:
                 return constants.WAIT
             
             else:
-                if current_percept.end_y < 0 and direction[constants.UP] == constants.OPEN:
-                    for maze_state in current_percept.maze_state:
-                        if (maze_state[0] == 0 and maze_state[1] == -1 and maze_state[2] == constants.DOWN
-                                and maze_state[3] == constants.OPEN):
-                            return constants.UP
-                if current_percept.end_y > 0 and direction[constants.DOWN] == constants.OPEN:
-                    for maze_state in current_percept.maze_state:
-                        if (maze_state[0] == 0 and maze_state[1] == 1 and maze_state[2] == constants.UP
-                                and maze_state[3] == constants.OPEN):
-                            return constants.DOWN
-                if current_percept.end_x > 0 and direction[constants.RIGHT] == constants.OPEN:
-                    for maze_state in current_percept.maze_state:
-                        if (maze_state[0] == 1 and maze_state[1] == 0 and maze_state[2] == constants.LEFT
-                                and maze_state[3] == constants.OPEN):
-                            return constants.RIGHT
-                if current_percept.end_x < 0 and direction[constants.LEFT] == constants.OPEN:
-                    for maze_state in current_percept.maze_state:
-                        if (maze_state[0] == -1 and maze_state[1] == 0 and maze_state[2] == constants.RIGHT
-                                and maze_state[3] == constants.OPEN):
-                            return constants.LEFT
+                if (current_percept.end_y < 0 # if goal is above
+                    and direction[constants.UP] == constants.OPEN # if the door above is open
+                    ):
+                    for maze_state in current_percept.maze_state: # looping through all the cells visible by the drone
+                        if (maze_state[0] == 0 and maze_state[1] == -1 # (0,-1) is the cell above; -> Looking to see the conditions of the four doors at the cell above.
+                            and maze_state[2] == constants.DOWN and maze_state[3] == constants.OPEN # if the down door of the cell above (the adjacent door to the current cell) is open
+                            ):
+                            return constants.UP # return 1
+                        
+                if (current_percept.end_y > 0 # if goal is below
+                    and direction[constants.DOWN] == constants.OPEN # if the door below is open
+                    ):
+                    for maze_state in current_percept.maze_state: # looping through all the cells visible by the drone
+                        if (maze_state[0] == 0 and maze_state[1] == 1 # (0,1) is the cell below; -> Looking to see the conditions of the four doors at the cell below.
+                            and maze_state[2] == constants.UP and maze_state[3] == constants.OPEN # if the above door of the cell below (the adjacent door to the current cell) is open
+                            ):
+                            return constants.DOWN # return 3
+                        
+                if (current_percept.end_x > 0 # if goal is on the right side
+                    and direction[constants.RIGHT] == constants.OPEN # if the door on the right is open
+                    ):
+                    for maze_state in current_percept.maze_state: # looping through all the cells visible by the drone
+                        if (maze_state[0] == 1 and maze_state[1] == 0 # (1,0) is the cell on the right; -> Looking to see the conditions of the four doors at the cell on the right.
+                            and maze_state[2] == constants.LEFT and maze_state[3] == constants.OPEN # if the left door of the cell on the right (the adjacent door to the current cell) is open
+                            ):
+                            return constants.RIGHT # return 2
+                        
+                if (current_percept.end_x < 0 # if goal is on the left side
+                    and direction[constants.LEFT] == constants.OPEN # if the door on the left is open
+                    ):
+                    for maze_state in current_percept.maze_state: # looping through all the cells visible by the drone
+                        if (maze_state[0] == -1 and maze_state[1] == 0 # (-1,0) is the cell on the left; -> Looking to see the conditions of the four doors at the cell on the left.
+                            and maze_state[2] == constants.RIGHT and maze_state[3] == constants.OPEN # if the right door of the cell on the left (the adjacent door to the current cell) is open
+                            ):
+                            return constants.LEFT #return 0
+                        
                 return constants.WAIT
             
         else: # If End is not visible
