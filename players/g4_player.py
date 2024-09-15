@@ -14,6 +14,8 @@ from gridworld import GridWorld
 from qtable import QTable
 from q_policy import QPolicy
 from multi_armed_bandit.ucb import UpperConfidenceBounds
+from sympy import divisors
+
 
 class MCTSNode:
 
@@ -23,7 +25,9 @@ class MCTSNode:
     # Records the number of times states have been visited
     visits = defaultdict(lambda: 0)
 
-    def __init__(self, mdp, parent, state, qfunction, bandit, reward=0.0, parent_action=None):
+    def __init__(
+        self, mdp, parent, state, qfunction, bandit, reward=0.0, parent_action=None
+    ):
         self.mdp = mdp
         self.parent = parent
         self.state = state
@@ -46,25 +50,35 @@ class MCTSNode:
         self.children = {}
 
     """ Return the value of this node """
+
     def get_value(self):
         max_q_value = self.qfunction.get_max_q(
             self.state, self.mdp.get_actions(self.state)
         )
         return max_q_value
-    
+
     """ Get the number of visits to this state """
+
     def get_visits(self):
         return MCTSNode.visits[self.state]
-    
+
     """ Return true if and only if all child actions have been expanded """
+
     def is_fully_expanded(self):
-        valid_actions = [WAIT, LEFT, UP, RIGHT, DOWN]       ### figure out a way to get valid actions, this is okay for now
+        valid_actions = [
+            WAIT,
+            LEFT,
+            UP,
+            RIGHT,
+            DOWN,
+        ]  ### figure out a way to get valid actions, this is okay for now
         if len(valid_actions) == len(self.children):
             return True
         else:
             return False
-        
+
     """ Select a node that is not fully expanded """
+
     def select(self):
         if not self.is_fully_expanded() or self.mdp.is_terminal(self.state):
             return self
@@ -72,8 +86,9 @@ class MCTSNode:
             actions = list(self.children.keys())
             action = self.bandit.select(self.state, actions, self.qfunction)
             return self.get_outcome_child(action).select()
-        
+
     """ Expand a node if it is not a terminal node """
+
     def expand(self):
         if not self.mdp.is_terminal(self.state):
             # Randomly select an unexpanded action to expand
@@ -83,13 +98,16 @@ class MCTSNode:
             self.children[action] = []
             return self.get_outcome_child(action)
         return self
-    
+
     """ Backpropogate the reward back to the parent node """
+
     def back_propagate(self, reward, child):
         action = child.action
 
         MCTSNode.visits[self.state] = MCTSNode.visits[self.state] + 1
-        MCTSNode.visits[(self.state, action)] = MCTSNode.visits[(self.state, action)] + 1
+        MCTSNode.visits[(self.state, action)] = (
+            MCTSNode.visits[(self.state, action)] + 1
+        )
 
         q_value = self.qfunction.get_q_value(self.state, action)
         delta = (1 / (MCTSNode.visits[(self.state, action)])) * (
@@ -101,12 +119,13 @@ class MCTSNode:
             self.parent.back_propagate(self.reward + reward, self)
 
     """ Simulate the outcome of an action, and return the child node """
+
     def get_outcome_child(self, action):
         # Choose one outcome based on transition probabilities
         (next_state, reward, done) = self.mdp.execute(self.state, action)
 
         # Find the corresponding state and return if this already exists
-        for (child, _) in self.children[action]:
+        for child, _ in self.children[action]:
             if next_state == child.state:
                 return child
 
@@ -130,6 +149,7 @@ class MCTS:
         self.bandit = bandit
 
     """ Execute the MCTS algorithm from the initial state given, with timeout in seconds """
+
     def mcts(self, timeout=1, root_node=None):
         if root_node is None:
             root_node = self.create_root_node()
@@ -151,16 +171,19 @@ class MCTS:
         return root_node
 
     """ Create a root node representing an initial state """
+
     def create_root_node(self):
         return MCTSNode(
             self.mdp, None, self.mdp.get_initial_state(), self.qfunction, self.bandit
         )
 
     """ Choose a random action. Heustics can be used here to improve simulations. """
+
     def choose(self, state):
         return random.choice(self.mdp.get_actions(state))
 
     """ Simulate until a terminal state """
+
     def simulate(self, node):
         state = node.state
         cumulative_reward = 0.0
@@ -182,16 +205,22 @@ class MCTS:
 
 
 class Player:
-    def __init__(self, rng: np.random.Generator, logger: logging.Logger,
-                 precomp_dir: str, maximum_door_frequency: int, radius: int) -> None:
+    def __init__(
+        self,
+        rng: np.random.Generator,
+        logger: logging.Logger,
+        precomp_dir: str,
+        maximum_door_frequency: int,
+        radius: int,
+    ) -> None:
         """Initialize the player with the basic amoeba information
 
-            Args:
-                rng (np.random.Generator): numpy random number generator, use this for same player behavior across run
-                logger (logging.Logger): logger use this like logger.info("message")
-                maximum_door_frequency (int): the maximum frequency of doors
-                radius (int): the radius of the drone
-                precomp_dir (str): Directory path to store/load pre-computation
+        Args:
+            rng (np.random.Generator): numpy random number generator, use this for same player behavior across run
+            logger (logging.Logger): logger use this like logger.info("message")
+            maximum_door_frequency (int): the maximum frequency of doors
+            radius (int): the radius of the drone
+            precomp_dir (str): Directory path to store/load pre-computation
         """
 
         # precomp_path = os.path.join(precomp_dir, "{}.pkl".format(map_path))
@@ -213,23 +242,38 @@ class Player:
         self.logger = logger
         self.maximum_door_frequency = maximum_door_frequency
         self.radius = radius
-
+        self.frequencies_per_cell = defaultdict(
+            lambda: set(range(maximum_door_frequency + 1))
+        )
+        self.turn = 0
         self.gridworld = GridWorld()
         self.qfunction = QTable()
 
     def move(self, current_percept) -> int:
         """Function which retrieves the current state of the amoeba map and returns an amoeba movement
 
-            Args:
-                current_percept(TimingMazeState): contains current state information
-            Returns:
-                int: This function returns the next move of the user:
-                    WAIT = -1
-                    LEFT = 0
-                    UP = 1
-                    RIGHT = 2
-                    DOWN = 3
+        Args:
+            current_percept(TimingMazeState): contains current state information
+        Returns:
+            int: This function returns the next move of the user:
+                WAIT = -1
+                LEFT = 0
+                UP = 1
+                RIGHT = 2
+                DOWN = 3
         """
-        root_node = MCTS.create_root_node(self.gridworld, self.qfunction, UpperConfidenceBounds())
+
+        curr_x, curr_y = -current_percept.start_x, -current_percept.start_y
+        self.turn += 1
+        factors = set(divisors(self.turn))
+        for dX, dY, door, state in current_percept.maze_state:
+            if state == 1:
+                self.frequencies_per_cell[(curr_x + dX, curr_y + dY, door)] -= factors
+            elif state == 2:
+                self.frequencies_per_cell[(curr_x + dX, curr_y + dY, door)] &= factors
+
+        root_node = MCTS.create_root_node(
+            self.gridworld, self.qfunction, UpperConfidenceBounds()
+        )
         root_node.mcts(timeout=0.03)
         ### complete this function
