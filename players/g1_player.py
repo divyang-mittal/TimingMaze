@@ -53,10 +53,11 @@ class Player:
                     RIGHT = 2
                     DOWN = 3
         """
-        direction = [0, 0, 0, 0]
+        # The condition of the four doors at the current cell
+        direction = [0, 0, 0, 0] # [left, up, right, down]; 1 is closed, 2 is open, 3 is boundary
         for maze_state in current_percept.maze_state:
-            if maze_state[0] == 0 and maze_state[1] == 0:
-                direction[maze_state[2]] = maze_state[3]
+            if maze_state[0] == 0 and maze_state[1] == 0: # (0,0) is the current loc; -> Looking to see the conditions of the four doors at the current location.
+                direction[maze_state[2]] = maze_state[3] # import that information into direction
 
         if current_percept.is_end_visible:
             if abs(current_percept.end_x) >= abs(current_percept.end_y):
@@ -103,7 +104,7 @@ class Player:
                                 and maze_state[3] == constants.OPEN):
                             return constants.LEFT
                 return constants.WAIT
-        else:
+        else: # If End is not visible
             if direction[constants.LEFT] == constants.OPEN:
                 for maze_state in current_percept.maze_state:
                     if (maze_state[0] == -1 and maze_state[1] == 0 and maze_state[2] == constants.RIGHT
