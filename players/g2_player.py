@@ -122,3 +122,74 @@ class Player:
         turn += 1
         self.setInfo(current_percept.maze_state, self.turn)
         return 0
+
+    def a_star_search(self, start, goal, LCM_map):
+        """
+        Performs A* search from start to goal.
+
+        Args:
+            start: The starting node.
+            goal: The goal node.
+            neighbors_fn: A function that returns the neighbors of a given node.
+            heuristic_fn: A heuristic function that estimates the cost from a node to the goal.
+
+        Returns:
+            A list representing the path from start to goal, or None if no path is found.
+        """
+        
+        # LCM_map: (x, y) -> {LEFT: #, ...)}
+
+        # Open set represented as a priority queue with (f_score, node)
+        open_set = []
+        heapq.heappush(open_set, (0, start, self.turn))
+
+        # Maps nodes to their parent node
+        came_from = {} # (x, y) -> (x, y)
+
+        # Cost from start to a node
+        g_score = {start: 0} # (x, y) -> int
+
+        while open_set:
+            # Get the node in open_set with the lowest f_score
+            current_f_score, current, current_turn = heapq.heappop(open_set)
+
+            # Check if we have reached the goal
+            if current == goal:
+                return self.reconstruct_path(came_from, current)
+
+            # Explore neighbors
+            moves = [(-1, 0), (0, 1), (1, 0), (0, -1)]
+            for i, move in enumerate(moves):
+                neighbor = (current[0] + move[0], current[1] + move[1])
+                tentative_g_score = g_score[current] + LCM_map[current][i] - current_turn % LCM_map[current][i]
+
+                # If this path to neighbor is better than any previous one
+                if neighbor not in g_score or tentative_g_score < g_score[neighbor]:
+                    came_from[neighbor] = current
+                    g_score[neighbor] = tentative_g_score
+                    f_score = tentative_g_score + self.heuristic(neighbor, goal)
+                    heapq.heappush(open_set, (f_score, neighbor, current_turn + 1))
+
+        # No path found
+        return None
+    
+    def reconstruct_path(self, came_from, current):
+        """
+        Reconstructs the path from start to goal.
+
+        Args:
+            came_from: A mapping from node to its parent node.
+            current: The current node (goal node).
+
+        Returns:
+            A list representing the path from start to goal.
+        """
+        path = [current]
+        while current in came_from:
+            current = came_from[current]
+            path.append(current)
+        path.reverse()
+        return path
+    
+    def heuristic(self, current, goal):
+        return abs(current[0] - goal[0]) + abs(current[1] - goal[1])
