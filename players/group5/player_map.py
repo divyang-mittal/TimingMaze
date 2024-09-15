@@ -81,6 +81,7 @@ class SimplePlayerMap(PlayerMapInterface):
         self._start_pos = [map_dim-1, map_dim-1]
         self._end_pos = [None, None]
         self._door_freqs = defaultdict(default_freq_candidates(max_door_frequency))
+        self._boundaries = [-1, self._map_len+1, -1, self._map_len+1]
         # visited cells
 
         self.cur_pos = self._start_pos
@@ -122,7 +123,29 @@ class SimplePlayerMap(PlayerMapInterface):
     def update_map(self, turn_num: int, maze_state: List[List[int]]):
         self.logger.debug(f"Before turn {turn_num}: {self._door_freqs}")
         for door in maze_state:
-            door_id = DoorIdentifier(relative_coord=door[:2], door_type=door[2])
+            door_coordinates = door[:2]
+            door_type = door[2]
+            door_state = door[3]
+
+            # TODO: clean this up
+            if door_state == constants.BOUNDARY and (self._boundaries[door_type] == -1 or self._boundaries[door_type] == self._map_len+1):
+                if door_type == constants.LEFT:
+                    # then its the right barrier? TODO: check
+                    self._boundaries[constants.RIGHT] = door_coordinates[0]
+                    self._boundaries[constants.LEFT] = door_coordinates[0] - 101
+                elif door_type == constants.UP:
+                    self._boundaries[constants.DOWN] = door_coordinates[1]
+                    self._boundaries[constants.UP] = door_coordinates[1] - 101
+                elif door_type == constants.RIGHT:
+                    self._boundaries[constants.LEFT] = door_coordinates[0]
+                    self._boundaries[constants.RIGHT] = door_coordinates[0] + 101
+                elif door_type == constants.DOWN:
+                    self._boundaries[constants.UP] = door_coordinates[1]
+                    self._boundaries[constants.DOWN] = door_coordinates[1] + 101    
+                
+                self.logger.debug(f"Boundaries: {self._boundaries}")
+
+            door_id = DoorIdentifier(relative_coord=door_coordinates, door_type=door_type)
             frequency_candidates = self.get_freq_candidates(door_id)
             
             # TODO: remove
