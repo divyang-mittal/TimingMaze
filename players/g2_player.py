@@ -124,19 +124,6 @@ class Player:
         return 0
 
     def a_star_search(self, start, goal, LCM_map):
-        """
-        Performs A* search from start to goal.
-
-        Args:
-            start: The starting node.
-            goal: The goal node.
-            neighbors_fn: A function that returns the neighbors of a given node.
-            heuristic_fn: A heuristic function that estimates the cost from a node to the goal.
-
-        Returns:
-            A list representing the path from start to goal, or None if no path is found.
-        """
-        
         # LCM_map: (x, y) -> {LEFT: #, ...)}
 
         # Open set represented as a priority queue with (f_score, node)
@@ -174,16 +161,6 @@ class Player:
         return None
     
     def reconstruct_path(self, came_from, current):
-        """
-        Reconstructs the path from start to goal.
-
-        Args:
-            came_from: A mapping from node to its parent node.
-            current: The current node (goal node).
-
-        Returns:
-            A list representing the path from start to goal.
-        """
         path = [current]
         while current in came_from:
             current = came_from[current]
