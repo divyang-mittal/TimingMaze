@@ -60,15 +60,46 @@ class Player:
      
         returns: dictionary that changes the keys of knowns (within current radius) to center around cur_x, cur_y and randomizes unknown frequencies
         """
+
         drone = {}
         for door in maze_state:
             if (door[0], door[1]) not in drone:
-                drone[(door[0], door[1])] = {
-                    constants.LEFT: self.lcm(self.rng.integers(low= 1, high=self.maximum_door_frequency, endpoint=True), self.rng.integers(low= 1, high=self.maximum_door_frequency, endpoint=True)),
-                    constants.UP: self.lcm(self.rng.integers(low= 1, high=self.maximum_door_frequency, endpoint=True), self.rng.integers(low= 1, high=self.maximum_door_frequency, endpoint=True)),
-                    constants.RIGHT: self.lcm(self.rng.integers(low= 1, high=self.maximum_door_frequency, endpoint=True), self.rng.integers(low= 1, high=self.maximum_door_frequency, endpoint=True)),
-                    constants.DOWN: self.lcm(self.rng.integers(low= 1, high=self.maximum_door_frequency, endpoint=True), self.rng.integers(low= 1, high=self.maximum_door_frequency, endpoint=True))}
-        
+                drone[(door[0], door[1])] = {constants.LEFT: -1, constants.UP: -1, constants.RIGHT: -1, constants.DOWN: -1}
+        for (x, y) in drone: 
+            if (x - 1, y) in drone:
+                if drone[x, y][constants.LEFT] == -1 and drone [x - 1, y][constants.RIGHT] == -1:
+                    f = self.lcm(self.rng.integers(low= 1, high=self.maximum_door_frequency, endpoint=True), self.rng.integers(low= 1, high=self.maximum_door_frequency, endpoint=True))
+                    drone[x, y][constants.LEFT] = f
+                    drone [x - 1, y][constants.RIGHT] = f
+            else:
+                if drone[x, y][constants.LEFT] == -1: 
+                    drone[x, y][constants.LEFT] = self.rng.integers(low= 1, high=self.maximum_door_frequency, endpoint=True)
+            if (x, y - 1) in drone:
+                if drone[x, y][constants.UP] == -1 and drone [x, y - 1][constants.DOWN] == -1:
+                    f = self.lcm(self.rng.integers(low= 1, high=self.maximum_door_frequency, endpoint=True), self.rng.integers(low= 1, high=self.maximum_door_frequency, endpoint=True))
+                    drone[x, y][constants.UP] = f
+                    drone [x, y - 1][constants.DOWN] = f
+            else:
+                if drone[x, y][constants.UP] == -1: 
+                    drone[x, y][constants.UP] = self.rng.integers(low= 1, high=self.maximum_door_frequency, endpoint=True)
+            if (x + 1, y) in drone:
+                if drone[x, y][constants.RIGHT] == -1 and drone [x + 1, y][constants.LEFT] == -1:
+                    f = self.lcm(self.rng.integers(low= 1, high=self.maximum_door_frequency, endpoint=True), self.rng.integers(low= 1, high=self.maximum_door_frequency, endpoint=True))
+                    drone[x, y][constants.RIGHT] = f
+                    drone [x + 1, y][constants.LEFT] = f
+            else:
+                if drone[x, y][constants.RIGHT] == -1: 
+                    drone[x, y][constants.RIGHT] = self.rng.integers(low= 1, high=self.maximum_door_frequency, endpoint=True)
+
+            if (x, y + 1) in drone: 
+                if drone[x, y][constants.DOWN] == -1 and drone [x, y + 1][constants.UP] == -1:
+                    f = self.lcm(self.rng.integers(low= 1, high=self.maximum_door_frequency, endpoint=True), self.rng.integers(low= 1, high=self.maximum_door_frequency, endpoint=True))
+                    drone[x, y][constants.DOWN] = f
+                    drone [x, y + 1][constants.UP] = f
+            else:
+                if drone[x, y][constants.DOWN] == -1: 
+                    drone[x, y][constants.DOWN] = self.rng.integers(low= 1, high=self.maximum_door_frequency, endpoint=True)
+                    
         # print ("seens:", self.seens)
         # print ("knowns:", self.knowns)
         # print ("drone:", drone)
