@@ -24,13 +24,27 @@ class Player:
         self.logger = logger
         self.maximum_door_frequency = maximum_door_frequency
         self.radius = radius
+        self.turn = 0
         # x, y in seens and knowns is centered around start x, y
         self.seens = dict() # dictionary w/ kv - (x, y, d): [list of turns at which x, y, d was open]
         self.knowns = dict() # dictionary w/ kv - (x, y): {0: freq(L), 1: freq(U), 2: freq(R), 3: freq(D)}, freq = -1 if unknown
         self.cur_x = 0 # initializing to start x
         self.cur_y = 0 # initializing to start y
 
-    def setInfo(self, current_percept) -> dict:
+    @staticmethod
+    def lcm(x, y):
+        if x > y:
+            greater = x
+        else:
+            greater = y
+        while(True):
+            if((greater % x == 0) and (greater % y == 0)):
+                lcm = greater
+                break
+            greater += 1
+        return lcm
+    
+    def setInfo(self, maze_state: list, turn: int) -> dict:
         """Function receives the current state of the amoeba map and returns a dictionary of door frequencies centered around the start position.
 
         notes: 
@@ -43,10 +57,22 @@ class Player:
         (n, m, 1) - (n, m - 1, 3)
         (n, m, 2) - (n + 1, m, 0)
         (n, m, 3) - (n, m + 1, 1)
-
+     
         returns: dictionary that changes the keys of knowns (within current radius) to center around cur_x, cur_y and randomizes unknown frequencies
         """
-        return {}
+        drone = {}
+        for door in maze_state:
+            if (door[0], door[1]) not in drone:
+                drone[(door[0], door[1])] = {
+                    constants.LEFT: self.lcm(self.rng.integers(low= 1, high=self.maximum_door_frequency, endpoint=True), self.rng.integers(low= 1, high=self.maximum_door_frequency, endpoint=True)),
+                    constants.UP: self.lcm(self.rng.integers(low= 1, high=self.maximum_door_frequency, endpoint=True), self.rng.integers(low= 1, high=self.maximum_door_frequency, endpoint=True)),
+                    constants.RIGHT: self.lcm(self.rng.integers(low= 1, high=self.maximum_door_frequency, endpoint=True), self.rng.integers(low= 1, high=self.maximum_door_frequency, endpoint=True)),
+                    constants.DOWN: self.lcm(self.rng.integers(low= 1, high=self.maximum_door_frequency, endpoint=True), self.rng.integers(low= 1, high=self.maximum_door_frequency, endpoint=True))}
+        
+        # print ("seens:", self.seens)
+        # print ("knowns:", self.knowns)
+        # print ("drone:", drone)
+        return drone
 
 
     def move(self, current_percept) -> int:
@@ -62,4 +88,6 @@ class Player:
                     RIGHT = 2
                     DOWN = 3
         """
+        turn += 1
+        self.setInfo(current_percept.maze_state, self.turn)
         return 0
