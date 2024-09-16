@@ -21,10 +21,6 @@ def converge_basic(start, goal):
 		else:
 			return constants.DOWN
 
-def get_weight(pos, direction, turn_num):
-	# given the frequency candidates and the current turn number, return the weight of the move
-	pass
-
 
 def converge(current_pos : list, goal : list):
 	# print("Current Position: ", current_pos)
