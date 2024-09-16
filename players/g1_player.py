@@ -39,7 +39,35 @@ class Player:
         self.logger = logger
         self.maximum_door_frequency = maximum_door_frequency
         self.radius = radius
-        self.pos = [0, 0] # X, Y
+
+        self.cur_pos = [0, 0] # X, Y
+        self.positions = {}
+        self.step = 0
+
+    def GCD(self, a, b):
+        if b == 0:
+            return a
+        return self.GCD(b, a % b)
+
+    def update_position(self, current_percept) -> None:
+        """Function which updates the position of the amoeba
+
+            Args:
+                current_percept(TimingMazeState): contains current state information
+        """
+        if self.step != 0:
+            for maze_state in current_percept.maze_state:
+                relative_x = int(maze_state[0]) + self.cur_pos[0]
+                relative_y = int(maze_state[1]) + self.cur_pos[1]
+                if (relative_x, relative_y) not in self.positions:
+                    self.positions[(relative_x, relative_y)] = [0, 0, 0, 0]
+                
+                if self.positions[(relative_x, relative_y)][maze_state[2]] == 0 and maze_state[3] != 0:
+                    self.positions[(relative_x, relative_y)][maze_state[2]] = self.step
+                elif maze_state[3] != 0:
+                    self.positions[(relative_x, relative_y)][maze_state[2]] = self.GCD(self.positions[(relative_x, relative_y)][maze_state[2]], self.step)
+
+        print(self.positions)
 
     def move(self, current_percept) -> int:
         """Function which retrieves the current state of the amoeba map and returns an amoeba movement
@@ -54,6 +82,14 @@ class Player:
                     RIGHT = 2
                     DOWN = 3
         """
+
+        print(self.cur_pos, self.step)
+
+        self.update_position(current_percept)
+
+        self.step += 1
+
+
         direction = [0, 0, 0, 0]
         for maze_state in current_percept.maze_state:
             if maze_state[0] == 0 and maze_state[1] == 0:
@@ -65,21 +101,25 @@ class Player:
                     for maze_state in current_percept.maze_state:
                         if (maze_state[0] == 1 and maze_state[1] == 0 and maze_state[2] == constants.LEFT
                                 and maze_state[3] == constants.OPEN):
+                            self.cur_pos[0] += 1
                             return constants.RIGHT
                 if current_percept.end_x < 0 and direction[constants.LEFT] == constants.OPEN:
                     for maze_state in current_percept.maze_state:
                         if (maze_state[0] == -1 and maze_state[1] == 0 and maze_state[2] == constants.RIGHT
                                 and maze_state[3] == constants.OPEN):
+                            self.cur_pos[0] -= 1
                             return constants.LEFT
                 if current_percept.end_y < 0 and direction[constants.UP] == constants.OPEN:
                     for maze_state in current_percept.maze_state:
                         if (maze_state[0] == 0 and maze_state[1] == -1 and maze_state[2] == constants.DOWN
                                 and maze_state[3] == constants.OPEN):
+                            self.cur_pos[1] -= 1
                             return constants.UP
                 if current_percept.end_y > 0 and direction[constants.DOWN] == constants.OPEN:
                     for maze_state in current_percept.maze_state:
                         if (maze_state[0] == 0 and maze_state[1] == 1 and maze_state[2] == constants.UP
                                 and maze_state[3] == constants.OPEN):
+                            self.cur_pos[1] += 1
                             return constants.DOWN
                 return constants.WAIT
             else:
@@ -87,21 +127,25 @@ class Player:
                     for maze_state in current_percept.maze_state:
                         if (maze_state[0] == 0 and maze_state[1] == -1 and maze_state[2] == constants.DOWN
                                 and maze_state[3] == constants.OPEN):
+                            self.cur_pos[1] -= 1
                             return constants.UP
                 if current_percept.end_y > 0 and direction[constants.DOWN] == constants.OPEN:
                     for maze_state in current_percept.maze_state:
                         if (maze_state[0] == 0 and maze_state[1] == 1 and maze_state[2] == constants.UP
                                 and maze_state[3] == constants.OPEN):
+                            self.cur_pos[1] += 1
                             return constants.DOWN
                 if current_percept.end_x > 0 and direction[constants.RIGHT] == constants.OPEN:
                     for maze_state in current_percept.maze_state:
                         if (maze_state[0] == 1 and maze_state[1] == 0 and maze_state[2] == constants.LEFT
                                 and maze_state[3] == constants.OPEN):
+                            self.cur_pos[0] += 1
                             return constants.RIGHT
                 if current_percept.end_x < 0 and direction[constants.LEFT] == constants.OPEN:
                     for maze_state in current_percept.maze_state:
                         if (maze_state[0] == -1 and maze_state[1] == 0 and maze_state[2] == constants.RIGHT
                                 and maze_state[3] == constants.OPEN):
+                            self.cur_pos[0] -= 1
                             return constants.LEFT
                 return constants.WAIT
         else:
@@ -109,20 +153,24 @@ class Player:
                 for maze_state in current_percept.maze_state:
                     if (maze_state[0] == -1 and maze_state[1] == 0 and maze_state[2] == constants.RIGHT
                             and maze_state[3] == constants.OPEN):
+                        self.cur_pos[0] -= 1
                         return constants.LEFT
             if direction[constants.DOWN] == constants.OPEN:
                 for maze_state in current_percept.maze_state:
                     if (maze_state[0] == 0 and maze_state[1] == 1 and maze_state[2] == constants.UP
                             and maze_state[3] == constants.OPEN):
+                        self.cur_pos[1] += 1
                         return constants.DOWN
             if direction[constants.RIGHT] == constants.OPEN:
                 for maze_state in current_percept.maze_state:
                     if (maze_state[0] == 1 and maze_state[1] == 0 and maze_state[2] == constants.LEFT
                             and maze_state[3] == constants.OPEN):
+                        self.cur_pos[0] += 1
                         return constants.RIGHT
             if direction[constants.UP] == constants.OPEN:
                 for maze_state in current_percept.maze_state:
                     if (maze_state[0] == 0 and maze_state[1] == -1 and maze_state[2] == constants.DOWN
                             and maze_state[3] == constants.OPEN):
+                        self.cur_pos[1] -= 1
                         return constants.UP
             return constants.WAIT
