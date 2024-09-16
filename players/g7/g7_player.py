@@ -2,12 +2,13 @@ import os
 import pickle
 import numpy as np
 import logging
+import random
 from utils import get_divisors
 from dataclasses import dataclass
 import networkx as nx # pip install networkx
 import matplotlib.pyplot as plt # pip install matplotlib
 from math import lcm
-from players.player_helper_code import build_graph_from_memory, MazeGraph, PlayerMemory, findShortestPathsToEachNode, reconstruct_path
+from players.g7.player_helper_code import build_graph_from_memory, MazeGraph, PlayerMemory, findShortestPathsToEachNode, reconstruct_path
 
 
 import constants
@@ -97,6 +98,7 @@ class Player:
         
         # If no valid path found or need to wait
         return constants.WAIT
+
 
     def choose_intermediate_target_node(self, current_percept): #when goal node is not visible
 

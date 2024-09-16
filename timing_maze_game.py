@@ -9,6 +9,7 @@ from constants import *
 import constants
 from utils import *
 from players.default_player import Player as DefaultPlayer
+from players.g7.g7_player import Player as G7_Player
 from collections import deque as queue
 import tkinter as tk
 
@@ -101,8 +102,11 @@ class TimingMazeGame:
             if player_in.lower() == 'd':
                 player_class = DefaultPlayer
                 player_name = "Default Player"
+            if player_in == '7':
+                player_class = G7_Player
+                player_name = "Group {}".format(player_in)
             else:
-                player_class = eval("G{}_Player".format(player_in))
+                player_class = eval("players.G{}_Player".format(player_in))
                 player_name = "Group {}".format(player_in)
 
             self.logger.info(
