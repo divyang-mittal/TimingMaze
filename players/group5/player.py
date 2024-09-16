@@ -41,4 +41,47 @@ class G5_Player:
         """
         self.turns += 1
         self.player_map.update_map(self.turns, current_percept.maze_state)
-        return constants.UP
+
+        # Search algorithm
+        if not current_percept.is_end_visible:
+            self.logger.info("End is visible at (%d, %d)", current_percept.end_x, current_percept.end_y)
+            
+            nw, sw, ne, se = 0, 0, 0, 0
+
+            for i in range(self.radius):
+                for j in range(self.radius):
+                    if self.player_map.is_visited([-i, -j]):
+                        nw += 1
+                    if self.player_map.is_visited([i, -j]):
+                        sw += 1
+                    if self.player_map.is_visited([-i, j]):
+                        ne += 1
+                    if self.player_map.is_visited([i, j]):
+                        se += 1
+
+            best_diagonal = max(nw, sw, ne, se)
+            if best_diagonal == nw:
+                if ne > sw:
+                    return constants.UP
+                else:
+                    return constants.LEFT
+            elif best_diagonal == sw:
+                if se > nw:
+                    return constants.DOWN
+                else:
+                    return constants.LEFT
+            elif best_diagonal == ne:
+                if nw > se:
+                    return constants.UP
+                else:
+                    return constants.RIGHT
+            else:
+                if sw > ne:
+                    return constants.DOWN
+                else:
+                    return constants.RIGHT
+            
+        # Converge algorithm
+        else:
+            self.logger.info("End is not visible yet.")
+            return constants.WAIT # Replace with converge algorithm @Yoni
