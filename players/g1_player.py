@@ -6,6 +6,11 @@ import logging
 import constants
 from timing_maze_state import TimingMazeState
 
+##### Frank (9/16):
+# For exploration algorithm
+from experience import Experience
+#################
+
 ##### Tom (9/15):
 # For heap in a*
 import heapq
@@ -49,6 +54,10 @@ class Player:
         self.frontier = []
         self.explored = set()
         self.path = []
+        ######################
+
+        ########## Frank (9/16):
+        self.experience = Experience(self.maximum_door_frequency, self.radius)
         ######################
 
 
@@ -168,35 +177,16 @@ class Player:
                 return constants.WAIT # return -1
             
         else: # If End is not visible
-            if direction[constants.LEFT] == constants.OPEN: # If left door is open
-                for maze_state in current_percept.maze_state: # looping through all the cells visible by the drone
-                    if (maze_state[0] == -1 and maze_state[1] == 0 # (-1,0) is the cell on the left; -> Looking to see the conditions of the four doors at the cell on the left.
-                        and maze_state[2] == constants.RIGHT and maze_state[3] == constants.OPEN # if the right door of the cell on the left (the adjacent door to the current cell) is open
-                        ):
-                        return constants.LEFT #return 0
-                    
-            if direction[constants.DOWN] == constants.OPEN: # If down door is open
-                for maze_state in current_percept.maze_state: # looping through all the cells visible by the drone
-                    if (maze_state[0] == 0 and maze_state[1] == 1 # (0,1) is the cell below; -> Looking to see the conditions of the four doors at the cell below.
-                        and maze_state[2] == constants.UP and maze_state[3] == constants.OPEN # if the above door of the cell below (the adjacent door to the current cell) is open
-                        ):
-                        return constants.DOWN # return 3
-                    
-            if direction[constants.RIGHT] == constants.OPEN: # If right door is open
-                for maze_state in current_percept.maze_state: # looping through all the cells visible by the drone
-                    if (maze_state[0] == 1 and maze_state[1] == 0 # (1,0) is the cell on the right; -> Looking to see the conditions of the four doors at the cell on the right.
-                        and maze_state[2] == constants.LEFT and maze_state[3] == constants.OPEN # if the left door of the cell on the right (the adjacent door to the current cell) is open
-                        ):
-                        return constants.RIGHT # return 2
-                    
-            if direction[constants.UP] == constants.OPEN: # If up door is open
-                for maze_state in current_percept.maze_state: # looping through all the cells visible by the drone
-                    if (maze_state[0] == 0 and maze_state[1] == -1 # (0,-1) is the cell above; -> Looking to see the conditions of the four doors at the cell above.
-                        and maze_state[2] == constants.DOWN and maze_state[3] == constants.OPEN # if the down door of the cell above (the adjacent door to the current cell) is open
-                        ):
-                        return constants.UP # return 1
-                    
-            return constants.WAIT # return -1
+
+            ########## Frank (9/16):
+            move = self.experience.move(current_percept)
+
+            if self.experience.is_valid_move(current_percept, move):
+                return move
+
+            self.experience.wait()
+            return constants.WAIT
+            ###########################
     
 
     ########################################## Tom (9/15):
