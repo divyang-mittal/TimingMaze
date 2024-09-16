@@ -293,6 +293,7 @@ class Player:
                     if (maze_state[0] == self.cur_x and maze_state[1] == self.cur_y and maze_state[2] == constants.LEFT
                             and maze_state[3] == constants.OPEN):
                         self.cur_x -= 1
+                        self.final_move_directions.pop(0)
                         return constants.LEFT
                 return constants.WAIT
 
@@ -301,6 +302,7 @@ class Player:
                     if (maze_state[0] == self.cur_x and maze_state[1] == self.cur_y and maze_state[2] == constants.RIGHT
                             and maze_state[3] == constants.OPEN):
                         self.cur_x += 1
+                        self.final_move_directions.pop(0)
                         return constants.RIGHT
                 return constants.WAIT
 
@@ -309,6 +311,7 @@ class Player:
                     if (maze_state[0] == self.cur_x and maze_state[1] == self.cur_y and maze_state[2] == constants.UP
                             and maze_state[3] == constants.OPEN):
                         self.cur_y +=1 
+                        self.final_move_directions.pop(0)
                         return constants.UP
                 return constants.WAIT
 
@@ -318,6 +321,8 @@ class Player:
                 for maze_state in current_percept.maze_state:
                     if (maze_state[0] == self.cur_x and maze_state[1] == self.cur_y and maze_state[2] == constants.DOWN
                             and maze_state[3] == constants.OPEN):
+                        
+                        self.final_move_directions.pop(0)
                         self.cur_y -= 1
                         return constants.DOWN
                 return constants.WAIT
@@ -341,6 +346,7 @@ class Player:
                     if (maze_state[0] == self.cur_x and maze_state[1] == self.cur_y and maze_state[2] == constants.LEFT
                             and maze_state[3] == constants.OPEN):
                         self.cur_x -= 1
+                        self.final_move_directions.pop(0)
                         return constants.LEFT
                 return constants.WAIT
             elif self.move_directions[0] == constants.RIGHT:
@@ -348,6 +354,7 @@ class Player:
                     if (maze_state[0] == self.cur_x and maze_state[1] == self.cur_y and maze_state[2] == constants.RIGHT
                             and maze_state[3] == constants.OPEN):
                         self.cur_x += 1
+                        self.final_move_directions.pop(0)
                         return constants.RIGHT
                 return constants.WAIT
 
@@ -356,6 +363,7 @@ class Player:
                     if (maze_state[0] == self.cur_x and maze_state[1] == self.cur_y and maze_state[2] == constants.UP
                             and maze_state[3] == constants.OPEN):
                         self.cur_y +=1 
+                        self.final_move_directions.pop(0)
                         return constants.UP
                 return constants.WAIT
 
@@ -364,6 +372,7 @@ class Player:
                     if (maze_state[0] == self.cur_x and maze_state[1] == self.cur_y and maze_state[2] == constants.DOWN
                             and maze_state[3] == constants.OPEN):
                         self.cur_y -= 1
+                        self.final_move_directions.pop(0)
                         return constants.DOWN
                 return constants.WAIT
 
