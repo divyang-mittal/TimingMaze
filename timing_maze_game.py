@@ -14,6 +14,8 @@ from players.G6_Player import G6_Player
 from collections import deque as queue
 import tkinter as tk
 
+from players.g1_player import Player as G1_Player
+
 class TimingMazeGame:
     # Direction vectors
     dRow = [-1, 0, 1, 0]
@@ -219,7 +221,7 @@ class TimingMazeGame:
         # file_path = os.path.join(os.getcwd(), filename)
         # with open(filename, 'w') as json_file:
         #     json.dump(data, json_file, indent=4)
-        #
+        
         # print(f"JSON file '{filename}' created successfully at {file_path}")
 
         self.map_state = self.map_frequencies.copy()
