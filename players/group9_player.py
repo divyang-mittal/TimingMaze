@@ -1,12 +1,32 @@
+import heapq
+import math
 import os
 import pickle
+import random
 import numpy as np
 import logging
+import sys
 
 import constants
-import heapq
 from timing_maze_state import TimingMazeState
 
+def valid_moves(surrounding_doors) -> list[int]:
+        moves = []
+        boundaries = 0
+        for direction in range(4):
+            if surrounding_doors[direction][3] == constants.BOUNDARY:
+                boundaries -= 1
+                continue
+            if surrounding_doors[direction][3] == constants.OPEN and surrounding_doors[((direction + boundaries + 1) * 4) + ((direction + 2) % 4)][3] == constants.OPEN:
+                moves.append(direction)
+        
+        moves.append(constants.WAIT)
+        return moves
+
+def GCD(a, b):
+        if b == 0:
+            return a
+        return GCD(b, a % b)
 
 class Player:
     def __init__(self, rng: np.random.Generator, logger: logging.Logger,
@@ -40,16 +60,12 @@ class Player:
         self.logger = logger
         self.maximum_door_frequency = maximum_door_frequency
         self.radius = radius
-        self.best_path_found = {}
 
-        self.cur_pos = [0, 0] # X, Y
-        self.positions = {}
         self.step = 0
-
-    def GCD(self, a, b):
-        if b == 0:
-            return a
-        return self.GCD(b, a % b)
+        self.cur_pos = [0, 0]
+        self.epsilon = 0.2
+        self.positions = {}
+        self.values = {}
 
     def update_door_state(self, current_percept) -> None:
         """Function which updates the door states
@@ -67,7 +83,28 @@ class Player:
                 if self.positions[(relative_x, relative_y)][maze_state[2]] == 0 and maze_state[3] != 0:
                     self.positions[(relative_x, relative_y)][maze_state[2]] = self.step
                 elif maze_state[3] != 0:
-                    self.positions[(relative_x, relative_y)][maze_state[2]] = self.GCD(self.positions[(relative_x, relative_y)][maze_state[2]], self.step)
+                    self.positions[(relative_x, relative_y)][maze_state[2]] = GCD(self.positions[(relative_x, relative_y)][maze_state[2]], self.step)
+
+
+    def updateValues(self, maze_state) -> None:
+        """Function which updates cell values
+        
+            Args:
+                maze_state: state information
+        """
+        for state in maze_state:
+            x = state[0] + self.cur_pos[0]
+            y = state[1] + self.cur_pos[1]
+            if (x, y) not in self.values:
+                if state[3] == constants.BOUNDARY:
+                    self.values[(x, y)] = -1
+                else:
+                    self.values[(x, y)] = 0
+            else:
+                if self.values[(x, y)] != -1:
+                    self.values[(x, y)] += 1
+
+        self.values[((self.cur_pos[0]), (self.cur_pos[1]))] += self.maximum_door_frequency
 
     def move(self, current_percept) -> int:
         """Function which retrieves the current state of the amoeba map and returns an amoeba movement
@@ -82,96 +119,77 @@ class Player:
                     RIGHT = 2
                     DOWN = 3
         """
-
-        self.update_door_state(current_percept)
-        self.step += 1
-
-        direction = [0, 0, 0, 0]
-        for maze_state in current_percept.maze_state:
-            if maze_state[0] == 0 and maze_state[1] == 0:
-                direction[maze_state[2]] = maze_state[3]
-
         if current_percept.is_end_visible:
-            if abs(current_percept.end_x) >= abs(current_percept.end_y):
-                if current_percept.end_x > 0 and direction[constants.RIGHT] == constants.OPEN:
-                    for maze_state in current_percept.maze_state:
-                        if (maze_state[0] == 1 and maze_state[1] == 0 and maze_state[2] == constants.LEFT
-                                and maze_state[3] == constants.OPEN):
-                            self.cur_pos[0] += 1
-                            return constants.RIGHT
-                if current_percept.end_x < 0 and direction[constants.LEFT] == constants.OPEN:
-                    for maze_state in current_percept.maze_state:
-                        if (maze_state[0] == -1 and maze_state[1] == 0 and maze_state[2] == constants.RIGHT
-                                and maze_state[3] == constants.OPEN):
-                            self.cur_pos[0] -= 1
-                            return constants.LEFT
-                if current_percept.end_y < 0 and direction[constants.UP] == constants.OPEN:
-                    for maze_state in current_percept.maze_state:
-                        if (maze_state[0] == 0 and maze_state[1] == -1 and maze_state[2] == constants.DOWN
-                                and maze_state[3] == constants.OPEN):
-                            self.cur_pos[1] -= 1
-                            return constants.UP
-                if current_percept.end_y > 0 and direction[constants.DOWN] == constants.OPEN:
-                    for maze_state in current_percept.maze_state:
-                        if (maze_state[0] == 0 and maze_state[1] == 1 and maze_state[2] == constants.UP
-                                and maze_state[3] == constants.OPEN):
-                            self.cur_pos[1] += 1
-                            return constants.DOWN
-                return constants.WAIT
-            else:
-                if current_percept.end_y < 0 and direction[constants.UP] == constants.OPEN:
-                    for maze_state in current_percept.maze_state:
-                        if (maze_state[0] == 0 and maze_state[1] == -1 and maze_state[2] == constants.DOWN
-                                and maze_state[3] == constants.OPEN):
-                            self.cur_pos[1] -= 1
-                            return constants.UP
-                if current_percept.end_y > 0 and direction[constants.DOWN] == constants.OPEN:
-                    for maze_state in current_percept.maze_state:
-                        if (maze_state[0] == 0 and maze_state[1] == 1 and maze_state[2] == constants.UP
-                                and maze_state[3] == constants.OPEN):
-                            self.cur_pos[1] += 1
-                            return constants.DOWN
-                if current_percept.end_x > 0 and direction[constants.RIGHT] == constants.OPEN:
-                    for maze_state in current_percept.maze_state:
-                        if (maze_state[0] == 1 and maze_state[1] == 0 and maze_state[2] == constants.LEFT
-                                and maze_state[3] == constants.OPEN):
-                            self.cur_pos[0] += 1
-                            return constants.RIGHT
-                if current_percept.end_x < 0 and direction[constants.LEFT] == constants.OPEN:
-                    for maze_state in current_percept.maze_state:
-                        if (maze_state[0] == -1 and maze_state[1] == 0 and maze_state[2] == constants.RIGHT
-                                and maze_state[3] == constants.OPEN):
-                            self.cur_pos[0] -= 1
-                            return constants.LEFT
-                return constants.WAIT
-        else:
-            if direction[constants.LEFT] == constants.OPEN:
-                for maze_state in current_percept.maze_state:
-                    if (maze_state[0] == -1 and maze_state[1] == 0 and maze_state[2] == constants.RIGHT
-                            and maze_state[3] == constants.OPEN):
-                        self.cur_pos[0] -= 1
-                        return constants.LEFT
-            if direction[constants.DOWN] == constants.OPEN:
-                for maze_state in current_percept.maze_state:
-                    if (maze_state[0] == 0 and maze_state[1] == 1 and maze_state[2] == constants.UP
-                            and maze_state[3] == constants.OPEN):
-                        self.cur_pos[1] += 1
-                        return constants.DOWN
-            if direction[constants.RIGHT] == constants.OPEN:
-                for maze_state in current_percept.maze_state:
-                    if (maze_state[0] == 1 and maze_state[1] == 0 and maze_state[2] == constants.LEFT
-                            and maze_state[3] == constants.OPEN):
-                        self.cur_pos[0] += 1
-                        return constants.RIGHT
-            if direction[constants.UP] == constants.OPEN:
-                for maze_state in current_percept.maze_state:
-                    if (maze_state[0] == 0 and maze_state[1] == -1 and maze_state[2] == constants.DOWN
-                            and maze_state[3] == constants.OPEN):
-                        self.cur_pos[1] -= 1
-                        return constants.UP
+            return self.move_toward_visible_end()
+        
+        self.update_door_state(current_percept)
+        self.updateValues(current_percept.maze_state)
+        moves = valid_moves(current_percept.maze_state[:20])
+        if not moves:
             return constants.WAIT
+        
+        # Epsilon-Greedy 
+        exploit = random.choices([True, False], weights = [(1 - self.epsilon), self.epsilon], k = 1)
+        best_move = constants.WAIT
+
+        if exploit[0]:
+            move_values = [0, 0, 0, 0]
+            for key, val in self.values.items():
+                if val == -1 and math.sqrt((key[0] - self.cur_pos[0]) ** 2 + (key[1] - self.cur_pos[1]) ** 2) <= self.radius:
+                    bound = [-1, -1, -1, -1]
+
+                    if key[0] <= self.cur_pos[0]:
+                        bound[constants.LEFT] = abs(key[0] - self.cur_pos[0])
+                    else:
+                        bound[constants.RIGHT] = abs(key[0] - self.cur_pos[0])
+                    if key[1] <= self.cur_pos[1]:
+                        bound[constants.UP] = abs(key[1] - self.cur_pos[1])
+                    else:
+                        bound[constants.DOWN] = abs(key[1] - self.cur_pos[1])
+                    
+                    max_dist = -math.inf
+                    closest_dir = [-1]
+                    for ind in range(4):
+                        if bound[ind] > max_dist and bound[ind] >= 0:
+                            max_dist = bound[ind]
+                            closest_dir[0] = ind
+                        elif bound[ind] == max_dist and bound[ind] >= 0:
+                            closest_dir.append(ind)
+                        
+                    for dir in closest_dir:
+                        move_values[dir] = math.inf
+                
+                if key[0] < self.cur_pos[0]:
+                    move_values[constants.LEFT] += val
+                if key[1] > self.cur_pos[1]:
+                    move_values[constants.UP] += val
+                if key[0] > self.cur_pos[0]:
+                    move_values[constants.RIGHT] += val
+                if key[1] < self.cur_pos[1]:
+                    move_values[constants.DOWN] += val
+
+            min_val = math.inf
+            for ind in range(4):
+                if move_values[ind] < min_val and ind in moves:
+                    min_val = move_values[ind]
+                    best_move = ind
+        else:
+            best_move = random.choice(moves)
+        
+        match best_move:
+            case constants.LEFT:
+                self.cur_pos[0] -= 1
+            case constants.UP:
+                self.cur_pos[1] -= 1
+            case constants.RIGHT:
+                self.cur_pos[0] += 1
+            case constants.DOWN:
+                self.cur_pos[1] += 1
+
+        return best_move
+
     
-    def move_toward_visible_end(self, door_info):
+    def move_toward_visible_end(self, door_info) -> int:
         """
             Give the next move that a player should take if they know where the endpoint is
         """
@@ -195,12 +213,23 @@ class Player:
 
 class Door():
     # PLACEHOLDER for library classes
-    def __init__(x, y, direction, frequency):
+    def __init__(self, x, y, direction, frequency):
         self.x = x 
         self.y = y 
         self.direction = direction
         self.frequency = frequency 
     
+class Cell():
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.door_freqs = {}
+        self.neighbors = {
+            constants.UP: (self.x, self.y - 1),
+            constants.DOWN: (self.x, self.y + 1),
+            constants.LEFT: (self.x-1, self.y),
+            constants.RIGHT: (self.x+1, self.y)
+        }
 
 class Graph():
     # TODO: depending on how doors are stored in the library, this initial processing
@@ -212,7 +241,7 @@ class Graph():
         for door in door_info:
             coordinates = (door.x, door.y)
             if coordinates not in self.V:
-                self.V[coordinates] = new Cell(door.x, door.y)
+                self.V[coordinates] = Cell(door.x, door.y)
             
             self.V[coordinates].door_freqs[door.direction] = door.frequency
 
@@ -262,25 +291,12 @@ class Graph():
 
         return direction_to_goal
 
-class Cell():
-    def __init__(self, x, y):
-        self.x = x
-        self.y = y
-        self.door_freqs = {}
-        self.neighbors = {
-            constants.UP: (self.x, self.y - 1),
-            constants.DOWN: (self.x, self.y + 1),
-            constants.LEFT: (self.x-1, self.y),
-            constants.RIGHT: (self.x+1, self.y)
-        }
-
 # Helper that maps directions to their opposites 
 def opposite(direction) -> int:
     if direction == constants.UP:
         return constants.DOWN
-    else if direction == constants.DOWN:
+    elif direction == constants.DOWN:
         return constants.UP
-
-    else if direction == constants.LEFT:
+    elif direction == constants.LEFT:
         return constants.RIGHT
     return constants.LEFT
