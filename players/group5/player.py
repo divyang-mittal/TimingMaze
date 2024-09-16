@@ -44,5 +44,33 @@ class G5_Player:
         self.turns += 1
         self.player_map.update_map(self.turns, current_percept.maze_state)
 
+        if self.mode == 0:
+            move = self.explore()
+            if move[1] == 1:
+                self.mode = 1
+            return move[0]
+        
+
+        
+        # print("Treasure: ", self.player_map.get_end_pos_if_known(self.player_map))
+
+        # print("Treasure: ", self.player_map.get_end_pos_if_known(self.player_map)[1])
+
+        exists, end_pos = self.player_map.get_end_pos_if_known()
+        if exists:
+            return converge(self.player_map.get_cur_pos(), end_pos)
+        else:
+            # randomly return a number between 0 and 3
+            num = self.rng.integers(0, 4)
+            print("Random Move: ", num)
+            return num
+
+                # return self.explore()
+        # exists, end_pos = self.player_map.get_end_pos_if_known()
+        # if exists:
+        #     return converge(self.player_map.get_cur_pos(), end_pos)
+
+
         # return converge(self.player_map.get_cur_pos(), self.player_map.get_end_pos())
-        return converge(self.player_map.get_cur_pos(), [4,8])
+        # return converge(self.player_map.get_cur_pos(), self.player_map.get_end_pos_if_known()[1])
+
