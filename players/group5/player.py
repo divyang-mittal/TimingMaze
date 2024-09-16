@@ -44,13 +44,6 @@ class G5_Player:
         self.turns += 1
         self.player_map.update_map(self.turns, current_percept.maze_state)
 
-        print("Current Position: ", self.player_map.get_cur_pos())
-
-        print("ALERT")
-
         # return converge(self.player_map.get_cur_pos(), self.player_map.get_end_pos())
         return converge(self.player_map.get_cur_pos(), [4,8])
 
-
-
-        return constants.UP

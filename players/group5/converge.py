@@ -23,10 +23,10 @@ def converge_basic(start, goal):
 
 
 def converge(current_pos : list, goal : list):
-	print("Current Position: ", current_pos)
-	print("Goal Position: ", goal)
+	# print("Current Position: ", current_pos)
+	# print("Goal Position: ", goal)
 	path = dyjkstra(current_pos, goal)
-	print("Path: ", path)
+	# print("Path: ", path)
 	return path[0] if path else constants.WAIT
 
 
