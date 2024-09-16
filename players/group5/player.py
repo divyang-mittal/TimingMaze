@@ -6,6 +6,7 @@ import logging
 import constants
 from players.group5.player_map import PlayerMapInterface, SimplePlayerMap
 from timing_maze_state import TimingMazeState
+from players.group5.converge import converge_basic, converge
 
 
 class G5_Player:
@@ -25,6 +26,7 @@ class G5_Player:
         self.radius = radius
         self.player_map: PlayerMapInterface = SimplePlayerMap(maximum_door_frequency, logger)
         self.turns = 0
+        self.mode = 0
 
     def move(self, current_percept: TimingMazeState) -> int:
         """Function which retrieves the current state of the amoeba map and returns an amoeba movement

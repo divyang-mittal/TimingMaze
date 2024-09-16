@@ -1,10 +1,10 @@
 import os
 
-map_dim = 100
+map_dim = 10
 
 default_maze = os.path.join("maps", "default", "simple.json")
 
-CLOSED_PROB = 0.05
+CLOSED_PROB = 0.00
 
 possible_players = ["d"] + list(map(str, range(1, 10)))
 
@@ -22,6 +22,6 @@ BOUNDARY = 3
 
 timeout = 60 * 10
 
-CELL_SIZE = 8
+CELL_SIZE = 80
 
 # two doors visible, drone radius
