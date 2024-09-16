@@ -1,5 +1,3 @@
-
-# dataclass for door
 from dataclasses import dataclass
 from typing import List, Set
 
@@ -17,7 +15,7 @@ def update_frequency_candidates(candidates: Set[int], turn_num: int, door_state:
     try:
         if door_state == constants.BOUNDARY:
             logger.debug(f"boundary door found at turn {turn_num}, returning always closed set(0)")
-            return set(0)
+            return {0}
         
         if door_state == constants.OPEN:
             logger.debug(f"open door found at turn {turn_num}, popping always closed (0)")

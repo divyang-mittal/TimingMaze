@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 import logging
 import os
-from typing import List, Set
+from typing import List, Optional, Set, Tuple
 
 import constants
 from players.group5.door import DoorIdentifier, update_frequency_candidates
@@ -10,7 +10,7 @@ from players.group5.door import DoorIdentifier, update_frequency_candidates
 
 class PlayerMapInterface(ABC):
     @abstractmethod
-    def get_start_pos(self) -> List[int]:
+    def get_start_pos(self) -> List[int]:  # NOTE: output type may become dataclass in the future (with type: relative/absolute)
         """Function which returns the start position of the game
 
             Returns:
@@ -19,16 +19,26 @@ class PlayerMapInterface(ABC):
         pass
 
     @abstractmethod
-    def get_end_pos(self) -> List[int]:
-        """Function which returns the end position of the game
+    def get_end_pos_if_known(self) -> Tuple[bool, Optional[List[int]]]:
+        """Function which returns the end position of the game if it is known
 
             Returns:
-                List[int]: List containing the x and y coordinates of the end position (relative to current position)
+                bool: Boolean indicating if the end position is known
+                Optional[List[int]]: Optional list containing the x and y coordinates of the end position (relative to current position)
         """
         pass
 
     @abstractmethod
-    def get_freq_candidates(self, door_id: DoorIdentifier) -> List[int]:
+    def get_cur_pos(self) -> List[int]:
+        """Function which returns the current position of the player
+
+            Returns:
+                List[int]: List containing the x and y coordinates of the current position (relative to current position)
+        """
+        pass
+
+    @abstractmethod
+    def get_freq_candidates(self, door_id: DoorIdentifier) -> Set[int]:
         """Function which returns the frequency candidates for the given door
 
             Args:
@@ -46,8 +56,8 @@ class PlayerMapInterface(ABC):
                 move (int): Integer representing the move to be applied
         """
         pass
+
     @abstractmethod
-    
     def update_map(self, turn_num: int, maze_state: List[List[int]]):  # TODO: check type of maze_state
         """Function which updates the map with the given maze state
 
@@ -77,14 +87,16 @@ class SimplePlayerMap(PlayerMapInterface):
         fh.setFormatter(logging.Formatter('%(message)s'))
         self.logger.addHandler(fh)
 
+        self._real_map_dim = map_dim
         self._map_len = 2 * (map_dim-1) + 1
         self._start_pos = [map_dim-1, map_dim-1]
         self._end_pos = [None, None]
-        self._door_freqs = defaultdict(default_freq_candidates(max_door_frequency))
-        self._boundaries = [-1, self._map_len+1, -1, self._map_len+1]
-        # visited cells
+        self._boundaries = [-1, -1, self._map_len, self._map_len]  # LEFT, UP, RIGHT, DOWN (see constants.py)
 
         self.cur_pos = self._start_pos
+        self._door_freqs = defaultdict(default_freq_candidates(max_door_frequency))
+        self._cell_seen_count = defaultdict(int)
+
 
     def _get_player_relative_coordinates(self, map_coordinates: List[int]) -> List[int]:
         return [map_coordinates[0] - self.cur_pos[0], map_coordinates[1] - self.cur_pos[1]]
@@ -95,20 +107,34 @@ class SimplePlayerMap(PlayerMapInterface):
     def get_start_pos(self) -> List[int]:
         return self._get_player_relative_coordinates(self._start_pos)
 
-    def get_end_pos(self) -> List[int]:
-        if self._end_pos[0] is None or self._end_pos[1] is None:
-            return [None, None]
-        return self._get_player_relative_coordinates(self._end_pos)
+    def get_end_pos_if_known(self) -> Tuple[bool, Optional[List[int]]]:
+        if self._end_pos[0] is None:
+            return False, None
+        return True, self._get_player_relative_coordinates(self._end_pos)
+    
+    def get_cur_pos(self) -> List[int]:
+        # NOTE: this will always return 0,0 for SimplePlayerMap where all output coordinates are relative to cur_pos
+        return self._get_player_relative_coordinates(self.cur_pos)
+    
+    def _door_dictkey(self, map_coords, door_type) -> List[int]:
+        return f"({map_coords[0]},{map_coords[1]})_{door_type}"
 
-    def _door_key(self, door_id: DoorIdentifier) -> List[int]:
-        map_coords = self._get_map_coordinates(door_id.relative_coord)
-        return f"({map_coords[0]},{map_coords[1]})_{door_id.door_type}"
+    def _get_freq_candidates_usecase(self, relative_coord, door_type) -> Set[int]:
+        key = self._door_dictkey(
+            map_coords=self._get_map_coordinates(relative_coord), 
+            door_type=door_type,
+        )
+        return self._door_freqs[key]
+
+    def get_freq_candidates(self, door_id: DoorIdentifier) -> Set[int]:
+        return self._get_freq_candidates_usecase(door_id.relative_coord, door_id.door_type)
     
-    def get_freq_candidates(self, door_id: DoorIdentifier) -> List[int]:
-        return self._door_freqs[self._door_key(door_id)]
-    
-    def _set_freq_candidates(self, door_id: DoorIdentifier, freq_candidates: Set[int]):
-        self._door_freqs[self._door_key(door_id)] = freq_candidates
+    def _set_freq_candidates_usecase(self, relative_coord, door_type, freq_candidates: Set[int]):
+        key = self._door_dictkey(
+            map_coords=self._get_map_coordinates(relative_coord), 
+            door_type=door_type,
+        )
+        self._door_freqs[key] = freq_candidates
     
     def apply_move(self, move: int):
         if move == constants.LEFT:
@@ -120,41 +146,43 @@ class SimplePlayerMap(PlayerMapInterface):
         elif move == constants.DOWN:
             self.cur_pos[1] += 1
 
+    def _is_boundary_found(self, door_type: int) -> bool:
+        BOUNDARY_NOT_FOUND_VALUES = {-1, self._map_len}
+        return self._boundaries[door_type] not in BOUNDARY_NOT_FOUND_VALUES
+
+    def _update_boundaries(self, door_type: int, relative_coordinates: List[int]):
+        map_e2e_dist = self._real_map_dim - 1
+        door_coordinates = self._get_map_coordinates(relative_coordinates)
+        
+        if door_type == constants.LEFT:
+            self._boundaries[constants.LEFT] = door_coordinates[0]
+            self._boundaries[constants.RIGHT] = door_coordinates[0] + map_e2e_dist
+        elif door_type == constants.RIGHT:
+            self._boundaries[constants.RIGHT] = door_coordinates[0]
+            self._boundaries[constants.LEFT] = door_coordinates[0] - map_e2e_dist
+        elif door_type == constants.UP:
+            self._boundaries[constants.UP] = door_coordinates[1]
+            self._boundaries[constants.DOWN] = door_coordinates[1] + map_e2e_dist
+        elif door_type == constants.DOWN:
+            self._boundaries[constants.DOWN] = door_coordinates[1]
+            self._boundaries[constants.UP] = door_coordinates[1] - map_e2e_dist
+
     def update_map(self, turn_num: int, maze_state: List[List[int]]):
         self.logger.debug(f"Before turn {turn_num}: {self._door_freqs}")
+        
         for door in maze_state:
-            door_coordinates = door[:2]
-            door_type = door[2]
-            door_state = door[3]
+            player_relative_coordinates, door_type, door_state = door[:2], door[2], door[3]
 
-            # TODO: clean this up
-            if door_state == constants.BOUNDARY and (self._boundaries[door_type] == -1 or self._boundaries[door_type] == self._map_len+1):
-                if door_type == constants.LEFT:
-                    # then its the right barrier? TODO: check
-                    self._boundaries[constants.RIGHT] = door_coordinates[0]
-                    self._boundaries[constants.LEFT] = door_coordinates[0] - 101
-                elif door_type == constants.UP:
-                    self._boundaries[constants.DOWN] = door_coordinates[1]
-                    self._boundaries[constants.UP] = door_coordinates[1] - 101
-                elif door_type == constants.RIGHT:
-                    self._boundaries[constants.LEFT] = door_coordinates[0]
-                    self._boundaries[constants.RIGHT] = door_coordinates[0] + 101
-                elif door_type == constants.DOWN:
-                    self._boundaries[constants.UP] = door_coordinates[1]
-                    self._boundaries[constants.DOWN] = door_coordinates[1] + 101    
-                
-                self.logger.debug(f"Boundaries: {self._boundaries}")
+            if door_state == constants.BOUNDARY and not self._is_boundary_found(door_type):
+                self.logger.debug(f"Boundary found at turn {turn_num}, updating boundaries: {self._boundaries}")
+                self.logger.debug(f"(door_coordinates, door_type, door_state): {door}")
+                self._update_boundaries(door_type, player_relative_coordinates)
+                self.logger.debug(f"Boundaries updated: {self._boundaries}")
 
-            door_id = DoorIdentifier(relative_coord=door_coordinates, door_type=door_type)
-            frequency_candidates = self.get_freq_candidates(door_id)
-            
-            # TODO: remove
-            # self.logger.debug(f"Before turn {turn_num}: {frequency_candidates}")
+            cur_freq_candidates = self._get_freq_candidates_usecase(player_relative_coordinates, door_type)  # TODO: consider the use of DoorID as DTO or PK...
+            # new_freq_candidates = update_frequency_candidates(cur_freq_candidates, turn_num=turn_num, door_state=door_state, logger=self.logger)
 
-            new_freq_candidates = update_frequency_candidates(frequency_candidates, turn_num=turn_num, door_state=door[3], logger=self.logger)
-
-            self._set_freq_candidates(door_id, new_freq_candidates)
-            # self.logger.debug(f"Afterr: {self.get_freq_candidates(door_id)}")
+            # self._set_freq_candidates_usecase(door_coordinates, door_type, new_freq_candidates)
         self.logger.debug(f"After turn {turn_num}: {self._door_freqs}\n==============\n")
 
         
