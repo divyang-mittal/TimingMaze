@@ -12,6 +12,7 @@ from players.default_player import Player as DefaultPlayer
 from players.G6_Player import G6_Player
 from collections import deque as queue
 import tkinter as tk
+import traceback
 
 class TimingMazeGame:
     # Direction vectors
@@ -371,8 +372,9 @@ class TimingMazeGame:
                 returned_action = self.player.move(
                     current_percept=before_state
                 )
-            except Exception:
-                print("Exception in player code")
+            except Exception as e:
+                print(f"Exception in player code\n{e}")
+                traceback.print_exc()
                 returned_action = None
 
             player_time_taken = time.time() - player_start
