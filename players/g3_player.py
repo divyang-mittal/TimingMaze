@@ -315,7 +315,7 @@ class Player:
                     # if it's the first time seeing the door (since -1 indicates unexplored), set to max_freq so we assume the worst case
                     if self.relative_frequencies[abs_x, abs_y, direction] == -1:
                         self.relative_frequencies[abs_x, abs_y, direction] = self.maximum_door_frequency
-                    # if we've seen it before and it's closed, decrement the frequency (it opens less frequently than we thought)
+                    # if we've seen it before and it's closed, decrement the frequency (it opens more frequently than we thought)
                     elif self.relative_frequencies[abs_x, abs_y, direction] > 1:
                         self.relative_frequencies[abs_x, abs_y, direction] -= 1
                 elif state == constants.BOUNDARY:
