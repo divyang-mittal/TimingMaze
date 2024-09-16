@@ -276,28 +276,27 @@ class Player:
                 for i in range(len(final_path) - 2):
                     self.final_move_directions.append(self.get_move_direction(self, path[i], path[i+1]))
 
-            else:
-                if self.final_move_directions[0] == constants.LEFT:
-                    if self.turns % drone[self.curr_x, self.curr_y][constants.LEFT] == 0:
-                        return self.final_move_directions.pop(0)
-                    else: return constants.WAIT
+            if self.final_move_directions[0] == constants.LEFT:
+                if self.turns % drone[self.curr_x, self.curr_y][constants.LEFT] == 0:
+                    return self.final_move_directions.pop(0)
+                else: return constants.WAIT
 
-                elif self.final_move_directions[0] == constants.RIGHT:
-                    if self.turns % drone[self.curr_x, self.curr_y][constants.RIGHT] == 0:
-                        return self.final_move_directions.pop(0)
-                    else: return constants.WAIT
+            elif self.final_move_directions[0] == constants.RIGHT:
+                if self.turns % drone[self.curr_x, self.curr_y][constants.RIGHT] == 0:
+                    return self.final_move_directions.pop(0)
+                else: return constants.WAIT
 
-                elif self.final_move_directions[0] == constants.UP:
-                    if self.turns % drone[self.curr_x, self.curr_y][constants.UP] == 0:
-                        return self.final_move_directions.pop(0)
-                    else: return constants.WAIT
+            elif self.final_move_directions[0] == constants.UP:
+                if self.turns % drone[self.curr_x, self.curr_y][constants.UP] == 0:
+                    return self.final_move_directions.pop(0)
+                else: return constants.WAIT
 
-                elif self.final_move_directions[0] == constants.DOWN:
-                    if self.turns % drone[self.curr_x, self.curr_y][constants.DOWN] == 0:
-                        return self.final_move_directions.pop(0)
-                    else: return constants.WAIT
+            elif self.final_move_directions[0] == constants.DOWN:
+                if self.turns % drone[self.curr_x, self.curr_y][constants.DOWN] == 0:
+                    return self.final_move_directions.pop(0)
+                else: return constants.WAIT
 
-                return self.final_move_directions.pop(0)
+            return self.final_move_directions.pop(0)
                 
         else:
             if not self.move_directions:
@@ -307,26 +306,25 @@ class Player:
                 for i in range(len(path) - 2):
                     self.move_directions.append(self.get_move_direction(self, path[i], path[i+1]))
 
-            else:
-                if self.move_directions[0] == constants.LEFT:
-                    if self.turns % drone[self.curr_x, self.curr_y][constants.LEFT] == 0:
-                        return self.move_directions.pop(0)
-                    else: return constants.WAIT
+            if self.move_directions[0] == constants.LEFT:
+                if self.turns % drone[self.curr_x, self.curr_y][constants.LEFT] == 0:
+                    return self.move_directions.pop(0)
+                else: return constants.WAIT
 
-                elif self.move_directions[0] == constants.RIGHT:
-                    if self.turns % drone[self.curr_x, self.curr_y][constants.RIGHT] == 0:
-                        return self.move_directions.pop(0)
-                    else: return constants.WAIT
+            elif self.move_directions[0] == constants.RIGHT:
+                if self.turns % drone[self.curr_x, self.curr_y][constants.RIGHT] == 0:
+                    return self.move_directions.pop(0)
+                else: return constants.WAIT
 
-                elif self.move_directions[0] == constants.UP:
-                    if self.turns % drone[self.curr_x, self.curr_y][constants.UP] == 0:
-                        return self.move_directions.pop(0)
-                    else: return constants.WAIT
+            elif self.move_directions[0] == constants.UP:
+                if self.turns % drone[self.curr_x, self.curr_y][constants.UP] == 0:
+                    return self.move_directions.pop(0)
+                else: return constants.WAIT
 
-                elif self.move_directions[0] == constants.DOWN:
-                    if self.turns % drone[self.curr_x, self.curr_y][constants.DOWN] == 0:
-                        return self.move_directions.pop(0)
-                    else: return constants.WAIT
+            elif self.move_directions[0] == constants.DOWN:
+                if self.turns % drone[self.curr_x, self.curr_y][constants.DOWN] == 0:
+                    return self.move_directions.pop(0)
+                else: return constants.WAIT
 
         return 0
 
