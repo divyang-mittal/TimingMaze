@@ -19,6 +19,15 @@ class PlayerMapInterface(ABC):
         pass
 
     @abstractmethod
+    def get_current_pos(self) -> List[int]:
+        """Function which returns the current position of the game
+
+            Returns:
+                List[int]: List containing the x and y coordinates of the current position (relative to current position)
+        """
+        pass
+
+    @abstractmethod
     def get_end_pos(self) -> List[int]:
         """Function which returns the end position of the game
 
@@ -94,11 +103,17 @@ class SimplePlayerMap(PlayerMapInterface):
 
     def get_start_pos(self) -> List[int]:
         return self._get_player_relative_coordinates(self._start_pos)
+    
+    def set_end_pos(self, end_pos: List[int]):
+        self._end_pos = end_pos
 
     def get_end_pos(self) -> List[int]:
         if self._end_pos[0] is None or self._end_pos[1] is None:
             return [None, None]
         return self._get_player_relative_coordinates(self._end_pos)
+    
+    def get_current_pos(self) -> List[int]:
+        return self._get_player_relative_coordinates(self.cur_pos)
 
     def _door_key(self, door_id: DoorIdentifier) -> List[int]:
         map_coords = self._get_map_coordinates(door_id.relative_coord)
@@ -132,16 +147,16 @@ class SimplePlayerMap(PlayerMapInterface):
                 if door_type == constants.LEFT:
                     # then its the right barrier? TODO: check
                     self._boundaries[constants.RIGHT] = door_coordinates[0]
-                    self._boundaries[constants.LEFT] = door_coordinates[0] - 101
+                    self._boundaries[constants.LEFT] = door_coordinates[0] - (constants.map_dim + 1)
                 elif door_type == constants.UP:
                     self._boundaries[constants.DOWN] = door_coordinates[1]
-                    self._boundaries[constants.UP] = door_coordinates[1] - 101
+                    self._boundaries[constants.UP] = door_coordinates[1] - (constants.map_dim + 1)
                 elif door_type == constants.RIGHT:
                     self._boundaries[constants.LEFT] = door_coordinates[0]
-                    self._boundaries[constants.RIGHT] = door_coordinates[0] + 101
+                    self._boundaries[constants.RIGHT] = door_coordinates[0] + (constants.map_dim + 1)
                 elif door_type == constants.DOWN:
                     self._boundaries[constants.UP] = door_coordinates[1]
-                    self._boundaries[constants.DOWN] = door_coordinates[1] + 101    
+                    self._boundaries[constants.DOWN] = door_coordinates[1] + (constants.map_dim + 1)   
                 
                 self.logger.debug(f"Boundaries: {self._boundaries}")
 
