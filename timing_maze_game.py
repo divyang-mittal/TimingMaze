@@ -8,7 +8,7 @@ from timing_maze_state import TimingMazeState
 from constants import *
 import constants
 from utils import *
-from players.default_player import Player as DefaultPlayer
+from players.g2_player import Player as DefaultPlayer
 from collections import deque as queue
 import tkinter as tk
 
@@ -85,7 +85,7 @@ class TimingMazeGame:
         self.player_timeout = False
 
         self.max_door_frequency = args.max_door_frequency
-        self.radius = args.radius
+        self.radius = 70
         self.goal_reached = False
         self.turns = 0
         self.max_turns = 1e10

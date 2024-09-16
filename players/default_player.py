@@ -127,7 +127,7 @@ class Player:
             
         # create the final dictionary with all doors within the radius with LCMs. 
         # TODO: make this more efficient
-        for 
+        #for 
 
 
         print ("seens:", self.seens)

@@ -1,3 +1,4 @@
+import heapq
 import os
 import pickle
 import numpy as np
@@ -30,6 +31,11 @@ class Player:
         self.cur_x = 0 # initializing to start x
         self.cur_y = 0 # initializing to start y
         self.turn = 0
+        self.path = []
+        self.move_directions = []
+        self.final_path = []
+        self.final_move_directions = []
+        self.start = (self.cur_x, self.cur_y)
 
     @staticmethod
     def findSmallestGap(seen):
@@ -158,6 +164,7 @@ class Player:
                         drone[x, y][constants.DOWN] = self.knowns[(x, y)][constants.DOWN]
                     except:
                         drone[x, y][constants.DOWN] = self.rng.integers(low= 1, high=self.maximum_door_frequency, endpoint=True)
+    
         return drone
 
     
@@ -179,6 +186,7 @@ class Player:
         returns: dictionary that changes the keys of knowns (within current radius) to center around cur_x, cur_y and randomizes unknown frequencies
         """
 
+        print("I am inside drone")
         # gathers info from the maze_state and populates self.seens and self.knowns
         for ms in maze_state:
             if self.turn == 1:
@@ -214,24 +222,29 @@ class Player:
                     self.knowns[(ms[0] + self.cur_x, ms[1] + self.cur_y)][ms[2]] = 0 # 0 as frequency will mean boundary
                     self.seens[(ms[0] + self.cur_x, ms[1] + self.cur_y, ms[2])][0] = True
                     self.seens[(ms[0] + self.cur_x, ms[1] + self.cur_y, ms[2])][1] = 0
-                    
+
+        
         self.setFreqs()
-        drone = self.getDrone(maze_state)
+        print("I am right before creating drone")
+        drone = self.getDrone(self, maze_state)
+        print(drone)
+        print("I am right after creating drone")
 
         """print statements for debugging"""
-        # print ("seens:", self.seens)
+        print ("seens:", self.seens)
 
-        # for k in drone:
-        #     print (k)
-        #     try:
-        #         print ("knowns:", self.knowns[k])
-        #     except: 
-        #         print ("no knowns")
-        #     print ("drone:", drone[k])
+        for k in drone:
+            print (k)
+            try:
+                print ("knowns:", self.knowns[k])
+            except: 
+                print ("no knowns")
+            print ("drone:", drone[k])
 
         return drone
     
     def move(self, current_percept) -> int:
+        print("Im inside move")
         """Function which retrieves the current state of the amoeba map and returns an amoeba movement
 
             Args:
@@ -244,12 +257,85 @@ class Player:
                     RIGHT = 2
                     DOWN = 3
         """
-        turn += 1
+
+        """ Until you find target, find a random dest to move to, and return the move type. 
+        Once you find destination, call A* again. 
+
+
+
+        """
+        self.turn = self.turn + 1
+        print("Im before drone")
         drone = self.setInfo(current_percept.maze_state, self.turn)
+        print("Im after drone")
+
+        if current_percept.is_end_visible:
+            if not self.final_move_directions:
+                final_path = self.a_star_search(self, self.start, (current_percept.maze_state.end_x, current_percept.maze_state.end_y), drone)
+
+                for i in range(len(final_path) - 2):
+                    self.final_move_directions.append(self.get_move_direction(self, path[i], path[i+1]))
+
+            else:
+                return self.final_move_directions.pop(0)
+                
+        else:
+            if not self.move_directions:
+                (x, y) = self.generate_goal
+                path = self.a_star_search(self, self.start, (x,y), drone)
+
+                for i in range(len(path) - 2):
+                    self.move_directions.append(self.get_move_direction(self, path[i], path[i+1]))
+
+            else:
+                return self.move_directions.pop(0)
+
         return 0
 
+    def generate_goal():
+        while not is_valid(x, y): # type: ignore
+                # Generate random integers between -100 and 100
+                x = self.rng.integers(-99, 99) # type: ignore
+                y = self.rng.integers(-99, 99) # type: ignore
+                goal = (x,y)
+        return goal
+
+
+
+    def is_valid(row, col):
+        # If cell lies out of bounds
+        if row < 0 or col < 0 or row >= constants.map_dim or col >= constants.map_dim:
+            return False
+
+        # Otherwise
+        return True
+
+    def get_move_direction(self, current_position, next_position):
+        """Determine the move direction from current position to next position
+            Returns:
+                int: Move direction
+                    LEFT = 0
+                    UP = 1
+                    RIGHT = 2
+                    DOWN = 3
+        """
+        dx = next_position[0] - current_position[0]
+        dy = next_position[1] - current_position[1]
+        
+        if dx == -1 and dy == 0:
+            return constants.LEFT  # LEFT
+        elif dx == 0 and dy == 1:
+            return constants.UP  # UP
+        elif dx == 1 and dy == 0:
+            return constants.RIGHT  # RIGHT
+        elif dx == 0 and dy == -1:
+            return constants.DOWN  # DOWN
+        else:
+            return constants.WAIT  # WAIT or invalid move
+
     def a_star_search(self, start, goal, LCM_map):
-        # LCM_map: (x, y) -> {LEFT: #, ...)}
+        print("Im inside A*")
+        # LCM_map: (x, y) -> {LEFT: #, ...}
 
         # Open set represented as a priority queue with (f_score, node)
         open_set = []
@@ -267,6 +353,7 @@ class Player:
 
             # Check if we have reached the goal
             if current == goal:
+                print(self.reconstruct_path(came_from, current))
                 return self.reconstruct_path(came_from, current)
 
             # Explore neighbors
