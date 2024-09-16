@@ -216,6 +216,7 @@ class Player:
                     self.seens[(ms[0] + self.cur_x, ms[1] + self.cur_y, ms[2])][1] = 0
                     
         self.setFreqs()
+        drone = self.getDrone(maze_state)
 
         """print statements for debugging"""
         # print ("seens:", self.seens)
@@ -228,7 +229,7 @@ class Player:
         #         print ("no knowns")
         #     print ("drone:", drone[k])
 
-        return self.getDrone(maze_state)
+        return drone
     
     def move(self, current_percept) -> int:
         """Function which retrieves the current state of the amoeba map and returns an amoeba movement
