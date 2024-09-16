@@ -168,22 +168,23 @@ class SimplePlayerMap(PlayerMapInterface):
             self._boundaries[constants.UP] = door_coordinates[1] - map_e2e_dist
 
     def update_map(self, turn_num: int, maze_state: List[List[int]]):
-        self.logger.debug(f"Before turn {turn_num}: {self._door_freqs}")
-        
+        # before = self._door_freqs.copy()
         for door in maze_state:
             player_relative_coordinates, door_type, door_state = door[:2], door[2], door[3]
 
             if door_state == constants.BOUNDARY and not self._is_boundary_found(door_type):
-                self.logger.debug(f"Boundary found at turn {turn_num}, updating boundaries: {self._boundaries}")
-                self.logger.debug(f"(door_coordinates, door_type, door_state): {door}")
                 self._update_boundaries(door_type, player_relative_coordinates)
-                self.logger.debug(f"Boundaries updated: {self._boundaries}")
 
             cur_freq_candidates = self._get_freq_candidates_usecase(player_relative_coordinates, door_type)  # TODO: consider the use of DoorID as DTO or PK...
-            # new_freq_candidates = update_frequency_candidates(cur_freq_candidates, turn_num=turn_num, door_state=door_state, logger=self.logger)
+            new_freq_candidates = update_frequency_candidates(cur_freq_candidates, turn_num=turn_num, door_state=door_state)
 
-            # self._set_freq_candidates_usecase(door_coordinates, door_type, new_freq_candidates)
-        self.logger.debug(f"After turn {turn_num}: {self._door_freqs}\n==============\n")
+            self._set_freq_candidates_usecase(player_relative_coordinates, door_type, new_freq_candidates)
+
+        # validation log 
+        # after = self._door_freqs
+        # diff = {k: (before[k], after[k]) for k in before if before[k] != after[k]}
+        # self.logger.debug(f"Diff after turn {turn_num}: {diff}")
+
 
         
         
