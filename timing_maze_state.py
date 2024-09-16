@@ -15,3 +15,6 @@ class TimingMazeState:
             self.end_x = end_x
             self.end_y = end_y
 
+    def __str__(self):
+        return f"start_x: {self.start_x}\nstart_y: {self.start_y}\n"
+
