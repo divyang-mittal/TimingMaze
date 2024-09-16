@@ -129,7 +129,7 @@ class Player:
                         return constants.UP
             return constants.WAIT
     
-    def best_path_to_visible_end(self, door_info):
+    def move_toward_visible_end(self, door_info):
          """
             Args:
                 door_info
