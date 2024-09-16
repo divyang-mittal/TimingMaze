@@ -1,5 +1,3 @@
-import os
-import pickle
 import numpy as np
 import logging
 
@@ -28,6 +26,37 @@ class G5_Player:
         self.turns = 0
         self.mode = 0
 
+    def simple_search(self):        
+        nw, sw, ne, se = 0, 0, 0, 0
+
+        for i in range(self.radius):
+            for j in range(self.radius):
+                if self.player_map.get_seen_counts([[-i, -j]])[0]>0:
+                    nw += 1
+                if self.player_map.get_seen_counts([[i, -j]])[0]>0:
+                    sw += 1
+                if self.player_map.get_seen_counts([[-i, j]])[0]>0:
+                    ne += 1
+                if self.player_map.get_seen_counts([[i, j]])[0]>0:
+                    se += 1
+        best_diagonal = max(nw, sw, ne, se)
+        if best_diagonal == nw:
+            if ne > sw:
+                return constants.UP
+            return constants.LEFT
+        elif best_diagonal == sw:
+            if se > nw:
+                return constants.DOWN
+            return constants.LEFT
+        elif best_diagonal == ne:
+            if nw > se:
+                return constants.UP
+            return constants.RIGHT
+        else:
+            if sw > ne:
+                return constants.DOWN
+            return constants.RIGHT
+
     def move(self, current_percept: TimingMazeState) -> int:
         """Function which retrieves the current state of the amoeba map and returns an amoeba movement
 
@@ -42,7 +71,11 @@ class G5_Player:
                     DOWN = 3
         """
         self.turns += 1
-        self.player_map.update_map(self.turns, current_percept.maze_state)
+        self.player_map.update_map(self.turns, current_percept)
 
-        # return converge(self.player_map.get_cur_pos(), self.player_map.get_end_pos())
-        return converge(self.player_map.get_cur_pos(), [4,8])
+        exists, end_pos = self.player_map.get_end_pos_if_known()
+        if not exists:
+            return self.simple_search()
+        return converge(self.player_map.get_cur_pos(), end_pos)
+
+
