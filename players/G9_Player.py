@@ -17,7 +17,7 @@ class Player:
         self.turn = 0
         self.experience = Experience(self.maximum_door_frequency, self.radius)
         self.current_path = []
-        self.door_open_turns = {}  
+        self.frequency = {}  
         self.frequency_collection_turns = 4  #Have to find optimal waiting time need to threshhold for this
 
     def move(self, current_percept) -> int:
@@ -59,32 +59,20 @@ class Player:
     def update_door_frequencies(self, current_percept):
         for x, y, direction, state in current_percept.maze_state:
             if state == constants.OPEN:
-                key = (x, y, direction)
-                if key not in self.door_open_turns:
-                    self.door_open_turns[key] = [self.turn]
+                glob_x = x-current_percept.start_x
+                glob_y = y-current_percept.start_y
+                key = (glob_y, glob_x, direction)
+                self.logger.info(f"{x},{y} direction: {direction} is open at turn {self.turn}")
+                if key not in self.frequency:
+                    self.frequency[key] = self.turn
                 else:
-                    self.door_open_turns[key].append(self.turn)
-                    # Keep only the last two open turns
-                    self.door_open_turns[key] = self.door_open_turns[key][-2:]
+                    self.frequency[key]= math.gcd(self.turn, self.frequency[key])
 
     def get_door_frequency(self, x, y, direction):
         key = (x, y, direction)
-        if key in self.door_open_turns:
-            open_turns = self.door_open_turns[key]
-            if len(open_turns) > 1:
-                frequency = self.calculate_frequency(open_turns[-2], open_turns[-1])
-                return frequency
-        return self.maximum_door_frequency  # Default to maximum frequency if unknown
-
-    def calculate_frequency(self, turn1, turn2):
-        def gcd(a, b):
-            while b:
-                a, b = b, a % b
-            return a
-
-        difference = abs(turn2 - turn1)
-        frequency = gcd(difference, self.turn - turn1)
-        return min(frequency, self.maximum_door_frequency)
+        if key in self.frequency:
+            return self.frequency[key]
+        return self.maximum_door_frequency
 
     def frequency_aware_astar(self, start, goal, current_percept):
         open_list = []
