@@ -28,27 +28,64 @@ class G6_Player:
         self.known_target = False
         # Data structure to hold state information about the doors inside the radius
         self.curr_maze = {}
+        self.seen = np.zeros((100, 100))
+        self.curr_pos = (0, 0)
         self.turn = 0
 
     def move(self, current_percept: TimingMazeState) -> int:
-        # Bug: Move Enum is not an int and will not be accepted as a move
         self.turn += 1
 
+        self.__update_maze(current_percept)
+
+        # seen_count = np.sum(self.seen)
+
+        movement = self.__move(current_percept)
+        self.__update_curr_pos(movement)
+
+        return movement.value
+
+    def __move(self, current_percept: TimingMazeState) -> Move:
         if not current_percept.is_end_visible:
             # SEARCH FOR TARGET
-            return int(self.__explore().value)
+            return self.__explore()
 
         # GO TO TARGET
-        return int(self.__exploit(current_percept).value)
+        return self.__exploit(current_percept)
 
-    def __update_maze(self) -> dict[str, int]:
+    def __update_maze(self, curr_state: TimingMazeState):
         # Update current maze with new info from the drone
+        for cell in curr_state.maze_state:
+            cell_row = (cell[0] + self.curr_pos[0]) % 100
+            cell_col = (cell[1] + self.curr_pos[1]) % 100
 
-        return {}
+            self.seen[cell_row][cell_col] = True
 
     def __convert_state(self, curr_state: TimingMazeState):
         # Update self.curr_maze with new state information
         pass
+
+    def __update_curr_pos(self, movement: Move):
+        match movement:
+            case Move.LEFT:
+                self.curr_pos = (
+                    (self.curr_pos[0] - 1) % 100,
+                    self.curr_pos[1] % 100,
+                )
+            case Move.RIGHT:
+                self.curr_pos = (
+                    (self.curr_pos[0] + 1) % 100,
+                    self.curr_pos[1] % 100,
+                )
+            case Move.UP:
+                self.curr_pos = (
+                    (self.curr_pos[0]) % 100,
+                    (self.curr_pos[1] - 1) % 100,
+                )
+            case Move.DOWN:
+                self.curr_pos = (
+                    (self.curr_pos[0]) % 100,
+                    (self.curr_pos[1] + 1) % 100,
+                )
 
     def __explore(self) -> Move:
         return Move.LEFT
