@@ -46,8 +46,8 @@ class Experience:
             )
 
             cell = (
-                cell[0] - self.cur_pos[0],
-                cell[1] - self.cur_pos[1],
+                self.cur_pos[0] + cell[0],
+                self.cur_pos[1] + cell[1],
             )
             if cell not in self.seen_cells:
                 self.seen_cells.add(cell)
