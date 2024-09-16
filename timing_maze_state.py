@@ -14,3 +14,4 @@ class TimingMazeState:
         if is_end_visible:
             self.end_x = end_x
             self.end_y = end_y
+
