@@ -49,8 +49,8 @@ class Player:
             return a
         return self.GCD(b, a % b)
 
-    def update_position(self, current_percept) -> None:
-        """Function which updates the position of the amoeba
+    def update_door_state(self, current_percept) -> None:
+        """Function which updates the door states
 
             Args:
                 current_percept(TimingMazeState): contains current state information
@@ -67,8 +67,6 @@ class Player:
                 elif maze_state[3] != 0:
                     self.positions[(relative_x, relative_y)][maze_state[2]] = self.GCD(self.positions[(relative_x, relative_y)][maze_state[2]], self.step)
 
-        print(self.positions)
-
     def move(self, current_percept) -> int:
         """Function which retrieves the current state of the amoeba map and returns an amoeba movement
 
@@ -83,12 +81,8 @@ class Player:
                     DOWN = 3
         """
 
-        print(self.cur_pos, self.step)
-
-        self.update_position(current_percept)
-
+        self.update_door_state(current_percept)
         self.step += 1
-
 
         direction = [0, 0, 0, 0]
         for maze_state in current_percept.maze_state:
