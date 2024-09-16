@@ -1,5 +1,6 @@
 ########################################## Frank (9/16):
 import constants
+import random
 
 
 class Experience:
@@ -121,8 +122,13 @@ class Experience:
                     move_scores[i] - self.wait_penalty * self.wait_penalty_multiplier
                 )
 
+        max_score = max(move_scores)
+        max_indices = [i for i, score in enumerate(move_scores) if score == max_score]
+        move = random.choice(max_indices)
+
         print(f"Move scores: {move_scores}")
-        return move_scores.index(max(move_scores))
+        print(f'Move: {move}')
+        return move
 
     def get_move_scores(self):
         """Score each move based on the number of new cells seen
@@ -217,4 +223,5 @@ class Experience:
                     return True
 
         return False
+
 ##########################################
