@@ -34,7 +34,7 @@ class G6_Player:
         # Bug: Move Enum is not an int and will not be accepted as a move
         self.turn += 1
 
-        if not current_percept.end_x and not current_percept.end_y:
+        if not current_percept.is_end_visible:
             # SEARCH FOR TARGET
             return int(self.__explore().value)
 
@@ -51,7 +51,7 @@ class G6_Player:
         pass
 
     def __explore(self) -> Move:
-        return Move.LEFT.value
+        return Move.LEFT
 
     def __exploit(self, current_state: TimingMazeState) -> Move:
         if random.random() < 0.1:
