@@ -42,7 +42,7 @@ class G5_Player:
                     DOWN = 3
         """
         self.turns += 1
-        self.player_map.update_map(self.turns, current_percept.maze_state)
+        self.player_map.update_map(self.turns, current_percept)
 
         # return converge(self.player_map.get_cur_pos(), self.player_map.get_end_pos())
         return converge(self.player_map.get_cur_pos(), [4,8])
