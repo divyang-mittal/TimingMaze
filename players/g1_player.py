@@ -8,7 +8,7 @@ from timing_maze_state import TimingMazeState
 
 ##### Frank (9/16):
 # For exploration algorithm
-from experience import Experience
+from players.group1_misc.experience import Experience
 #################
 
 ##### Tom (9/15):

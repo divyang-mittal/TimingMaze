@@ -15,7 +15,6 @@ from collections import deque as queue
 import tkinter as tk
 
 from players.g1_player import Player as G1_Player
-from players.G9_Player import Player as G9_Player
 
 class TimingMazeGame:
     # Direction vectors
