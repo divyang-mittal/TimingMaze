@@ -9,6 +9,7 @@ from constants import *
 import constants
 from utils import *
 from players.default_player import Player as DefaultPlayer
+from players.group5.player import G5_Player as G5_Player
 from collections import deque as queue
 import tkinter as tk
 
