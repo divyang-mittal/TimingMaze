@@ -75,19 +75,32 @@ class Player:
                     DOWN = 3
         """
         ################################ Tom (9/15): Comment this chunk to go back to default player
-        # If there's no path, run A* to find one
-        if not self.path:
-            #print("not self.path")
-            self.path = self.a_star(current_percept)
-        
-        # If A* found a path, execute the next move
-        else:
-            # Get the next move from the path
-            #print("yes self.path")
-            next_move = self.path.pop(0) 
-            #print("next move is")
-            #print(next_move)
-            return next_move
+        if current_percept.is_end_visible:
+            # If there's no path, run A* to find one
+            if not self.path:
+                #print("not self.path")
+                self.path = self.a_star(current_percept)
+            
+            # If A* found a path, execute the next move
+            else:
+                # Get the next move from the path
+                #print("yes self.path")
+                next_move = self.path.pop(0) 
+                #print("next move is")
+                #print(next_move)
+                return next_move
+        else: # If End is not visible
+
+            ########## Frank (9/16):
+            move = self.experience.move(current_percept)
+
+            if self.experience.is_valid_move(current_percept, move):
+                return move
+
+            self.experience.wait()
+            return constants.WAIT
+            ###########################
+            
         ############################################ Comment this chunk to go back to default player
 
         # default_player:
