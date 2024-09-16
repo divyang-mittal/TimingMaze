@@ -4,6 +4,7 @@ import numpy as np
 import logging
 
 import constants
+import heapq
 from timing_maze_state import TimingMazeState
 
 
@@ -40,6 +41,7 @@ class Player:
         self.maximum_door_frequency = maximum_door_frequency
         self.radius = radius
         self.pos = [0, 0] # X, Y
+        self.best_path_found = {}
 
     def move(self, current_percept) -> int:
         """Function which retrieves the current state of the amoeba map and returns an amoeba movement
@@ -126,3 +128,110 @@ class Player:
                             and maze_state[3] == constants.OPEN):
                         return constants.UP
             return constants.WAIT
+    
+    def best_path_to_visible_end(self, door_info):
+         """
+            Args:
+                door_info
+            Return: True if the optimal path was found, false otherwise
+        """
+        curr_cell = (self.pos[0], self.pos[1])
+        if len(self.best_path_found) == 0 or curr_cell not in self.best_path_found:
+            G = Graph(door_info)
+            self.best_path_found = G.find_path(current_percept.end_x, current_percept.end_y)
+
+        if curr_cell not in self.best_path_found:
+            return constants.WAIT # TODO: This should be some error case. It means no possible path was found given our visible state.
+
+        direction_to_goal = self.best_path_found[curr_cell]
+        if self.can_move_in_direction(direction_to_goal):
+            return direction_to_goal
+        return constants.WAIT
+
+    def can_move_in_direction(self, direction):
+        # TODO: this depends on library
+        return True
+
+
+class Door():
+    def __init__(x, y, direction, frequency):
+        self.x = x 
+        self.y = y 
+        self.direction = direction
+        self.frequency = frequency 
+    
+
+class Graph():
+    def __init__(self, door_info):
+        # a cell at coordinate (x, y) can be found with self.V[(x,y)]
+        self.V = {}
+        for door in door_info:
+            coordinates = (door.x, door.y)
+            if coordinates not in self.V:
+                self.V[coordinates] = new Cell(door.x, door.y)
+            
+            self.V[coordinates].door_freqs[door.direction] = door.frequency
+
+    def find_path(self, goal_x, goal_y):
+        goal_coordinates = (goal_x, goal_y)
+        if goal_coordinates not in self.V:
+            return {}
+        goal_cell = self.V[goal_coordinates]
+
+        dist = {cell: float("inf") for cell in self.V}
+        dist[goal_cell] = 0
+
+        queue = [(0, goal_cell)]
+        heapq.heapify(queue)
+        
+        visited = {}
+        direction_to_goal = {}
+
+        while len(queue) > 0:
+            curr_dist, curr_cell = heapq.heappop(queue) # node with min dist
+
+            if curr_cell in visited:
+                continue
+            visited.add(curr_cell)
+
+            for direction in range(3):
+                neighbor_coordinates = cell.neighbors[direction]
+                if neighbor_coordinates not in self.V:
+                    continue
+                neighbor = self.V[neighbor_coordinates]
+
+                # how often are we able to go in this direction?
+                edge_freq = curr_cell.door_freqs[direction] * neighbor.door_freqs[opposite(direction)]
+
+                dist_from_here = curr_dist + edge_freq
+                if dist_from_here < dist[neighbor]:
+                    # best way to get to neighbor (so far) is from here. 
+                    # meaning if player is at neighbor, it should go to curr_cell to reach goal
+                    dist[neighbor] = dist_from_here
+                    direction_to_goal[neighbor_coordinates] = opposite(direction)
+
+                    heapq.heappush(queue, (dist_from_here, neighbor))
+
+        return direction_to_goal
+
+class Cell():
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.door_freqs = {}
+        self.neighbors = {
+            constants.UP: (self.x, self.y - 1),
+            constants.DOWN: (self.x, self.y + 1),
+            constants.LEFT: (self.x-1, self.y),
+            constants.RIGHT: (self.x+1, self.y)
+        }
+
+def opposite(direction) -> int:
+    if direction == constants.UP:
+        return constants.DOWN
+    else if direction == constants.DOWN:
+        return constants.UP
+
+    else if direction == constants.LEFT:
+        return constants.RIGHT
+    return constants.LEFT
