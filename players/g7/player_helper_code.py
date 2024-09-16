@@ -15,7 +15,11 @@ class MemoryDoor:
         self.is_certain_freq = False
         self.observations = {} # {turn : 1 - Closed / 2 - Open / 3 - Boundary}
         self.freq_distribution = {}
-
+    
+    def is_open(self, turn):
+        # Returns if the door is open at a given turn
+        return self.observations.get(turn, 1) == 2
+    
     def update_observations(self, door_state, turn):
         # Updates observed freqs, runs get_freq
         if not self.is_certain_freq:
@@ -106,6 +110,51 @@ class PlayerMemory:
             self.pos[1] += 1
         if move == constants.DOWN:
             self.pos[0] += 1
+    
+    def is_move_valid(self, move, state):
+
+        if move == constants.LEFT:
+            current_square_left_open = False
+            left_square_right_open = False
+            for s in state: 
+                if s[0] == 0 and s[1] == 0 and s[2] == constants.LEFT and s[3] == 2:
+                    current_square_left_open = True
+                if s[0] == 0 and s[1] == -1 and s[2] == constants.RIGHT and s[3] == 2:
+                    left_square_right_open = True
+            return current_square_left_open and left_square_right_open
+
+        if move == constants.UP:
+            current_square_up_open = False
+            up_square_down_open = False
+            for s in state:
+                if s[0] == 0 and s[1] == 0 and s[2] == constants.UP and s[3] == 2:
+                    current_square_up_open = True
+                if s[0] == -1 and s[1] == 0 and s[2] == constants.DOWN and s[3] == 2:
+                    up_square_down_open = True
+            return current_square_up_open and up_square_down_open
+
+        
+        if move == constants.RIGHT:
+            current_square_right_open = False
+            right_square_left_open = False
+            for s in state:
+                if s[0] == 0 and s[1] == 0 and s[2] == constants.RIGHT and s[3] == 2:
+                    current_square_right_open = True
+                if s[0] == 0 and s[1] == 1 and s[2] == constants.LEFT and s[3] == 2:
+                    right_square_left_open = True
+            return current_square_right_open and right_square_left_open
+ 
+        if move == constants.DOWN:
+            current_square_down_open = False
+            down_square_up_open = False
+            for s in state:
+                if s[0] == 0 and s[1] == 0 and s[2] == constants.DOWN and s[3] == 2:
+                    current_square_down_open = True
+                if s[0] == 1 and s[1] == 0 and s[2] == constants.UP and s[3] == 2:
+                    down_square_up_open = True
+            return current_square_down_open and down_square_up_open
+        
+        return False
 
 class MazeGraph:
     def __init__(self, graph: dict = {}):
@@ -195,7 +244,7 @@ class MazeGraph:
 def reconstruct_path(parent, startNode, targetNode):
     """Helper function to reconstruct the path from startNode to targetNode using the parent dictionary."""
     path = []
-    currentNode = targetNode
+    currentNode = (startNode[0] + targetNode[0], startNode[1] + targetNode[1])
     while currentNode is not None:
         path.append(currentNode)
         currentNode = parent.get(currentNode)[0]  # Get the parent node

@@ -47,7 +47,7 @@ class Player:
         self.maximum_door_frequency = maximum_door_frequency
         self.radius = radius
         self.memory = PlayerMemory()
-        self.turn = 1
+        self.turn = 0
         self.starting_position_set = False #check
 
     
@@ -64,11 +64,12 @@ class Player:
                     RIGHT = 2
                     DOWN = 3
         """
-        if not self.starting_position_set: #setting starting position if not set
-            self.memory.pos = (current_percept.player_x, current_percept.player_y)
-            self.starting_position_set = True
-
-        """Decide on the next move based on the current percept."""
+        # if not self.starting_position_set: #setting starting position if not set
+        #     self.memory.pos = (current_percept.player_x, current_percept.player_y)
+        #     self.starting_position_set = True
+        
+        self.turn += 1
+        # Decide on the next move based on the current percept.
         self.memory.update_memory(current_percept.maze_state, self.turn)
         
         # Build the graph from the updated memory
@@ -84,20 +85,31 @@ class Player:
         # Find shortest paths to the target node
         minDistanceArray, parent = findShortestPathsToEachNode(currentGraph, self.memory.pos, self.turn)
         
-        if target_node in minDistanceArray:
-            # Reconstruct the path to the target node
+        can_reconstruct = False
+        for i in range(len(minDistanceArray)):
+            for j in range(len(minDistanceArray[i])):
+                if minDistanceArray[i][j] != float('inf') and minDistanceArray[i][j] != 0:
+                    # print(f"Distance from {self.memory.pos} to {i, j}: {minDistanceArray[i][j]}")
+                    # We have a path!
+                    can_reconstruct = True
+        if can_reconstruct:
             path = reconstruct_path(parent, self.memory.pos, target_node)
-            
-            # Get the next move from the path
-            # need to ensure invalid turns don't happen
             if len(path) > 1:
                 next_move = self.get_move_direction(self.memory.pos, path[1])
-                self.memory.update_pos(next_move)
-                self.turn += 1
-                return next_move
+                if self.memory.is_move_valid(next_move, self.turn, current_percept.maze_state):
+                    self.memory.update_pos(next_move)
+                    return next_move
+                else: 
+                    return constants.WAIT
+        else: # No path found
+            return constants.WAIT
+        
+        # Get the next move from the path
+        # need to ensure invalid turns don't happen
+
         
         # If no valid path found or need to wait
-        return constants.WAIT
+        # return constants.WAIT
 
 
     def choose_intermediate_target_node(self, current_percept): #when goal node is not visible
