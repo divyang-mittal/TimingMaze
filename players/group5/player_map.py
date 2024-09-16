@@ -19,7 +19,6 @@ class PlayerMapInterface(ABC):
         pass
 
     @abstractmethod
-
     def get_end_pos_if_known(self) -> Tuple[bool, Optional[List[int]]]:
         """Function which returns the end position of the game if it is known
 
@@ -118,9 +117,6 @@ class SimplePlayerMap(PlayerMapInterface):
 
     def get_start_pos(self) -> List[int]:
         return self._get_player_relative_coordinates(self._start_pos)
-    
-    def set_end_pos(self, end_pos: List[int]):
-        self._end_pos = end_pos
 
     def get_end_pos_if_known(self) -> Tuple[bool, Optional[List[int]]]:
         if self._end_pos[0] is None:
@@ -209,4 +205,3 @@ class SimplePlayerMap(PlayerMapInterface):
 
     def get_seen_counts(self, relative_coord: List[List[int]]) -> List[int]:
         return [self._cell_seen_count.get(tuple(self._get_map_coordinates(cell)), 0) for cell in relative_coord]
-        

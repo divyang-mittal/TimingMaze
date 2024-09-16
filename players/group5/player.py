@@ -46,4 +46,3 @@ class G5_Player:
 
         # return converge(self.player_map.get_cur_pos(), self.player_map.get_end_pos())
         return converge(self.player_map.get_cur_pos(), [4,8])
-
