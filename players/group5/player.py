@@ -42,7 +42,7 @@ class G5_Player:
                     DOWN = 3
         """
         self.turns += 1
-        self.player_map.update_map(self.turns, current_percept.maze_state)
+        self.player_map.update_map(self.turns, current_percept)
 
         if self.mode == 0:
             move = self.explore()
