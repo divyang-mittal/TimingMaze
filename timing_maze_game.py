@@ -8,9 +8,11 @@ from timing_maze_state import TimingMazeState
 from constants import *
 import constants
 from utils import *
-from players.default_player import Player as DefaultPlayer
+#from players.default_player import Player as DefaultPlayer
 from collections import deque as queue
 import tkinter as tk
+
+from players.g1_player import Player as DefaultPlayer
 
 class TimingMazeGame:
     # Direction vectors
@@ -217,7 +219,7 @@ class TimingMazeGame:
         # file_path = os.path.join(os.getcwd(), filename)
         # with open(filename, 'w') as json_file:
         #     json.dump(data, json_file, indent=4)
-        #
+        
         # print(f"JSON file '{filename}' created successfully at {file_path}")
 
         self.map_state = self.map_frequencies.copy()
