@@ -12,7 +12,6 @@ from players.default_player import Player as DefaultPlayer
 from players.G6_Player import G6_Player
 from collections import deque as queue
 import tkinter as tk
-import traceback
 
 class TimingMazeGame:
     # Direction vectors
@@ -372,9 +371,8 @@ class TimingMazeGame:
                 returned_action = self.player.move(
                     current_percept=before_state
                 )
-            except Exception as e:
-                print(f"Exception in player code\n{e}")
-                traceback.print_exc()
+            except Exception:
+                print("Exception in player code")
                 returned_action = None
 
             player_time_taken = time.time() - player_start
@@ -725,3 +723,4 @@ class TimingMazeGame:
             cx, cy = self.x_offset + x * constants.CELL_SIZE + constants.CELL_SIZE/2, self.y_offset + y * constants.CELL_SIZE + constants.CELL_SIZE/2
             r = self.radius*constants.CELL_SIZE
             self.canvas.create_oval(cx - r, cy - r, cx + r, cy + r, fill="", outline="blue", width=1)
+            
