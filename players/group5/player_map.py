@@ -67,6 +67,17 @@ class PlayerMapInterface(ABC):
         """
         pass
 
+    @abstractmethod
+    def get_seen_counts(self, cell_coords: List[List[int]]) -> List[int]:
+        """Function which returns the number of times each cell has been seen
+
+            Args:
+                cell_coords (List[List[int]]): List of cell coordinates
+            Returns:
+                List[int]: List containing the number of times each cell has been seen
+        """
+        pass
+
 
 def default_freq_candidates(max_door_frequency: int):
     # generate a set of door frequencies from 0 to max_door_frequency
@@ -168,6 +179,7 @@ class SimplePlayerMap(PlayerMapInterface):
             self._boundaries[constants.UP] = door_coordinates[1] - map_e2e_dist
 
     def update_map(self, turn_num: int, maze_state: List[List[int]]):
+        cells_seen = set()
         # before = self._door_freqs.copy()
         for door in maze_state:
             player_relative_coordinates, door_type, door_state = door[:2], door[2], door[3]
@@ -180,12 +192,18 @@ class SimplePlayerMap(PlayerMapInterface):
 
             self._set_freq_candidates_usecase(player_relative_coordinates, door_type, new_freq_candidates)
 
+            cells_seen.add(tuple(self._get_map_coordinates(player_relative_coordinates)))
+
         # validation log 
         # after = self._door_freqs
         # diff = {k: (before[k], after[k]) for k in before if before[k] != after[k]}
         # self.logger.debug(f"Diff after turn {turn_num}: {diff}")
 
+        # update seen count
+        for cell in cells_seen:
+            self._cell_seen_count[cell] += 1
 
-        
+    def get_seen_counts(self, relative_coord: List[List[int]]) -> List[int]:
+        return [self._cell_seen_count.get(tuple(self._get_map_coordinates(cell)), 0) for cell in relative_coord]
         
 
