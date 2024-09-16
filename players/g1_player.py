@@ -130,10 +130,8 @@ class Player:
             return constants.WAIT
     
     def move_toward_visible_end(self, door_info):
-         """
-            Args:
-                door_info
-            Return: True if the optimal path was found, false otherwise
+        """
+            Give the next move that a player should take if they know where the endpoint is
         """
         curr_cell = (self.pos[0], self.pos[1])
         if len(self.best_path_found) == 0 or curr_cell not in self.best_path_found:
@@ -154,6 +152,7 @@ class Player:
 
 
 class Door():
+    # PLACEHOLDER for library classes
     def __init__(x, y, direction, frequency):
         self.x = x 
         self.y = y 
@@ -162,6 +161,9 @@ class Door():
     
 
 class Graph():
+    # TODO: depending on how doors are stored in the library, this initial processing
+    # may not be necessary at all. I did this to be able to more efficiently find cells at 
+    # a given cardinal position.
     def __init__(self, door_info):
         # a cell at coordinate (x, y) can be found with self.V[(x,y)]
         self.V = {}
@@ -173,6 +175,10 @@ class Graph():
             self.V[coordinates].door_freqs[door.direction] = door.frequency
 
     def find_path(self, goal_x, goal_y):
+        """
+            Given the current graph/board state and the end coordinates, use Dijkstra's 
+            algorithm to find a path from every available cell to the end position.
+        """
         goal_coordinates = (goal_x, goal_y)
         if goal_coordinates not in self.V:
             return {}
@@ -226,6 +232,7 @@ class Cell():
             constants.RIGHT: (self.x+1, self.y)
         }
 
+# Helper that maps directions to their opposites 
 def opposite(direction) -> int:
     if direction == constants.UP:
         return constants.DOWN
