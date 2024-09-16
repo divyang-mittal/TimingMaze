@@ -68,7 +68,8 @@ class Player:
         #     self.memory.pos = (current_percept.player_x, current_percept.player_y)
         #     self.starting_position_set = True
         
-        self.turn += 1
+        move = constants.WAIT
+
         # Decide on the next move based on the current percept.
         self.memory.update_memory(current_percept.maze_state, self.turn)
         
@@ -96,14 +97,16 @@ class Player:
             path = reconstruct_path(parent, self.memory.pos, target_node)
             if len(path) > 1:
                 next_move = self.get_move_direction(self.memory.pos, path[1])
-                if self.memory.is_move_valid(next_move, self.turn, current_percept.maze_state):
+                if self.memory.is_move_valid(next_move, current_percept.maze_state):
                     self.memory.update_pos(next_move)
-                    return next_move
+                    move = next_move
                 else: 
-                    return constants.WAIT
+                    move = constants.WAIT
         else: # No path found
-            return constants.WAIT
+            move = constants.WAIT
         
+        self.turn += 1
+        return move
         # Get the next move from the path
         # need to ensure invalid turns don't happen
 
