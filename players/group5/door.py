@@ -6,12 +6,13 @@ import constants
 
 @dataclass
 class DoorIdentifier:
-    relative_coord: List[int]
+    absolute_coord: List[int]
     door_type: int
+    relative_coord: List[int] | None = None
 
 
 # TODO: doing this for every door would be time consuming; also make it more memory efficient (gc)
-def update_frequency_candidates(candidates: Set[int], turn_num: int, door_state: int) -> Set[int]:
+def get_updated_frequency_candidates(candidates: Set[int], turn_num: int, door_state: int) -> Set[int]:
     if door_state == constants.BOUNDARY:
         return {0}
     
