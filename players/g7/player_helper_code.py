@@ -89,27 +89,27 @@ class MemorySquare:
 class PlayerMemory:
     def __init__(self, map_size: int = 100):
         self.memory = [[MemorySquare() for _ in range(map_size * 2)] for _ in range(map_size * 2)]
-        self.pos = (map_size, map_size)
+        self.pos = (map_size, map_size) #(y, x)
     
     def update_memory(self, state, turn):
         # state = [door] = (row_offset, col_offset, door_type, door_status)
         for s in state:
-            if s[0] == -1 and s[1] == 0:
-                print("ya")
-            square = self.memory[self.pos[0] + s[0]][self.pos[1] + s[1]]
+            # if s[0] == -1 and s[1] == 0:
+                # print("ya")
+            square = self.memory[self.pos[0] + s[1]][self.pos[1] + s[0]]
             door = square.doors[s[2]]
             door_state = s[3]
             door.update_observations(door_state, turn)
 
     def update_pos(self, move):
         if move == constants.LEFT:
-            self.pos[1] -= 1
+            self.pos = (self.pos[0], self.pos[1] - 1)
         if move == constants.UP:
-            self.pos[0] -= 1
+            self.pos = (self.pos[0] - 1, self.pos[1])
         if move == constants.RIGHT:
-            self.pos[1] += 1
+            self.pos = (self.pos[0], self.pos[1] + 1)
         if move == constants.DOWN:
-            self.pos[0] += 1
+            self.pos = (self.pos[0] + 1, self.pos[1])
     
     def is_move_valid(self, move, state):
 
@@ -119,7 +119,7 @@ class PlayerMemory:
             for s in state: 
                 if s[0] == 0 and s[1] == 0 and s[2] == constants.LEFT and s[3] == 2:
                     current_square_left_open = True
-                if s[0] == 0 and s[1] == -1 and s[2] == constants.RIGHT and s[3] == 2:
+                if s[0] == -1 and s[1] == 0 and s[2] == constants.RIGHT and s[3] == 2:
                     left_square_right_open = True
             return current_square_left_open and left_square_right_open
 
@@ -129,7 +129,7 @@ class PlayerMemory:
             for s in state:
                 if s[0] == 0 and s[1] == 0 and s[2] == constants.UP and s[3] == 2:
                     current_square_up_open = True
-                if s[0] == -1 and s[1] == 0 and s[2] == constants.DOWN and s[3] == 2:
+                if s[0] == 0 and s[1] == -1 and s[2] == constants.DOWN and s[3] == 2:
                     up_square_down_open = True
             return current_square_up_open and up_square_down_open
 
@@ -140,7 +140,7 @@ class PlayerMemory:
             for s in state:
                 if s[0] == 0 and s[1] == 0 and s[2] == constants.RIGHT and s[3] == 2:
                     current_square_right_open = True
-                if s[0] == 0 and s[1] == 1 and s[2] == constants.LEFT and s[3] == 2:
+                if s[0] == 1 and s[1] == 0 and s[2] == constants.LEFT and s[3] == 2:
                     right_square_left_open = True
             return current_square_right_open and right_square_left_open
  
@@ -150,7 +150,7 @@ class PlayerMemory:
             for s in state:
                 if s[0] == 0 and s[1] == 0 and s[2] == constants.DOWN and s[3] == 2:
                     current_square_down_open = True
-                if s[0] == 1 and s[1] == 0 and s[2] == constants.UP and s[3] == 2:
+                if s[0] == 0 and s[1] == 1 and s[2] == constants.UP and s[3] == 2:
                     down_square_up_open = True
             return current_square_down_open and down_square_up_open
         
@@ -176,31 +176,40 @@ class MazeGraph:
     
     def getNeighbors(self, node) -> dict[tuple, int]:
         return self.graph[node]
-    
 
-    def visualize_graph_in_grid(self, minDistanceArray=None, parent=None, startNode=None, targetNode=None, figsize=30):
+
+    def visualize_graph_in_grid(self, minDistanceArray=None, parent=None, startNode=None, targetNode=None, 
+                                row_slice=None, col_slice=None, figsize=30):
         G = nx.Graph()
-        
-        # Add nodes and edges from adjacency list 
+
+        # Add nodes and edges from adjacency list
         for node1, neighbors in self.graph.items():
             for node2, weight in neighbors.items():
                 node1Freq, node2Freq = weight
-                
+
                 # Calculate the edge weight
                 if node1Freq == 0 or node2Freq == 0:
                     weight = float('inf')
                 else:
                     # LCM is the combined frequency of the doors
                     weight = lcm(node1Freq, node2Freq)
-                
-                G.add_edge(node1, node2, weight=weight)
-        
-        grid_dim = len(self.graph) ** 0.5 # Square root of number of nodes
-        grid_dim_int = int(grid_dim) # Square root should always be an int for a square grid.
-        plt.figure(figsize=(figsize, figsize))  
-        # Define positions for nodes in a grid layout
-        pos = {(i, j): (j, -i) for i in range(grid_dim_int) for j in range(grid_dim_int)}
-        
+
+                # Only add nodes and edges within the specified row/col slice
+                if row_slice and col_slice:
+                    if (node1[0] in row_slice and node1[1] in col_slice and
+                        node2[0] in row_slice and node2[1] in col_slice):
+                        G.add_edge(node1, node2, weight=weight)
+                else:
+                    G.add_edge(node1, node2, weight=weight)
+
+        grid_dim = len(self.graph) ** 0.5  # Square root of the number of nodes
+        grid_dim_int = int(grid_dim)  # Ensure square root is an integer for a square grid
+        plt.figure(figsize=(figsize, figsize))
+
+        # Define positions for nodes in a grid layout, restricted to the row and column slices
+        pos = {(i, j): (j, -i) for i in range(grid_dim_int) for j in range(grid_dim_int)
+            if (not row_slice or i in row_slice) and (not col_slice or j in col_slice)}
+
         # Draw the graph in the grid layout
         nx.draw(G, pos, with_labels=True, node_size=500, node_color='lightblue', font_size=10)
 
@@ -209,19 +218,16 @@ class MazeGraph:
             print(targetNode)
             targetx, targety = targetNode
             if minDistanceArray[targetx][targety] == float('inf'):
-                print(targetx)
-                print(targety)
-                print(minDistanceArray[targetx][targety])
                 print(f"Target node {targetNode} is unreachable.")
                 return
             path = reconstruct_path(parent, startNode, targetNode)
 
             # Collect the edges in the path
             path_edges = [(path[i], path[i + 1]) for i in range(len(path) - 1)]
-            
+
             # Get turn information for nodes in the path
             path_turns = {node: parent[node][1] for node in path if node in parent}
-            
+
             # Highlight the path nodes in a different color
             nx.draw_networkx_nodes(G, pos, nodelist=path, node_color='yellow', node_size=700)
 
@@ -232,20 +238,24 @@ class MazeGraph:
             for node, (x, y) in pos.items():
                 if node in path_turns:
                     plt.text(x, y + 0.1, f"Turn {path_turns[node]}", fontsize=9, ha='center', color='blue')
-        
+
         # Draw edge labels (combined frequency of the adjacent doors)
         edge_labels = nx.get_edge_attributes(G, 'weight')
         nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels)
-        print("making graph")
+
+        print("Making graph")
         plt.savefig("graph.png", format="png", dpi=300)
-
         # plt.show()
-
+        
 def reconstruct_path(parent, startNode, targetNode):
     """Helper function to reconstruct the path from startNode to targetNode using the parent dictionary."""
     path = []
-    currentNode = (startNode[0] + targetNode[0], startNode[1] + targetNode[1])
+    # we are storing y, x in startNode (if y is row and x is xol...)
+    currentNode = (int(startNode[0] + targetNode[0]), int(startNode[1] + targetNode[1]))
     while currentNode is not None:
+        if currentNode not in parent:
+            print("Target Node is unreachable")
+            return None # TargetNode is unreachable
         path.append(currentNode)
         currentNode = parent.get(currentNode)[0]  # Get the parent node
     path.reverse()  # Reverse the path to get it from start to target
@@ -255,16 +265,16 @@ def build_graph_from_memory(player_memory: PlayerMemory) -> MazeGraph:
     graph = MazeGraph()
 
     # Iterate through the map_memory and add edges to the graph
-    for i in range(len(player_memory.memory)): # i is the row index
-        for j in range(len(player_memory.memory[0])): # j is the column index
-            currMemSquare: MemorySquare = player_memory.memory[i][j]
+    for y in range(len(player_memory.memory)): # i is the row index (basically y)
+        for x in range(len(player_memory.memory[0])): # j is the column index (basically x)
+            currMemSquare: MemorySquare = player_memory.memory[y][x]
 
             # Coordinates for neighboring cells
             neighbors = {
-                'left': (i, j - 1),
-                'right': (i, j + 1),
-                'up': (i - 1, j),
-                'down': (i + 1, j)
+                'left': (y, x-1),
+                'right': (y, x+1),
+                'up': (y-1, x),
+                'down': (y+1, x)
             }
             # test = [[(0,0),(0,1), (0,2), (0,3), (0,4)],
             #  [(1,0),(1,1), (1,2), (1,3), (1,4)],
@@ -275,30 +285,30 @@ def build_graph_from_memory(player_memory: PlayerMemory) -> MazeGraph:
             # Add edges based on door frequencies and valid neighboring cells
             
             # Left neighbor exists 
-            if j > 0:
-                leftSquare: MemorySquare = player_memory.memory[i][j - 1]
-                graph.add_bidirectional_edge((i, j), neighbors['left'],
+            if x > 0:
+                leftSquare: MemorySquare = player_memory.memory[y][x - 1]
+                graph.add_bidirectional_edge((y, x), neighbors['left'],
                                                 currMemSquare.doors[constants.LEFT].roll_freq(),
                                                 leftSquare.doors[constants.RIGHT].roll_freq())
 
             # Right neighbor exists 
-            if j < len(player_memory.memory[0]) - 1:  
-                rightSquare: MemorySquare = player_memory.memory[i][j + 1]
-                graph.add_bidirectional_edge((i, j), neighbors['right'],
+            if x < len(player_memory.memory[0]) - 1:  
+                rightSquare: MemorySquare = player_memory.memory[y][x + 1]
+                graph.add_bidirectional_edge((y, x), neighbors['right'],
                                                 currMemSquare.doors[constants.RIGHT].roll_freq(),
                                                 rightSquare.doors[constants.LEFT].roll_freq())
             
             # Up neighbor exists 
-            if i > 0: 
-                upSquare: MemorySquare = player_memory.memory[i - 1][j]
-                graph.add_bidirectional_edge((i, j), neighbors['up'],
+            if y > 0: 
+                upSquare: MemorySquare = player_memory.memory[y - 1][x]
+                graph.add_bidirectional_edge((y, x), neighbors['up'],
                                                 currMemSquare.doors[constants.UP].roll_freq(),
                                                 upSquare.doors[constants.DOWN].roll_freq())
             
             # Down neighbor exists
-            if i < len(player_memory.memory) - 1:
-                downSquare: MemorySquare = player_memory.memory[i + 1][j]
-                graph.add_bidirectional_edge((i, j), neighbors['down'],
+            if y < len(player_memory.memory) - 1:
+                downSquare: MemorySquare = player_memory.memory[y + 1][x]
+                graph.add_bidirectional_edge((y, x), neighbors['down'],
                                                 currMemSquare.doors[constants.DOWN].roll_freq(),
                                                 downSquare.doors[constants.UP].roll_freq())
 
@@ -324,7 +334,7 @@ def findShortestPathsToEachNode(graph: MazeGraph, startNode: tuple, turnNumber: 
     # Process the heap until it is empty
     while minHeap:
         turnsToCurrentNode, currentNode = heapq.heappop(minHeap)
-        currentXCoord, currentYCoord = currentNode
+        # currentXCoord, currentYCoord = currentNode         print("visiting: ", currentNode)
 
         # Skip node if already visited
         if currentNode in visitedNodes:
@@ -333,12 +343,10 @@ def findShortestPathsToEachNode(graph: MazeGraph, startNode: tuple, turnNumber: 
         visitedNodes.add(currentNode)
 
         # Get neighbors of the current node from the graph
-        neighbors: dict[tuple, int] = graph.getNeighbors(currentNode)
-        # {(0, 1): [3, 4],
-        # 
-        #  (1, 0): [3, 1]}
+        neighbors: dict[tuple, tuple] = graph.getNeighbors(currentNode)
 
-        for (xCoordNeighbour, yCoordNeighbour), (node1Freq, node2Freq) in neighbors.items():
+
+        for (yCoordNeighbour, xCoordNeighbour), (node1Freq, node2Freq) in neighbors.items():
             # Combined Frequency of the doors
             if node1Freq == 0 or node2Freq == 0:
                 combinedFrequencey = float('inf')
@@ -356,11 +364,21 @@ def findShortestPathsToEachNode(graph: MazeGraph, startNode: tuple, turnNumber: 
             newTurnsToGetToNeighbor = turnsToCurrentNode + turnsToWait + 1
 
             # Update the neighbor's distance if a shorter path is found
-            if newTurnsToGetToNeighbor < minDistanceArray[xCoordNeighbour][yCoordNeighbour]:
-                minDistanceArray[xCoordNeighbour][yCoordNeighbour] = newTurnsToGetToNeighbor
+            if newTurnsToGetToNeighbor < minDistanceArray[yCoordNeighbour][xCoordNeighbour]:
+                minDistanceArray[yCoordNeighbour][xCoordNeighbour] = newTurnsToGetToNeighbor
                 # Store both the parent node and the turn at which we moved to this neighbor
-                parent[(xCoordNeighbour, yCoordNeighbour)] = (currentNode, turnWeWillBeAtThisNode + turnsToWait + 1)
-                heapq.heappush(minHeap, (newTurnsToGetToNeighbor, (xCoordNeighbour, yCoordNeighbour)))
+                parent[(yCoordNeighbour, xCoordNeighbour)] = (currentNode, turnWeWillBeAtThisNode + turnsToWait + 1)
+                heapq.heappush(minHeap, (newTurnsToGetToNeighbor, (yCoordNeighbour, xCoordNeighbour)))
 
     return minDistanceArray, parent  # Return both distances and paths
 
+
+def print_min_dist_array(minDistanceArray, start_row, end_row, start_col, end_col, width=4):
+    for y in range(len(minDistanceArray)):
+        if y >= start_row and y <= end_row:
+            row = minDistanceArray[y]
+            for x in range(len(row)):
+                if x >= start_col and x <= end_col:
+                    # Print each element with a fixed width
+                    print(f"{row[x]:>{width}}", end=" ")
+            print()

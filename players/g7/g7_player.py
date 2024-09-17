@@ -67,7 +67,7 @@ class Player:
         # if not self.starting_position_set: #setting starting position if not set
         #     self.memory.pos = (current_percept.player_x, current_percept.player_y)
         #     self.starting_position_set = True
-        
+        self.turn += 1
         move = constants.WAIT
 
         # Decide on the next move based on the current percept.
@@ -76,36 +76,36 @@ class Player:
         # Build the graph from the updated memory
         currentGraph = build_graph_from_memory(self.memory)
         
-        # Determine the goal node
+        # Determine the go
+        # l node
         if current_percept.is_end_visible:
-            target_node = (current_percept.end_x, current_percept.end_y)
+            # target_node = (current_percept.end_x, current_percept.end_y)
+            target_node = (current_percept.end_y, current_percept.end_x)
+
         else:
             # If the end is not visible, choosing an intermediate node
             target_node = self.choose_intermediate_target_node(current_percept)
-        
+            target_node = (-40, -40)
+
         # Find shortest paths to the target node
         minDistanceArray, parent = findShortestPathsToEachNode(currentGraph, self.memory.pos, self.turn)
+
+        path = reconstruct_path(parent, self.memory.pos, target_node)
+
+        if path and len(path) > 1:
+
+            next_move = self.get_move_direction(path)
+            print(path)
+            print("Want to make next move: ", next_move)
+            if self.memory.is_move_valid(next_move, current_percept.maze_state):
+                self.memory.update_pos(next_move)
+                print("New Pos: ", self.memory.pos)
+                move = next_move
+            else: 
+                print("Desired Next Move is Invalid")
+                move = constants.WAIT
         
-        can_reconstruct = False
-        for i in range(len(minDistanceArray)):
-            for j in range(len(minDistanceArray[i])):
-                if minDistanceArray[i][j] != float('inf') and minDistanceArray[i][j] != 0:
-                    # print(f"Distance from {self.memory.pos} to {i, j}: {minDistanceArray[i][j]}")
-                    # We have a path!
-                    can_reconstruct = True
-        if can_reconstruct:
-            path = reconstruct_path(parent, self.memory.pos, target_node)
-            if len(path) > 1:
-                next_move = self.get_move_direction(self.memory.pos, path[1])
-                if self.memory.is_move_valid(next_move, current_percept.maze_state):
-                    self.memory.update_pos(next_move)
-                    move = next_move
-                else: 
-                    move = constants.WAIT
-        else: # No path found
-            move = constants.WAIT
-        
-        self.turn += 1
+        print(f"Move: {move}")
         return move
         # Get the next move from the path
         # need to ensure invalid turns don't happen
@@ -124,7 +124,7 @@ class Player:
             # Fallback to current position or some default strategy
             return self.memory.pos
 
-    def get_move_direction(self, current_pos, next_pos): #current to next position
+    def get_move_direction(self, path): #current to next position
         """        
         Args:
             current_pos (tuple): Current position (x, y).
@@ -133,7 +133,13 @@ class Player:
         Returns:
             int: Direction of movement (LEFT, UP, RIGHT, DOWN).
         """
-        dx, dy = next_pos[0] - current_pos[0], next_pos[1] - current_pos[1]
+
+        # this is the DY, DX from the Min distance array
+        dy = path[1][0] - path[0][0]
+        dx = path[1][1] - path[0][1]
+        # Convert this to the direction
+
+        # THIS IS HOW IT SHOULD BE BUT OUR SEARCH IS FLIPPED FOR SOME REASON
         if dx == -1 and dy == 0:
             return constants.LEFT
         elif dx == 1 and dy == 0:
@@ -144,6 +150,16 @@ class Player:
             return constants.DOWN
         else:
             return constants.WAIT
+        # if dx == -1 and dy == 0:
+        #     return constants.DOWN
+        # elif dx == 1 and dy == 0:
+        #     return constants.UP
+        # elif dx == 0 and dy == -1:
+        #     return constants.LEFT
+        # elif dx == 0 and dy == 1:
+        #     return constants.RIGHT
+        # else:
+        #     return constants.WAIT
 
     def get_unexplored_nodes(self, current_percept): #Placeholder 
         unexplored_nodes = []
@@ -256,3 +272,13 @@ class Player:
         #                     and maze_state[3] == constants.OPEN):
         #                 return constants.UP
             # return constants.WAIT
+
+def print_min_dist_array(minDistanceArray, start_row, end_row, start_col, end_col, width=4):
+    for y in range(len(minDistanceArray)):
+        if y >= start_row and y <= end_row:
+            row = minDistanceArray[y]
+            for x in range(len(row)):
+                if x >= start_col and x <= end_col:
+                    # Print each element with a fixed width
+                    print(f"{row[x]:>{width}}", end=" ")
+            print()
