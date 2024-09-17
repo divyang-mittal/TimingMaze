@@ -28,6 +28,9 @@ def GCD(a, b):
             return a
         return GCD(b, a % b)
 
+def LCM(self, a, b):
+        return a * b // GCD(a, b)
+
 class Player:
     def __init__(self, rng: np.random.Generator, logger: logging.Logger,
                  precomp_dir: str, maximum_door_frequency: int, radius: int) -> None:
@@ -120,7 +123,7 @@ class Player:
                     DOWN = 3
         """
         if current_percept.is_end_visible:
-            return self.move_toward_visible_end()
+            return self.move_toward_visible_end(self, current_percept)
         
         self.step += 1
         self.update_graph_information(current_percept)
@@ -194,26 +197,34 @@ class Player:
             Give the next move that a player should take if they know where the endpoint is
         """
         curr_cell = (self.pos[0], self.pos[1])
+        # Look for the best path to current position if one hasn't been found yet
         if len(self.best_path_found) == 0 or curr_cell not in self.best_path_found:
-            # look for the best path to current position because one hasn't been found yet
             self.best_path_found = self.find_path(current_percept.end_x, current_percept.end_y)
+            
+        if curr_cell not in self.best_path_found:
+            return constants.WAIT # TODO: This should be some error case. It means no possible path was found given our visible state.
 
-    #     if curr_cell not in self.best_path_found:
-    #         return constants.WAIT # TODO: This should be some error case. It means no possible path was found given our visible state.
-
-    #     direction_to_goal = self.best_path_found[curr_cell]
-    #     if self.can_move_in_direction(direction_to_goal):
-    #         return direction_to_goal
-    #     return constants.WAIT
-
-    #     # ideally: 
+        direction_to_goal = self.best_path_found[curr_cell]
+        
+        if self.can_move_in_direction(direction_to_goal):
+            return direction_to_goal
+        return constants.WAIT
 
     def can_move_in_direction(self, direction):
-        # TODO: this depends on library
-        return True
-
-    def LCM(self, a, b):
-        return a * b // GCD(a, b)
+        """
+            Whether the player can move in the specified direction.
+            A door is open if our known frequency for the door is a multiple of the current step.
+        """
+        # Don't bother checking the neighbor's door if this door is a boundary or closed
+        this_door_freq = self.door_states[self.cur_pos][direction]
+        if this_door_freq == 0 or self.step % this_door_freq != 0:
+            return False
+        
+        # Check neighbors door
+        neighbors = get_neighbors(self.cur_pos)
+        neighbor = neighbors[direction]
+        neighbor_door_freq = self.door_states[neighbor][opposite(direction)]
+        return (neighbor_door_freq != 0) and (self.step % neighbor_door_freq == 0)
 
     def find_path(self, goal_x, goal_y):
         """
@@ -229,9 +240,8 @@ class Player:
 
         queue = [(0, goal_coordinates)]
         heapq.heapify(queue)
-        
         visited = {}
-        direction_to_goal = {}
+        direction_to_goal = {} # <k = cell coordinate, v = what direction player should go from that cell>
 
         while len(queue) > 0:
             curr_dist, curr_cell = heapq.heappop(queue) # node with min dist
@@ -239,8 +249,7 @@ class Player:
             if curr_cell in visited:
                 continue
             visited.add(curr_cell)
-
-            neighbors = get_neighbors(curr_cell[0], curr_cell[1])
+            neighbors = get_neighbors(curr_cell)
 
             for direction in range(3):
                 neighbor = neighbors[direction]
@@ -262,8 +271,10 @@ class Player:
 
         return direction_to_goal
 
-def get_neighbors(x, y): 
+def get_neighbors(coordinates): 
     # up left right down
+    x = coordinates[0]
+    y = coordinates[1]
     return [(x-1, y), (x, y-1), (x, y+1), (x+1, y)]
 
 # Helper that maps directions to their opposites 
