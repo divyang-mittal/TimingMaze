@@ -233,16 +233,18 @@ class Player:
                 continue
             visited.add(curr_cell)
 
+            neigbors = get_neighbors(curr_cell[0], curr_cell[1])
+
             for direction in range(3):
-                neighbor_coordinates = cell.neighbors[direction]
-                if neighbor_coordinates not in self.V:
+                neighbor = neighbors[direction]
+                if (neighbor in visited) or (neighbor not in self.positions):
                     continue
-                neighbor = self.V[neighbor_coordinates]
 
                 # how often are we able to go in this direction?
-                edge_freq = curr_cell.door_freqs[direction] * neighbor.door_freqs[opposite(direction)]
+                # lowest common multiple
+                max_wait = LCF(self.positions[curr_cell][direction], self.positions[neighbor][opposite(direction)])
 
-                dist_from_here = curr_dist + edge_freq
+                dist_from_here = curr_dist + max_wait + 1
                 if dist_from_here < dist[neighbor]:
                     # best way to get to neighbor (so far) is from here. 
                     # meaning if player is at neighbor, it should go to curr_cell to reach goal
@@ -253,86 +255,9 @@ class Player:
 
         return direction_to_goal
 
-
-class Door():
-    # PLACEHOLDER for library classes
-    def __init__(self, x, y, direction, frequency):
-        self.x = x 
-        self.y = y 
-        self.direction = direction
-        self.frequency = frequency 
-    
-class Cell():
-    def __init__(self, x, y):
-        self.x = x
-        self.y = y
-        self.door_freqs = {}
-        self.neighbors = {
-            constants.UP: (self.x, self.y - 1),
-            constants.DOWN: (self.x, self.y + 1),
-            constants.LEFT: (self.x-1, self.y),
-            constants.RIGHT: (self.x+1, self.y)
-        }
-
-class Graph():
-    # TODO: depending on how doors are stored in the library, this initial processing
-    # may not be necessary at all. I did this to be able to more efficiently find cells at 
-    # a given cardinal position.
-    def __init__(self, door_info):
-        # a cell at coordinate (x, y) can be found with self.V[(x,y)]
-        self.V = {}
-        for door in door_info:
-            coordinates = (door.x, door.y)
-            if coordinates not in self.V:
-                self.V[coordinates] = Cell(door.x, door.y)
-            
-            self.V[coordinates].door_freqs[door.direction] = door.frequency
-
-    def find_path(self, goal_x, goal_y):
-        """
-            Given the current graph/board state and the end coordinates, use Dijkstra's 
-            algorithm to find a path from every available cell to the end position.
-        """
-        goal_coordinates = (goal_x, goal_y)
-        if goal_coordinates not in self.V:
-            return {}
-        goal_cell = self.V[goal_coordinates]
-
-        dist = {cell: float("inf") for cell in self.V}
-        dist[goal_cell] = 0
-
-        queue = [(0, goal_cell)]
-        heapq.heapify(queue)
-        
-        visited = {}
-        direction_to_goal = {}
-
-        while len(queue) > 0:
-            curr_dist, curr_cell = heapq.heappop(queue) # node with min dist
-
-            if curr_cell in visited:
-                continue
-            visited.add(curr_cell)
-
-            for direction in range(3):
-                neighbor_coordinates = cell.neighbors[direction]
-                if neighbor_coordinates not in self.V:
-                    continue
-                neighbor = self.V[neighbor_coordinates]
-
-                # how often are we able to go in this direction?
-                edge_freq = curr_cell.door_freqs[direction] * neighbor.door_freqs[opposite(direction)]
-
-                dist_from_here = curr_dist + edge_freq
-                if dist_from_here < dist[neighbor]:
-                    # best way to get to neighbor (so far) is from here. 
-                    # meaning if player is at neighbor, it should go to curr_cell to reach goal
-                    dist[neighbor] = dist_from_here
-                    direction_to_goal[neighbor_coordinates] = opposite(direction)
-
-                    heapq.heappush(queue, (dist_from_here, neighbor))
-
-        return direction_to_goal
+def get_neighbors(x, y): 
+    # up left right down
+    return [(x-1, y), (x, y-1), (x, y+1), (x+1, y)]
 
 # Helper that maps directions to their opposites 
 def opposite(direction) -> int:
