@@ -64,7 +64,7 @@ class Player:
         self.step = 0
         self.cur_pos = [0, 0]
         self.epsilon = 0.2
-        self.positions = {}
+        self.door_states = {}
         self.values = {}
 
     def update_graph_information(self, current_percept):
@@ -73,27 +73,30 @@ class Player:
             relative_y = cell[1] + self.cur_pos[1]
             cell_coordinates = (relative_x, relative_y)
 
-            update_cell_state(coordinates, cell)
-            update_cell_value(coordinates)
+            self.update_cell_state(cell_coordinates, cell[2], cell[3])
+            self.update_cell_value(cell_coordinates, cell[3])
 
-    def update_cell_state(coordinates, direction, state):
-        if coordinates not in self.positions:
-            self.positions[coordinates] = [0, 0, 0, 0] # Left Top Right Bottom
+    def update_cell_state(self, coordinates, direction, state):
+        if coordinates not in self.door_states:
+            self.door_states[coordinates] = [0, 0, 0, 0] # Left Top Right Bottom
 
         if state == constants.OPEN:
-            if self.positions[coordinates][direction] == 0:
-                self.positions[coordinates][direction] = self.step # TODO: set this to be greatest factor of step <= L
+            if self.door_states[coordinates][direction] == 0:
+                self.door_states[coordinates][direction] = self.step
             else:
-                self.positions[coordinates][direction] = GCD(self.positions[coordinates][direction], self.step)
+                self.door_states[coordinates][direction] = GCD(self.door_states[coordinates][direction], self.step)
 
         elif state == constants.BOUNDARY:
-            # TODO: handle boundary
-            return
+            self.door_states[coordinates][direction] = -1
+
+        if coordinates == (-1, -1):
+            print(coordinates)
+            print(self.door_states[coordinates])
 
 
-    def update_cell_value(coordinates):
+    def update_cell_value(self, coordinates, door_type):
         if coordinates not in self.values:
-            if cell[3] == constants.BOUNDARY:
+            if door_type == constants.BOUNDARY:
                 self.values[coordinates] = -1
             else: 
                 self.values[coordinates] = 0
@@ -119,6 +122,7 @@ class Player:
         if current_percept.is_end_visible:
             return self.move_toward_visible_end()
         
+        self.step += 1
         self.update_graph_information(current_percept)
         moves = valid_moves(current_percept.maze_state[:20])
         if not moves:
@@ -194,19 +198,22 @@ class Player:
             # look for the best path to current position because one hasn't been found yet
             self.best_path_found = self.find_path(current_percept.end_x, current_percept.end_y)
 
-        if curr_cell not in self.best_path_found:
-            return constants.WAIT # TODO: This should be some error case. It means no possible path was found given our visible state.
+    #     if curr_cell not in self.best_path_found:
+    #         return constants.WAIT # TODO: This should be some error case. It means no possible path was found given our visible state.
 
-        direction_to_goal = self.best_path_found[curr_cell]
-        if self.can_move_in_direction(direction_to_goal):
-            return direction_to_goal
-        return constants.WAIT
+    #     direction_to_goal = self.best_path_found[curr_cell]
+    #     if self.can_move_in_direction(direction_to_goal):
+    #         return direction_to_goal
+    #     return constants.WAIT
 
-        # ideally: 
+    #     # ideally: 
 
     def can_move_in_direction(self, direction):
         # TODO: this depends on library
         return True
+
+    def LCM(self, a, b):
+        return a * b // GCD(a, b)
 
     def find_path(self, goal_x, goal_y):
         """
@@ -214,10 +221,10 @@ class Player:
             algorithm to find a path from every available cell to the end position.
         """
         goal_coordinates = (goal_x, goal_y)
-        if goal_coordinates not in self.positions:
+        if goal_coordinates not in self.door_states:
             return {}
 
-        dist = {cell: float("inf") for cell in self.positions}
+        dist = {cell: float("inf") for cell in self.door_states}
         dist[(goal_coordinates)] = 0
 
         queue = [(0, goal_coordinates)]
@@ -237,12 +244,12 @@ class Player:
 
             for direction in range(3):
                 neighbor = neighbors[direction]
-                if (neighbor in visited) or (neighbor not in self.positions):
+                if (neighbor in visited) or (neighbor not in self.door_states):
                     continue
 
                 # how often are we able to go in this direction?
                 # lowest common multiple
-                max_wait = LCF(self.positions[curr_cell][direction], self.positions[neighbor][opposite(direction)])
+                max_wait = self.LCM(self.door_states[curr_cell][direction], self.door_states[neighbor][opposite(direction)])
 
                 dist_from_here = curr_dist + max_wait + 1
                 if dist_from_here < dist[neighbor]:
