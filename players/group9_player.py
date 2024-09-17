@@ -69,6 +69,7 @@ class Player:
         self.epsilon = 0.2
         self.door_states = {}
         self.values = {}
+        self.best_path_found = {}
 
     def update_graph_information(self, current_percept):
         for cell in current_percept.maze_state:
@@ -122,11 +123,15 @@ class Player:
                     RIGHT = 2
                     DOWN = 3
         """
-        if current_percept.is_end_visible:
-            return self.move_toward_visible_end(self, current_percept)
-        
+
         self.step += 1
         self.update_graph_information(current_percept)
+
+
+        if current_percept.is_end_visible:
+            print("reached point 0")
+            return self.move_toward_visible_end(current_percept)
+        
         moves = valid_moves(current_percept.maze_state[:20])
         if not moves:
             return constants.WAIT
@@ -196,17 +201,24 @@ class Player:
         """
             Give the next move that a player should take if they know where the endpoint is
         """
-        curr_cell = (self.pos[0], self.pos[1])
+        print("reached step 1")
+        curr_cell = (self.cur_pos[0], self.cur_pos[1])
         # Look for the best path to current position if one hasn't been found yet
+        print(self.best_path_found)
+        print(curr_cell)
         if len(self.best_path_found) == 0 or curr_cell not in self.best_path_found:
-            self.best_path_found = self.find_path(current_percept.end_x, current_percept.end_y)
-            
-        if curr_cell not in self.best_path_found:
-            return constants.WAIT # TODO: This should be some error case. It means no possible path was found given our visible state.
+            self.find_path(current_percept.end_x, current_percept.end_y)
+            print("reached step 1.5")
+            return constants.WAIT
+        
+        
 
         direction_to_goal = self.best_path_found[curr_cell]
         
+        print("reached step 2")
+
         if self.can_move_in_direction(direction_to_goal):
+            print(direction_to_goal)
             return direction_to_goal
         return constants.WAIT
 
@@ -231,6 +243,10 @@ class Player:
             Given the current graph/board state and the end coordinates, use Dijkstra's 
             algorithm to find a path from every available cell to the end position.
         """
+        print(goal_x, goal_y)
+
+        print(self.door_states[(goal_x, goal_y)])
+
         goal_coordinates = (goal_x, goal_y)
         if goal_coordinates not in self.door_states:
             return {}
@@ -241,11 +257,13 @@ class Player:
         queue = [(0, goal_coordinates)]
         heapq.heapify(queue)
         visited = {}
-        direction_to_goal = {} # <k = cell coordinate, v = what direction player should go from that cell>
+        # direction_to_goal = {} # <k = cell coordinate, v = what direction player should go from that cell>
+
+        print("find path 2")
 
         while len(queue) > 0:
             curr_dist, curr_cell = heapq.heappop(queue) # node with min dist
-
+            print(visited)
             if curr_cell in visited:
                 continue
             visited.add(curr_cell)
@@ -265,11 +283,15 @@ class Player:
                     # best way to get to neighbor (so far) is from here. 
                     # meaning if player is at neighbor, it should go to curr_cell to reach goal
                     dist[neighbor] = dist_from_here
-                    direction_to_goal[neighbor] = opposite(direction)
+                    self.best_path_found[neighbor] = opposite(direction)
 
                     heapq.heappush(queue, (dist_from_here, neighbor))
 
-        return direction_to_goal
+        print("hello")
+
+        #print(direction_to_goal)
+
+        #return direction_to_goal
 
 def get_neighbors(coordinates): 
     # up left right down
