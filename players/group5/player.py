@@ -1,8 +1,9 @@
+import os
 import numpy as np
 import logging
 
 import constants
-from players.group5.player_map import PlayerMapInterface, SimplePlayerMap
+from players.group5.player_map import PlayerMapInterface, SimplePlayerCentricMap, StartPosCentricPlayerMap
 from timing_maze_state import TimingMazeState
 from players.group5.converge import converge_basic, converge
 
@@ -18,28 +19,41 @@ class G5_Player:
                 radius (int): the radius of the drone
                 precomp_dir (str): Directory path to store/load pre-computation
         """
+        self._setup_logger(logger)
         self.rng = rng
-        self.logger = logger
         self.maximum_door_frequency = maximum_door_frequency
         self.radius = radius
-        self.player_map: PlayerMapInterface = SimplePlayerMap(maximum_door_frequency, logger)
+        self.player_map: PlayerMapInterface = StartPosCentricPlayerMap(maximum_door_frequency, logger)
         self.turns = 0
         self.mode = 0
+
+    def _setup_logger(self, logger):
+        self.logger = logger
+        self.logger.setLevel(logging.DEBUG)
+        self.log_dir = "./log"
+        if self.log_dir:
+            os.makedirs(self.log_dir, exist_ok=True)
+        fh = logging.FileHandler(os.path.join(self.log_dir, 'Player 5.log'), mode="w")
+        fh.setLevel(logging.DEBUG)
+        fh.setFormatter(logging.Formatter('%(message)s'))
+        self.logger.addHandler(fh)
 
     def simple_search(self):        
         nw, sw, ne, se = 0, 0, 0, 0
 
+        cur_pos = self.player_map.get_cur_pos()
+        cur_pos_i, cur_pos_j = cur_pos[0], cur_pos[1]
         for i in range(self.radius):
             for j in range(self.radius):
-                if self.player_map.get_seen_counts([[-i, -j]])[0]>0:
+                if self.player_map.get_seen_counts([[cur_pos_i-i, cur_pos_j-j]])[0]>0:
                     nw += 1
-                if self.player_map.get_seen_counts([[i, -j]])[0]>0:
+                if self.player_map.get_seen_counts([[cur_pos_i+i, cur_pos_j-j]])[0]>0:
                     sw += 1
-                if self.player_map.get_seen_counts([[-i, j]])[0]>0:
+                if self.player_map.get_seen_counts([[cur_pos_i-i, cur_pos_j+j]])[0]>0:
                     ne += 1
-                if self.player_map.get_seen_counts([[i, j]])[0]>0:
+                if self.player_map.get_seen_counts([[cur_pos_i+i, cur_pos_j+j]])[0]>0:
                     se += 1
-        best_diagonal = max(nw, sw, ne, se)
+        best_diagonal = min(nw, sw, ne, se)
         if best_diagonal == nw:
             if ne > sw:
                 return constants.UP
@@ -70,12 +84,17 @@ class G5_Player:
                     RIGHT = 2
                     DOWN = 3
         """
-        self.turns += 1
-        self.player_map.update_map(self.turns, current_percept)
+        try:
+            self.turns += 1
+            self.player_map.update_map(self.turns, current_percept)
 
-        exists, end_pos = self.player_map.get_end_pos_if_known()
-        if not exists:
-            return self.simple_search()
-        return converge(self.player_map.get_cur_pos(), end_pos)
-
+            exists, end_pos = self.player_map.get_end_pos_if_known()
+            self.logger.debug(f"End pos: {end_pos}")
+            self.logger.debug(f"Cur pos: {self.player_map.get_cur_pos()}")
+            if not exists:
+                return self.simple_search()
+            return converge(self.player_map.get_cur_pos(), end_pos)
+        except Exception as e:
+            self.logger.debug(e, e.with_traceback)
+            return constants.WAIT
 
