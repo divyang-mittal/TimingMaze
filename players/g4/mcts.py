@@ -22,7 +22,6 @@ class Node:
         return abs(state[0] - target[0]) + abs(state[1] - target[1])
 
     def best_child(self, target=None, c_param=1.4):
-
         # UCB1 with heuristics
         choices_weights = [
             (child.value / child.visits) + c_param * np.sqrt(np.log(self.visits) / child.visits) - self.heuristic(child.state, target)
@@ -49,12 +48,9 @@ class MCTS:
 
     def mcts(self, root_state=None, timeout=1):
         root = Node(state=root_state)
-
         start_time = time.time()
-        current_time = time.time()
-        # gets stuck in infinite loop if using a while loop
-        # while current_time < start_time + timeout:
-        for _ in range(10):
+
+        while time.time() - start_time < timeout:
             # 1. Selection
             node = self.selection(root)
 
@@ -72,11 +68,13 @@ class MCTS:
 
         return root.best_child(target=self.env.goal, c_param=1.4)
 
+    # navigate tree selecting best children nodes until node with unexplored children reached
     def selection(self, node):
         while node.is_fully_expanded(self.actions):
             node = node.best_child()
         return node
 
+    # randomly select an action which has not yet been explored
     def random_untried_action(self, node):
         tried_actions = set(node.children.keys())
         untried_actions = list(set(self.actions) - tried_actions)
@@ -143,6 +141,7 @@ class MCTS:
             
             score = mod_count / len(cum_freq)
 
+            print(score)
             return score
     
     def choose_action(self, state, turn=None):

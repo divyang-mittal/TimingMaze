@@ -6,6 +6,7 @@ import os
 import pickle
 import numpy as np
 import logging
+import math
 
 import constants
 from timing_maze_state import TimingMazeState
@@ -277,7 +278,10 @@ class Player:
         """
 
         curr_x, curr_y = -current_percept.start_x, -current_percept.start_y
+        print(f"----maze coordinates: {curr_x},{curr_y}")
+        print(f"----current coordinates: {curr_x},{curr_y}")
         self.turn += 1
+        print(f"----turn number {self.turn}")
         maze_state = {}
         coords = (float('-inf'), float('-inf'))
         factors = set(divisors(self.turn))
@@ -300,9 +304,12 @@ class Player:
 
         # set goal
         if current_percept.is_end_visible:
-            self.goal = (current_percept.end_x + curr_x, current_percept.end_y + curr_y)
-        elif self.goal is not None or self.goal == (curr_x, curr_y):
-            self.goal = self.set_goal(maze_state, curr_x, curr_y)
+            print("----target is visible")
+            self.goal = (current_percept.end_x, current_percept.end_y)
+        #elif self.goal is not None or self.goal == (curr_x, curr_y):
+            #self.goal = self.set_goal(maze_state, curr_x, curr_y)
+
+        print(f"----my goal is {self.goal}")
 
         # initialize gridworld and MCTS
         env = GridWorld((curr_x, curr_y), maze_state, self.goal, current_percept.is_end_visible)
