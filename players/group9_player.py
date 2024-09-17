@@ -24,7 +24,7 @@ def valid_moves(surrounding_doors) -> list[int]:
         return moves
 
 def GCD(a, b):
-        if b == 0:
+        if b == 0: # TODO: Should this be 1?
             return a
         return GCD(b, a % b)
 
@@ -67,7 +67,7 @@ class Player:
         self.positions = {}
         self.values = {}
 
-    def update_graph_information(self,current_percept):
+    def update_graph_information(self, current_percept):
         for cell in current_percept.maze_state:
             relative_x = cell[0] + self.cur_pos[0]
             relative_y = cell[1] + self.cur_pos[1]
@@ -118,8 +118,7 @@ class Player:
         if current_percept.is_end_visible:
             return self.move_toward_visible_end()
         
-        self.update_door_state(current_percept)
-        self.updateValues(current_percept.maze_state)
+        self.update_graph_information(current_percept)
         moves = valid_moves(current_percept.maze_state[:20])
         if not moves:
             return constants.WAIT
@@ -191,6 +190,7 @@ class Player:
         """
         curr_cell = (self.pos[0], self.pos[1])
         if len(self.best_path_found) == 0 or curr_cell not in self.best_path_found:
+            # look for the best path to current position because one hasn't been found yet
             G = Graph(door_info)
             self.best_path_found = G.find_path(current_percept.end_x, current_percept.end_y)
 
@@ -207,6 +207,51 @@ class Player:
     def can_move_in_direction(self, direction):
         # TODO: this depends on library
         return True
+
+    def find_path(self, goal_x, goal_y):
+        """
+            Given the current graph/board state and the end coordinates, use Dijkstra's 
+            algorithm to find a path from every available cell to the end position.
+        """
+        goal_coordinates = (goal_x, goal_y)
+        if goal_coordinates not in self.positions:
+            return {}
+
+        dist = {cell: float("inf") for cell in self.positions}
+        dist[(goal_coordinates)] = 0
+
+        queue = [(0, goal_coordinates)]
+        heapq.heapify(queue)
+        
+        visited = {}
+        direction_to_goal = {}
+
+        while len(queue) > 0:
+            curr_dist, curr_cell = heapq.heappop(queue) # node with min dist
+
+            if curr_cell in visited:
+                continue
+            visited.add(curr_cell)
+
+            for direction in range(3):
+                neighbor_coordinates = cell.neighbors[direction]
+                if neighbor_coordinates not in self.V:
+                    continue
+                neighbor = self.V[neighbor_coordinates]
+
+                # how often are we able to go in this direction?
+                edge_freq = curr_cell.door_freqs[direction] * neighbor.door_freqs[opposite(direction)]
+
+                dist_from_here = curr_dist + edge_freq
+                if dist_from_here < dist[neighbor]:
+                    # best way to get to neighbor (so far) is from here. 
+                    # meaning if player is at neighbor, it should go to curr_cell to reach goal
+                    dist[neighbor] = dist_from_here
+                    direction_to_goal[neighbor_coordinates] = opposite(direction)
+
+                    heapq.heappush(queue, (dist_from_here, neighbor))
+
+        return direction_to_goal
 
 
 class Door():
