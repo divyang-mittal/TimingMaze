@@ -88,6 +88,7 @@ class Player:
 
         elif state == constants.BOUNDARY:
             # TODO: handle boundary
+            return
 
 
     def update_cell_value(coordinates):
@@ -171,28 +172,27 @@ class Player:
         else:
             best_move = random.choice(moves)
         
-        match best_move:
-            case constants.LEFT:
-                self.cur_pos[0] -= 1
-            case constants.UP:
-                self.cur_pos[1] -= 1
-            case constants.RIGHT:
-                self.cur_pos[0] += 1
-            case constants.DOWN:
-                self.cur_pos[1] += 1
+        # match best_move:
+        #     case constants.LEFT:
+        #         self.cur_pos[0] -= 1
+        #     case constants.UP:
+        #         self.cur_pos[1] -= 1
+        #     case constants.RIGHT:
+        #         self.cur_pos[0] += 1
+        #     case constants.DOWN:
+        #         self.cur_pos[1] += 1
 
         return best_move
 
     
-    def move_toward_visible_end(self, door_info) -> int:
+    def move_toward_visible_end(self, current_percept) -> int:
         """
             Give the next move that a player should take if they know where the endpoint is
         """
         curr_cell = (self.pos[0], self.pos[1])
         if len(self.best_path_found) == 0 or curr_cell not in self.best_path_found:
             # look for the best path to current position because one hasn't been found yet
-            G = Graph(door_info)
-            self.best_path_found = G.find_path(current_percept.end_x, current_percept.end_y)
+            self.best_path_found = self.find_path(current_percept.end_x, current_percept.end_y)
 
         if curr_cell not in self.best_path_found:
             return constants.WAIT # TODO: This should be some error case. It means no possible path was found given our visible state.
@@ -233,7 +233,7 @@ class Player:
                 continue
             visited.add(curr_cell)
 
-            neigbors = get_neighbors(curr_cell[0], curr_cell[1])
+            neighbors = get_neighbors(curr_cell[0], curr_cell[1])
 
             for direction in range(3):
                 neighbor = neighbors[direction]
@@ -249,7 +249,7 @@ class Player:
                     # best way to get to neighbor (so far) is from here. 
                     # meaning if player is at neighbor, it should go to curr_cell to reach goal
                     dist[neighbor] = dist_from_here
-                    direction_to_goal[neighbor_coordinates] = opposite(direction)
+                    direction_to_goal[neighbor] = opposite(direction)
 
                     heapq.heappush(queue, (dist_from_here, neighbor))
 
