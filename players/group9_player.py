@@ -67,44 +67,40 @@ class Player:
         self.positions = {}
         self.values = {}
 
-    def update_door_state(self, current_percept) -> None:
-        """Function which updates the door states
+    def update_graph_information(self,current_percept):
+        for cell in current_percept.maze_state:
+            relative_x = cell[0] + self.cur_pos[0]
+            relative_y = cell[1] + self.cur_pos[1]
+            cell_coordinates = (relative_x, relative_y)
 
-            Args:
-                current_percept(TimingMazeState): contains current state information
-        """
-        if self.step != 0:
-            for maze_state in current_percept.maze_state:
-                relative_x = int(maze_state[0]) + self.cur_pos[0]
-                relative_y = int(maze_state[1]) + self.cur_pos[1]
-                if (relative_x, relative_y) not in self.positions:
-                    self.positions[(relative_x, relative_y)] = [0, 0, 0, 0]
-                
-                if self.positions[(relative_x, relative_y)][maze_state[2]] == 0 and maze_state[3] != 0:
-                    self.positions[(relative_x, relative_y)][maze_state[2]] = self.step
-                elif maze_state[3] != 0:
-                    self.positions[(relative_x, relative_y)][maze_state[2]] = GCD(self.positions[(relative_x, relative_y)][maze_state[2]], self.step)
+            update_cell_state(coordinates, cell)
+            update_cell_value(coordinates)
 
+    def update_cell_state(coordinates, direction, state):
+        if coordinates not in self.positions:
+            self.positions[coordinates] = [0, 0, 0, 0] # Left Top Right Bottom
 
-    def updateValues(self, maze_state) -> None:
-        """Function which updates cell values
-        
-            Args:
-                maze_state: state information
-        """
-        for state in maze_state:
-            x = state[0] + self.cur_pos[0]
-            y = state[1] + self.cur_pos[1]
-            if (x, y) not in self.values:
-                if state[3] == constants.BOUNDARY:
-                    self.values[(x, y)] = -1
-                else:
-                    self.values[(x, y)] = 0
+        if state == constants.OPEN:
+            if self.positions[coordinates][direction] == 0:
+                self.positions[coordinates][direction] = self.step # TODO: set this to be greatest factor of step <= L
             else:
-                if self.values[(x, y)] != -1:
-                    self.values[(x, y)] += 1
+                self.positions[coordinates][direction] = GCD(self.positions[coordinates][direction], self.step)
 
-        self.values[((self.cur_pos[0]), (self.cur_pos[1]))] += self.maximum_door_frequency
+        elif state == constants.BOUNDARY:
+            # TODO: handle boundary
+
+
+    def update_cell_value(coordinates):
+        if coordinates not in self.values:
+            if cell[3] == constants.BOUNDARY:
+                self.values[coordinates] = -1
+            else: 
+                self.values[coordinates] = 0
+        else:
+            if self.values[coordinates] != -1:
+                self.values[coordinates] += 1
+
+        self.values[(self.cur_pos[0], self.cur_pos[1])] += self.maximum_door_frequency
 
     def move(self, current_percept) -> int:
         """Function which retrieves the current state of the amoeba map and returns an amoeba movement
@@ -205,6 +201,8 @@ class Player:
         if self.can_move_in_direction(direction_to_goal):
             return direction_to_goal
         return constants.WAIT
+
+        # ideally: 
 
     def can_move_in_direction(self, direction):
         # TODO: this depends on library
