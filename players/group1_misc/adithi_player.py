@@ -64,8 +64,31 @@ class Player:
 
         self.frequency={}
         self.cur_percept={}
+        self.weight = 20000  # Initial weight for the heuristic
+        self.best_solution = None
+        self.best_cost = float('inf')
+        self.inconsistent_states = set()
 
     ####### Adithi:
+    def ada_star(self, current_percept, start, goal):
+        while self.weight > 1.0:
+            path = self.a_star(current_percept, start, goal, self.weight)
+            if path:
+                self.best_solution = path
+                self.weight = max(1.0, self.weight * 0.8)  # Reduce weight
+            else:
+                break
+        return self.best_solution
+    
+    def is_path_invalid(self, current_percept):
+        # Check if the current path is still valid given the new percept
+        # Todo: Make this proper. This is a very simple check
+        if not self.path:
+            return True
+        next_move = self.path[0]
+        neighbors = self.get_neighbors(self.get_rel_start((0,0), (current_percept.start_x, current_percept.start_y)), current_percept)
+        return next_move not in [direction for direction, _ in neighbors]
+
     def update_door_frequencies(self, current_percept):
         for x, y, direction, state in current_percept.maze_state:
             if state == constants.OPEN:
@@ -149,9 +172,9 @@ class Player:
                 target =self.get_rel_start((current_percept.end_x, current_percept.end_y),(current_percept.start_x, current_percept.start_y))
                 self.logger.info(f"Cur {cur}, Target: {target}")
                 # If there's no path, run A* to find one
-                if not self.path:
+                if not self.path or  self.is_path_invalid(current_percept):
                     #print("not self.path")
-                    self.path = self.a_star(current_percept, cur, target)
+                    self.path = self.ada_star(current_percept, cur, target)
                 
                 # If A* found a path, execute the next move
                 else:
@@ -271,7 +294,7 @@ class Player:
     
 
     ########################################## Tom (9/15):
-    def a_star (self, current_percept, start, goal):
+    def a_star (self, current_percept, start, goal, weight=1):
         # Reset frontier and explored set
         self.frontier = []
         self.explored = set()
@@ -310,7 +333,7 @@ class Player:
                 new_cost = cost_so_far[current] + 1  # Assume each move costs 1
                 if neighbor not in cost_so_far or new_cost < cost_so_far[neighbor]:
                     cost_so_far[neighbor] = new_cost
-                    priority = new_cost + self.heuristic(neighbor, goal, current)
+                    priority = new_cost + weight*self.heuristic(neighbor, goal, current)
                     heapq.heappush(self.frontier, (priority, neighbor))
                     came_from[neighbor] = (current, direction)
         
