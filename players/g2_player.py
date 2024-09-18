@@ -287,26 +287,41 @@ class Player:
             if not self.to_end_directions:
                 (x, y) = self.generate_goal()
                 path = self.a_star_search((self.cur_x, self.cur_y), (x,y), drone)
+                for i in range(len(path) - 2):
+                    self.to_end_directions.append(self.get_move_direction(path[i], path[i+1]))
             else:
                 self.move_i += 1
 
         # declaring a move based on the path 
         if self.to_end_directions[self.move_i] == constants.LEFT:
+            print ("trying to go left")
             if doors[constants.LEFT] == constants.OPEN:
+                print ("open (2) or closed (1)", doors[constants.LEFT])
                 self.cur_x -= 1
                 return constants.LEFT
+            print ("not open")
         elif self.to_end_directions[self.move_i] == constants.RIGHT:
+            print ("trying to go right")
             if doors[constants.RIGHT] == constants.OPEN:
+                print ("open (2) or closed (1)", doors[constants.RIGHT])
                 self.cur_x += 1
                 return constants.RIGHT
+            print ("not open")
         elif self.to_end_directions[self.move_i] == constants.UP:
+            print ("trying to go up")
             if doors[constants.UP] == constants.OPEN:
+                print ("open (2) or closed (1)", doors[constants.UP])
                 self.cur_y -= 1
                 return constants.UP
+            print ("not open")
         elif self.to_end_directions[self.move_i] == constants.DOWN:
+            print ("trying to go down")
             if doors[constants.DOWN] == constants.OPEN:
+                print ("open (2) or closed (1)", doors[constants.DOWN])
                 self.cur_y += 1
                 return constants.DOWN
+            print ("not open")
+        print ("waiting")
         return constants.WAIT
 
     ''' 
