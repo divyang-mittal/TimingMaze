@@ -8,7 +8,7 @@ from dataclasses import dataclass
 import networkx as nx # pip install networkx
 import matplotlib.pyplot as plt # pip install matplotlib
 from math import lcm
-from players.g7.player_helper_code import build_graph_from_memory, MazeGraph, PlayerMemory, findShortestPathsToEachNode, reconstruct_path
+from players.g7.player_helper_code import build_graph_from_memory, MazeGraph, PlayerMemory, findShortestPathsToEachNode, reconstruct_path, is_move_valid, MemorySquare
 
 
 import constants
@@ -46,9 +46,10 @@ class Player:
         self.logger = logger
         self.maximum_door_frequency = maximum_door_frequency
         self.radius = radius
-        self.memory = PlayerMemory()
+        self.memory: PlayerMemory = PlayerMemory()
         self.turn = 0
         self.starting_position_set = False #check
+        self.target_node_absolute_coords = None
 
     
     def move(self, current_percept) -> int:
@@ -74,54 +75,82 @@ class Player:
         self.memory.update_memory(current_percept.maze_state, self.turn)
         
         # Build the graph from the updated memory
-        currentGraph = build_graph_from_memory(self.memory)
+        currentGraph = build_graph_from_memory(self.memory, True)
         minDistanceArray, parent = findShortestPathsToEachNode(currentGraph, self.memory.pos, self.turn)
-        # Determine the go
-        # l node
-        if current_percept.is_end_visible:
-            # target_node = (current_percept.end_x, current_percept.end_y)
-            target_node = (current_percept.end_y, current_percept.end_x)
 
-        else:
-            # If the end is not visible, choosing an intermediate node
-            target_node = self.choose_intermediate_target_node(minDistanceArray)
-            print(f"TARGET: {target_node}")
-            # target_node = (-40, -40)
+        # Case 1: We know the end position and we can reach it Follow path.
+        # Case 2: We know the end position but we can't reach it. 
+        # Case 3: We don't know the end position.
 
-        # Find shortest paths to the target node
-        
+        # This should only run once
+        if current_percept.is_end_visible and not self.target_node_absolute_coords:
+            self.target_node_absolute_coords = (self.memory.pos[0] + current_percept.end_y, self.memory.pos[1] + current_percept.end_x)
+            print("Found target location: ", self.target_node_absolute_coords)
 
-        path = reconstruct_path(parent, self.memory.pos, target_node)
+        if self.target_node_absolute_coords:
+            print("We know target location and we have a path to get to it")
+            
+            path = reconstruct_path(parent, self.target_node_absolute_coords)
+            if path and len(path) > 1:
+            # Case 1: We know the end position and we can reach it. Follow path..
+                next_move = self.get_move_direction(path)
+                print(path)
+                print("Want to make next move: ", next_move)
+                if is_move_valid(next_move, current_percept.maze_state):
+                    self.memory.update_pos(next_move)
+                    print("New Pos: ", self.memory.pos)
+                    return next_move
+                else: 
+                    print("Desired Next Move is Invalid. Waiting.")
+                    return constants.WAIT
+            #else: 
+                # Case 2: We know the end position but we can't reach it. 
+                # Default to explore mode
 
+        # If we are here we are in Case 2 or 3
+
+        if self.target_node_absolute_coords:
+            print("We know target location but we don't have a path to get to it")
+            # We know the target location but we can't get to it. 
+            # We need to explore the map to find a path to the target location
+            # We need to find a path
+
+
+        # If the end is not visible, choosing an intermediate node
+        target_node = self.choose_intermediate_target_node(minDistanceArray)
+        path = reconstruct_path(parent, target_node)
         if path and len(path) > 1:
-
-            next_move = self.get_move_direction(path)
-            print(path)
-            print("Want to make next move: ", next_move)
-            if self.memory.is_move_valid(next_move, current_percept.maze_state):
-                self.memory.update_pos(next_move)
-                print("New Pos: ", self.memory.pos)
-                move = next_move
-            else: 
-                print("Desired Next Move is Invalid")
-                move = constants.WAIT
-        
-        print(f"Move: {move}")
-        return move
-        # Get the next move from the path
-        # need to ensure invalid turns don't happen
-
-        
-        # If no valid path found or need to wait
-        # return constants.WAIT
+            # Case 1: We know the end position and we can reach it. Follow path..
+                next_move = self.get_move_direction(path)
+                print(path)
+                print("Want to make next move: ", next_move)
+                if is_move_valid(next_move, current_percept.maze_state):
+                    self.memory.update_pos(next_move)
+                    print("New Pos: ", self.memory.pos)
+                    return next_move
+                else: 
+                    print("Desired Next Move is Invalid. Waiting.")
+                    return constants.WAIT
+        return constants.WAIT
+    
 
     def choose_intermediate_target_node(self, min_dist_array):
         options =  {}
-        for i in range(self.memory.pos[0] - self.radius, self.memory.pos[0] + self.radius):
-            for j, dist in enumerate(min_dist_array[i]):
+        for y in range(len(min_dist_array)):
+            for x, dist in enumerate(min_dist_array[y]):
                 if dist < float("inf"):
-                    options[(i, j)] = dist
-        return self.find_min_time_max_dist(options)
+                    # Find new Squares
+                    options[(y, x)] = dist
+        
+        most_new_visible_squares = 0
+        best_new_pos = self.memory.pos
+        for new_pos in options:
+            num_unseen_squares = len(self.get_unseen_squares(new_pos))
+            if num_unseen_squares > most_new_visible_squares:
+                most_new_visible_squares = num_unseen_squares
+                best_new_pos = new_pos
+
+        return best_new_pos
     
     def find_min_time_max_dist(self, options):
         best = self.memory.pos
@@ -131,13 +160,26 @@ class Player:
             if newdist > best_dist and not self.memory.memory[coord[0]][coord[1]].visited:
                 best = coord
                 best_dist = newdist
-        return (best[0] - self.memory.pos[0], best[1] - self.memory.pos[1]) 
+        return (best[0] - self.memory.pos[0], best[1] - self.memory.pos[1])
+
+    def get_unseen_squares(self, pos):
+        squares: list[list[MemorySquare]] = self.get_visible_squares_at_pos(pos)
+        not_seen_squares = []
+        if squares:
+            for y, row in enumerate(squares):
+                for x, square in enumerate(row):
+                    if not square.seen:
+                        not_seen_squares.append((y, x))
+        return not_seen_squares
+    
+    def get_visible_squares_at_pos(self, pos):
+        # Get the visible squares at the current position
+        y, x = pos
+        return [row[x - self.radius:x + self.radius] for row in self.memory.memory[y - self.radius:y + self.radius]]
 
 
 
-    # @staticmethod
-    # def get_euclidean_distance_between_two_points(x1, y1, x2, y2):
-    #     return math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
+
 
     # def choose_intermediate_target_node(self, current_percept): #when goal node is not visible
 
@@ -151,8 +193,7 @@ class Player:
     def get_move_direction(self, path): #current to next position
         """        
         Args:
-            current_pos (tuple): Current position (x, y).
-            next_pos (tuple): Next position (x, y).
+            path (tuple): A tuple of tuples containing the path from current position to the target position.
         
         Returns:
             int: Direction of movement (LEFT, UP, RIGHT, DOWN).
@@ -162,8 +203,6 @@ class Player:
         dy = path[1][0] - path[0][0]
         dx = path[1][1] - path[0][1]
         # Convert this to the direction
-
-        # THIS IS HOW IT SHOULD BE BUT OUR SEARCH IS FLIPPED FOR SOME REASON
         if dx == -1 and dy == 0:
             return constants.LEFT
         elif dx == 1 and dy == 0:
@@ -174,128 +213,12 @@ class Player:
             return constants.DOWN
         else:
             return constants.WAIT
-        # if dx == -1 and dy == 0:
-        #     return constants.DOWN
-        # elif dx == 1 and dy == 0:
-        #     return constants.UP
-        # elif dx == 0 and dy == -1:
-        #     return constants.LEFT
-        # elif dx == 0 and dy == 1:
-        #     return constants.RIGHT
-        # else:
-        #     return constants.WAIT
+
 
     def get_unexplored_nodes(self, current_percept): #Placeholder 
         unexplored_nodes = []
         return unexplored_nodes
 
-    
-    #def move(self, current_percept) -> int:
-        """Function which retrieves the current state of the amoeba map and returns an amoeba movement
-
-            Args:
-                current_percept(TimingMazeState): contains current state information
-            Returns:
-                int: This function returns the next move of the user:
-                    WAIT = -1
-                    LEFT = 0
-                    UP = 1
-                    RIGHT = 2
-                    DOWN = 3
-        """
-
-        #self.memory.update_memory(current_percept.maze_state, self.turn)
-        # currentGraph = build_graph_from_memory(self.memory)
-
-        # we want to build graph with PlayerMemory (self.memory)
-        #currentGraph = build_graph_from_memory(self.memory)
-        #minDistanceArray, parent = findShortestPathsToEachNode(currentGraph, (100, 100), turnNumber=self.turn)
-
-        ## Look at minDistance Array and see where we can get too.. And decide where to go.
-        #currentGraph.reconstruct_path(parent, (100, 100), ##"Node we want to go to"##)
-
-
-        
-        # currentGraph.visualize_graph_in_grid()
-        #print("yay")
-        # if self.turn % 10 == 0 and self.turn != 0:
-            
-
-        #self.turn += 1
-        #return constants.WAIT
-
-        # direction = [0, 0, 0, 0]
-        # for maze_state in current_percept.maze_state:
-        #     if maze_state[0] == 0 and maze_state[1] == 0:
-        #         direction[maze_state[2]] = maze_state[3]
-
-        # if current_percept.is_end_visible:
-        #     if abs(current_percept.end_x) >= abs(current_percept.end_y):
-        #         if current_percept.end_x > 0 and direction[constants.RIGHT] == constants.OPEN:
-        #             for maze_state in current_percept.maze_state:
-        #                 if (maze_state[0] == 1 and maze_state[1] == 0 and maze_state[2] == constants.LEFT
-        #                         and maze_state[3] == constants.OPEN):
-        #                     return constants.RIGHT
-        #         if current_percept.end_x < 0 and direction[constants.LEFT] == constants.OPEN:
-        #             for maze_state in current_percept.maze_state:
-        #                 if (maze_state[0] == -1 and maze_state[1] == 0 and maze_state[2] == constants.RIGHT
-        #                         and maze_state[3] == constants.OPEN):
-        #                     return constants.LEFT
-        #         if current_percept.end_y < 0 and direction[constants.UP] == constants.OPEN:
-        #             for maze_state in current_percept.maze_state:
-        #                 if (maze_state[0] == 0 and maze_state[1] == -1 and maze_state[2] == constants.DOWN
-        #                         and maze_state[3] == constants.OPEN):
-        #                     return constants.UP
-        #         if current_percept.end_y > 0 and direction[constants.DOWN] == constants.OPEN:
-        #             for maze_state in current_percept.maze_state:
-        #                 if (maze_state[0] == 0 and maze_state[1] == 1 and maze_state[2] == constants.UP
-        #                         and maze_state[3] == constants.OPEN):
-        #                     return constants.DOWN
-        #         return constants.WAIT
-        #     else:
-        #         if current_percept.end_y < 0 and direction[constants.UP] == constants.OPEN:
-        #             for maze_state in current_percept.maze_state:
-        #                 if (maze_state[0] == 0 and maze_state[1] == -1 and maze_state[2] == constants.DOWN
-        #                         and maze_state[3] == constants.OPEN):
-        #                     return constants.UP
-        #         if current_percept.end_y > 0 and direction[constants.DOWN] == constants.OPEN:
-        #             for maze_state in current_percept.maze_state:
-        #                 if (maze_state[0] == 0 and maze_state[1] == 1 and maze_state[2] == constants.UP
-        #                         and maze_state[3] == constants.OPEN):
-        #                     return constants.DOWN
-        #         if current_percept.end_x > 0 and direction[constants.RIGHT] == constants.OPEN:
-        #             for maze_state in current_percept.maze_state:
-        #                 if (maze_state[0] == 1 and maze_state[1] == 0 and maze_state[2] == constants.LEFT
-        #                         and maze_state[3] == constants.OPEN):
-        #                     return constants.RIGHT
-        #         if current_percept.end_x < 0 and direction[constants.LEFT] == constants.OPEN:
-        #             for maze_state in current_percept.maze_state:
-        #                 if (maze_state[0] == -1 and maze_state[1] == 0 and maze_state[2] == constants.RIGHT
-        #                         and maze_state[3] == constants.OPEN):
-        #                     return constants.LEFT
-        #         return constants.WAIT
-        # else:
-        #     if direction[constants.LEFT] == constants.OPEN:
-        #         for maze_state in current_percept.maze_state:
-        #             if (maze_state[0] == -1 and maze_state[1] == 0 and maze_state[2] == constants.RIGHT
-        #                     and maze_state[3] == constants.OPEN):
-        #                 return constants.LEFT
-        #     if direction[constants.DOWN] == constants.OPEN:
-        #         for maze_state in current_percept.maze_state:
-        #             if (maze_state[0] == 0 and maze_state[1] == 1 and maze_state[2] == constants.UP
-        #                     and maze_state[3] == constants.OPEN):
-        #                 return constants.DOWN
-        #     if direction[constants.RIGHT] == constants.OPEN:
-        #         for maze_state in current_percept.maze_state:
-        #             if (maze_state[0] == 1 and maze_state[1] == 0 and maze_state[2] == constants.LEFT
-        #                     and maze_state[3] == constants.OPEN):
-        #                 return constants.RIGHT
-        #     if direction[constants.UP] == constants.OPEN:
-        #         for maze_state in current_percept.maze_state:
-        #             if (maze_state[0] == 0 and maze_state[1] == -1 and maze_state[2] == constants.DOWN
-        #                     and maze_state[3] == constants.OPEN):
-        #                 return constants.UP
-            # return constants.WAIT
 
 def print_min_dist_array(minDistanceArray, start_row, end_row, start_col, end_col, width=4):
     for y in range(len(minDistanceArray)):
@@ -306,3 +229,37 @@ def print_min_dist_array(minDistanceArray, start_row, end_row, start_col, end_co
                     # Print each element with a fixed width
                     print(f"{row[x]:>{width}}", end=" ")
             print()
+
+        
+# THIS CODE CAN HELP WITH DOING STUFF WITH THE BOUNDARY:
+
+    # if any(bound != -1 for bound in boundary):
+    #     left_bound, right_bound, up_bound, down_bound = boundary
+    #     # We can see a boundary. Use this and our current position to determine where to go.
+    #     # Note: If we know the left boundary, we also know the right one (and vice versa). Same for up and down
+    #     # We should move away from boundary so we can maximize our view.
+    #     if up_bound > -1 and down_bound > -1:
+    #         # we know left and right bounds. How far do we want to be from the bounds? radius - 1 maybe?
+    #         current_y = self.memory.pos[0]
+    #         distance_to_up_bound = current_y - up_bound
+    #         distance_to_down_bound = down_bound - current_y
+
+    #         if distance_to_up_bound < self.radius - 1: # The plus one is to make sure we see corners
+    #             # We are too close to the upper bound. Move down
+    #             desired_y = up_bound + self.radius - 1
+    #         elif distance_to_down_bound < self.radius - 1:
+    #             # We are too close to the lower bound. Move up
+    #             desired_y = down_bound - self.radius + 1
+
+    #     if left_bound > -1 and right_bound > -1:
+    #         # we know left and right bounds. How far do we want to be from the bounds? radius - 1 maybe?
+    #         current_x = self.memory.pos[1]
+    #         distance_to_left_bound = current_x - left_bound
+    #         distance_to_right_bound = right_bound - current_x
+
+    #         if distance_to_left_bound < self.radius - 1: # The plus one is to make sure we see corners
+    #             # We are too close to the left bound. Move right
+    #             desired_x = left_bound + self.radius - 1
+    #         elif distance_to_right_bound < self.radius - 1:
+    #             # We are too close to the right bound. Move left
+    #             desired_x = right_bound - self.radius + 1
