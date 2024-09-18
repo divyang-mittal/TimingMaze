@@ -92,13 +92,7 @@ class Player:
         else: # If End is not visible
 
             ########## Frank (9/16):
-            move = self.experience.move(current_percept)
-
-            if self.experience.is_valid_move(current_percept, move):
-                return move
-
-            self.experience.wait()
-            return constants.WAIT
+            return self.experience.move(current_percept)
             ###########################
             
         ############################################ Comment this chunk to go back to default player
