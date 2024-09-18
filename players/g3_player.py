@@ -113,8 +113,6 @@ class Player:
             # if we see the door on this turn, then increment the timer if the door is closed
             if state == constants.CLOSED:
                 self.door_timers[abs_x, abs_y, direction] += 1
-                if abs_x == 19 and abs_y == 9 and direction == constants.UP:
-                    print(self.door_timers[abs_x, abs_y, direction])
 
             # if the door is closed for more than the maximum frequency, then mark it as always closed
             if self.door_timers[abs_x, abs_y, direction] >= self.maximum_door_frequency:
