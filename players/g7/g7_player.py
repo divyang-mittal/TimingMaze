@@ -75,7 +75,7 @@ class Player:
         
         # Build the graph from the updated memory
         currentGraph = build_graph_from_memory(self.memory)
-        
+        minDistanceArray, parent = findShortestPathsToEachNode(currentGraph, self.memory.pos, self.turn)
         # Determine the go
         # l node
         if current_percept.is_end_visible:
@@ -84,11 +84,12 @@ class Player:
 
         else:
             # If the end is not visible, choosing an intermediate node
-            target_node = self.choose_intermediate_target_node(current_percept)
-            target_node = (-40, -40)
+            target_node = self.choose_intermediate_target_node(minDistanceArray)
+            print(f"TARGET: {target_node}")
+            # target_node = (-40, -40)
 
         # Find shortest paths to the target node
-        minDistanceArray, parent = findShortestPathsToEachNode(currentGraph, self.memory.pos, self.turn)
+        
 
         path = reconstruct_path(parent, self.memory.pos, target_node)
 
@@ -114,15 +115,38 @@ class Player:
         # If no valid path found or need to wait
         # return constants.WAIT
 
+    def choose_intermediate_target_node(self, min_dist_array):
+        options =  {}
+        for i in range(self.memory.pos[0] - self.radius, self.memory.pos[0] + self.radius):
+            for j, dist in enumerate(min_dist_array[i]):
+                if dist < float("inf"):
+                    options[(i, j)] = dist
+        return self.find_min_time_max_dist(options)
+    
+    def find_min_time_max_dist(self, options):
+        best = self.memory.pos
+        best_dist = 0
+        for coord, dist in options.items():
+            newdist = np.linalg.norm(np.array(coord) - np.array(self.memory.pos)) / (dist + 1)
+            if newdist > best_dist and not self.memory.memory[coord[0]][coord[1]].visited:
+                best = coord
+                best_dist = newdist
+        return (best[0] - self.memory.pos[0], best[1] - self.memory.pos[1]) 
 
-    def choose_intermediate_target_node(self, current_percept): #when goal node is not visible
 
-        unexplored_nodes = self.get_unexplored_nodes(current_percept)
-        if unexplored_nodes:
-            return random.choice(unexplored_nodes)
-        else:
-            # Fallback to current position or some default strategy
-            return self.memory.pos
+
+    # @staticmethod
+    # def get_euclidean_distance_between_two_points(x1, y1, x2, y2):
+    #     return math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
+
+    # def choose_intermediate_target_node(self, current_percept): #when goal node is not visible
+
+    #     unexplored_nodes = self.get_unexplored_nodes(current_percept)
+    #     if unexplored_nodes:
+    #         return random.choice(unexplored_nodes)
+    #     else:
+    #         # Fallback to current position or some default strategy
+    #         return self.memory.pos
 
     def get_move_direction(self, path): #current to next position
         """        

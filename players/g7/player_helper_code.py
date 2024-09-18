@@ -85,6 +85,7 @@ class MemorySquare:
         right = MemoryDoor()
         down = MemoryDoor()
         self.doors = {constants.LEFT:left, constants.UP:up, constants.RIGHT:right, constants.DOWN:down}
+        self.visited = False
 
 class PlayerMemory:
     def __init__(self, map_size: int = 100):
@@ -102,6 +103,7 @@ class PlayerMemory:
             door.update_observations(door_state, turn)
 
     def update_pos(self, move):
+        self.memory[self.pos[0]][self.pos[1]].visited = True
         if move == constants.LEFT:
             self.pos = (self.pos[0], self.pos[1] - 1)
         if move == constants.UP:
