@@ -9,6 +9,13 @@ from constants import *
 import constants
 from utils import *
 from players.default_player import Player as DefaultPlayer
+from players.g1_player import Player as G1_Player
+from players.g2_player import Player as G2_Player
+from players.g3_player import Player as G3_Player
+from players.g4_player import Player as G4_Player
+from players.group5.player import G5_Player as G5_Player
+from players.G6_Player import G6_Player
+from players.g7.g7_player import Player as G7_Player
 from players.group9_player import Player as G9_Player
 from collections import deque as queue
 import tkinter as tk
@@ -218,7 +225,7 @@ class TimingMazeGame:
         # file_path = os.path.join(os.getcwd(), filename)
         # with open(filename, 'w') as json_file:
         #     json.dump(data, json_file, indent=4)
-        #
+        
         # print(f"JSON file '{filename}' created successfully at {file_path}")
 
         self.map_state = self.map_frequencies.copy()
@@ -573,13 +580,13 @@ class TimingMazeGame:
 
                 # if door is a part of the drone visual
                 # add to state whether they are open, closed or at boundary
-                if row == 0 and door_type == constants.UP:
+                if row == 0 and door_type == constants.LEFT:
                     state.append((row-self.cur_pos[0], col-self.cur_pos[1], door_type, constants.BOUNDARY))
-                elif row == constants.map_dim-1 and door_type == constants.DOWN:
+                elif row == constants.map_dim-1 and door_type == constants.RIGHT:
                     state.append((row-self.cur_pos[0], col-self.cur_pos[1], door_type, constants.BOUNDARY))
-                elif col == 0 and door_type == constants.LEFT:
+                elif col == 0 and door_type == constants.UP:
                     state.append((row-self.cur_pos[0], col-self.cur_pos[1], door_type, constants.BOUNDARY))
-                elif col == constants.map_dim-1 and door_type == constants.RIGHT:
+                elif col == constants.map_dim-1 and door_type == constants.DOWN:
                     state.append((row-self.cur_pos[0], col-self.cur_pos[1], door_type, constants.BOUNDARY))
                 elif self.map_state[row][col][door_type] == 1:
                     state.append((row-self.cur_pos[0], col-self.cur_pos[1], door_type, constants.OPEN))
@@ -723,3 +730,4 @@ class TimingMazeGame:
             cx, cy = self.x_offset + x * constants.CELL_SIZE + constants.CELL_SIZE/2, self.y_offset + y * constants.CELL_SIZE + constants.CELL_SIZE/2
             r = self.radius*constants.CELL_SIZE
             self.canvas.create_oval(cx - r, cy - r, cx + r, cy + r, fill="", outline="blue", width=1)
+            

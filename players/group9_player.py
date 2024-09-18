@@ -53,7 +53,7 @@ class Player:
 
         self.step = 0
         self.cur_pos = [0, 0]
-        self.epsilon = 0.05
+        self.epsilon = 0.00
         self.door_states = {}
         self.values = {}
         self.best_path_found = {}
@@ -85,9 +85,14 @@ class Player:
                 self.door_states[coordinates][direction] = GCD(self.door_states[coordinates][direction], self.step)
 
         elif state == constants.BOUNDARY:
+            # print("---Updating Boundary----")
+            # print("Boundary Found at: ", coordinates)
+            # print("Which Door is it? ", direction)
             self.door_states[coordinates][direction] = -1   
-            x_or_y = 1 if direction % 2 == 0 else 0 # Which coordinate to update
+            x_or_y = 0 if direction % 2 == 0 else 1 # Which coordinate to update
+            # print("X OR y (0 or 1)", x_or_y)
             self.boundary[direction] = coordinates[x_or_y]
+            # print(self.boundary)
 
     def update_cell_value(self, coordinates, door_type):
         """
@@ -144,11 +149,15 @@ class Player:
 
         if exploit[0]:
             for move in moves:
+                # print("Checking Move: ", move)
                 x_or_y = 0 if move % 2 == 0 else 1
                 neg_or_pos = -1 if move <= 1 else 1
                 changed_dim = self.cur_pos[x_or_y] + (self.radius * neg_or_pos)
                 target_coord = (changed_dim if x_or_y == 0 else self.cur_pos[0], changed_dim if x_or_y == 1 else self.cur_pos[1]) 
-                
+                # print("Boundary: ", self.boundary)
+                # print("Boundary Check: ", self.boundary[move])
+                # print("Shifted dim: ", changed_dim)
+
                 # Check if we have found a boundary and whether or not our vision is beyond it
                 if self.boundary[move] != 100 and abs(changed_dim) >= abs(self.boundary[move]):
                     move_rewards.append(math.inf)
@@ -171,6 +180,9 @@ class Player:
         else:
             best_move = random.choice(moves)
         
+        # print("Chosen Move:", best_move)
+        # print("Available moves:", moves)
+        # print("Reward list:", move_rewards)
         self.update_position(best_move)
 
         return best_move
