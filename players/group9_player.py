@@ -28,7 +28,7 @@ def GCD(a, b):
             return a
         return GCD(b, a % b)
 
-def LCM(self, a, b):
+def LCM(a, b):
         return a * b // GCD(a, b)
 
 class Player:
@@ -73,8 +73,8 @@ class Player:
 
     def update_graph_information(self, current_percept):
         for cell in current_percept.maze_state:
-            relative_x = cell[0] + self.cur_pos[0]
-            relative_y = cell[1] + self.cur_pos[1]
+            relative_x = int(cell[0] + self.cur_pos[0])
+            relative_y = int(cell[1] + self.cur_pos[1])
             cell_coordinates = (relative_x, relative_y)
 
             self.update_cell_state(cell_coordinates, cell[2], cell[3])
@@ -92,10 +92,6 @@ class Player:
 
         elif state == constants.BOUNDARY:
             self.door_states[coordinates][direction] = -1
-
-        if coordinates == (-1, -1):
-            print(coordinates)
-            print(self.door_states[coordinates])
 
 
     def update_cell_value(self, coordinates, door_type):
@@ -129,8 +125,17 @@ class Player:
 
 
         if current_percept.is_end_visible:
-            print("reached point 0")
-            return self.move_toward_visible_end(current_percept)
+            best_move = self.move_toward_visible_end(current_percept)
+            match best_move:
+                case constants.LEFT:
+                    self.cur_pos[0] -= 1
+                case constants.UP:
+                    self.cur_pos[1] -= 1
+                case constants.RIGHT:
+                    self.cur_pos[0] += 1
+                case constants.DOWN:
+                    self.cur_pos[1] += 1
+            return best_move
         
         moves = valid_moves(current_percept.maze_state[:20])
         if not moves:
@@ -184,41 +189,30 @@ class Player:
         else:
             best_move = random.choice(moves)
         
-        # match best_move:
-        #     case constants.LEFT:
-        #         self.cur_pos[0] -= 1
-        #     case constants.UP:
-        #         self.cur_pos[1] -= 1
-        #     case constants.RIGHT:
-        #         self.cur_pos[0] += 1
-        #     case constants.DOWN:
-        #         self.cur_pos[1] += 1
+        match best_move:
+            case constants.LEFT:
+                self.cur_pos[0] -= 1
+            case constants.UP:
+                self.cur_pos[1] -= 1
+            case constants.RIGHT:
+                self.cur_pos[0] += 1
+            case constants.DOWN:
+                self.cur_pos[1] += 1
 
         return best_move
 
-    
     def move_toward_visible_end(self, current_percept) -> int:
         """
             Give the next move that a player should take if they know where the endpoint is
         """
-        print("reached step 1")
-        curr_cell = (self.cur_pos[0], self.cur_pos[1])
+        curr_cell = tuple(self.cur_pos)
         # Look for the best path to current position if one hasn't been found yet
-        print(self.best_path_found)
-        print(curr_cell)
         if len(self.best_path_found) == 0 or curr_cell not in self.best_path_found:
             self.find_path(current_percept.end_x, current_percept.end_y)
-            print("reached step 1.5")
             return constants.WAIT
         
-        
-
         direction_to_goal = self.best_path_found[curr_cell]
-        
-        print("reached step 2")
-
         if self.can_move_in_direction(direction_to_goal):
-            print(direction_to_goal)
             return direction_to_goal
         return constants.WAIT
 
@@ -228,13 +222,14 @@ class Player:
             A door is open if our known frequency for the door is a multiple of the current step.
         """
         # Don't bother checking the neighbor's door if this door is a boundary or closed
-        this_door_freq = self.door_states[self.cur_pos][direction]
+        this_door_freq = self.door_states[tuple(self.cur_pos)][direction]
         if this_door_freq == 0 or self.step % this_door_freq != 0:
             return False
         
         # Check neighbors door
-        neighbors = get_neighbors(self.cur_pos)
-        neighbor = neighbors[direction]
+        neighbor = get_neighbor(self.cur_pos, direction)
+        if neighbor not in self.door_states:
+            return False
         neighbor_door_freq = self.door_states[neighbor][opposite(direction)]
         return (neighbor_door_freq != 0) and (self.step % neighbor_door_freq == 0)
 
@@ -243,42 +238,45 @@ class Player:
             Given the current graph/board state and the end coordinates, use Dijkstra's 
             algorithm to find a path from every available cell to the end position.
         """
-        print(goal_x, goal_y)
+        relative_x = int(goal_x + self.cur_pos[0])
+        relative_y = int(goal_y + self.cur_pos[1])
+        goal_coordinates = (relative_x, relative_y)
 
-        print(self.door_states[(goal_x, goal_y)])
-
-        goal_coordinates = (goal_x, goal_y)
         if goal_coordinates not in self.door_states:
-            return {}
-
-        dist = {cell: float("inf") for cell in self.door_states}
-        dist[(goal_coordinates)] = 0
+            return
+        
+        dist = {cell: (self.maximum_door_frequency * 100) for cell in self.door_states}
+        dist[goal_coordinates] = 0
+        self.best_path_found[goal_coordinates] = -1
 
         queue = [(0, goal_coordinates)]
         heapq.heapify(queue)
-        visited = {}
-        # direction_to_goal = {} # <k = cell coordinate, v = what direction player should go from that cell>
-
-        print("find path 2")
+        visited = set()
 
         while len(queue) > 0:
             curr_dist, curr_cell = heapq.heappop(queue) # node with min dist
-            print(visited)
+            if curr_cell == self.cur_pos:
+                return
+            
             if curr_cell in visited:
                 continue
             visited.add(curr_cell)
-            neighbors = get_neighbors(curr_cell)
 
-            for direction in range(3):
+            neighbors = get_neighbors(curr_cell)
+            for direction in range(4):
                 neighbor = neighbors[direction]
                 if (neighbor in visited) or (neighbor not in self.door_states):
                     continue
 
-                # how often are we able to go in this direction?
+                # how often are we able to go pn this direction?
                 # lowest common multiple
-                max_wait = self.LCM(self.door_states[curr_cell][direction], self.door_states[neighbor][opposite(direction)])
+                this_door = self.door_states[curr_cell][direction]
+                neighbor_door = self.door_states[neighbor][opposite(direction)]
+                if (this_door == 0) or (neighbor_door == 0):
+                    continue
 
-                dist_from_here = curr_dist + max_wait + 1
+                max_wait = LCM(this_door, neighbor_door)
+                dist_from_here = curr_dist + max_wait + 1 + manhattan_dist(self.cur_pos, neighbor)
                 if dist_from_here < dist[neighbor]:
                     # best way to get to neighbor (so far) is from here. 
                     # meaning if player is at neighbor, it should go to curr_cell to reach goal
@@ -287,17 +285,19 @@ class Player:
 
                     heapq.heappush(queue, (dist_from_here, neighbor))
 
-        print("hello")
-
-        #print(direction_to_goal)
-
-        #return direction_to_goal
+                
+def get_neighbor(coordinates, direction):
+    return get_neighbors(coordinates)[direction]
 
 def get_neighbors(coordinates): 
-    # up left right down
-    x = coordinates[0]
-    y = coordinates[1]
-    return [(x-1, y), (x, y-1), (x, y+1), (x+1, y)]
+    # left up right down
+    x,y = coordinates
+    return [(x-1, y), (x, y-1), (x+1, y), (x, y+1)]
+
+def manhattan_dist(coord1, coord2):
+    x1,y1 = coord1
+    x2,y2 = coord2
+    return abs(x2-x1) + abs(y2-y1)
 
 # Helper that maps directions to their opposites 
 def opposite(direction) -> int:
