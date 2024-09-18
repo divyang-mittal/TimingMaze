@@ -1,4 +1,5 @@
 from players.g6_player.data import Move
+from players.g6_player.classes.door import Door
 from typing import Optional
 
 
@@ -7,11 +8,23 @@ class Cell:
         self.x = x
         self.y = y
         # NORTH, EAST, SOUTH, WEST
-        self.doors = [0, 0, 0, 0]
-        self.north = None
-        self.east = None
-        self.south = None
-        self.west = None
+        self.n_door = Door()
+        self.e_door = Door()
+        self.s_door = Door()
+        self.w_door = Door()
+        self.n_neighbour = None
+        self.e_neighbour = None
+        self.s_neighbour = None
+        self.w_neighbour = None
+
+    def tick(self, some_info):
+        """Updates the cell information - Called every tick"""
+        # TODO: only tick door if its open
+        self.n_door.tick(some_info)
+        self.s_door.tick(some_info)
+        self.e_door.tick(some_info)
+        self.w_door.tick(some_info)
+        pass
 
     def save_neighbours(
         self,
@@ -20,17 +33,19 @@ class Cell:
         south: Optional["Cell"],
         west: Optional["Cell"],
     ):
-        self.north = north
-        self.east = east
-        self.south = south
-        self.west = west
+        """Neighbours are optional because edge and corner cells don't have all four neighbours"""
+        self.n_neighbour = north
+        self.e_neighbour = east
+        self.s_neighbour = south
+        self.w_neighbour = west
 
-    def is_path_available(self, move: Move) -> bool:
+    def is_path_available(self, tick: int, move: Move) -> bool:
         match move:
             case Move.UP:
                 return (
-                    self.north is not None
-                    and self.north.doors[2] == 1
-                    and self.doors[0] == 1
+                    self.n_neighbour is not None
+                    and self.n_neighbour.s_door.last_open
+                    == self.n_door.last_open
+                    == tick
                 )
         return True
