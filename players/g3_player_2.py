@@ -435,24 +435,26 @@ class Player:
         return constants.WAIT
 
         def update_relative_frequencies(self, current_percept):
+            self.turn_counter += 1 # assuming that update_relative_frequencies is called every time we make a move or wait
             for cell in current_percept.maze_state:
-                print(cell)
                 x, y, direction, state = cell
                 abs_x = self.current_relative_pos[0] + x
                 abs_y = self.current_relative_pos[1] + y
 
+                # if the door is open
                 if state == constants.OPEN:
-                    # door is always open
-                    self.relative_frequencies[abs_x, abs_y, direction] = 1
-                elif state == constants.CLOSED:
-                    # if it's the first time seeing the door (since -1 indicates unexplored), set to max_freq so we assume the worst case
+                    # and it's the first time we are seeing this door (because all rel freq cells are initialized to -1)
                     if self.relative_frequencies[abs_x, abs_y, direction] == -1:
-                        self.relative_frequencies[abs_x, abs_y, direction] = self.maximum_door_frequency
-                    # if we've seen it before and it's closed, decrement the frequency (it opens more frequently than we thought)
-                    elif self.relative_frequencies[abs_x, abs_y, direction] > 1:
-                        self.relative_frequencies[abs_x, abs_y, direction] -= 1
+                        self.relative_frequencies[abs_x, abs_y, direction] = self.turn_counter
+                    else:
+                        # otherwise, if we've seen this cell open before too, take GCD of current turn number and previous frequency estimate
+                        # this way, over time, the values will all converge to their precise frequencies
+                        self.relative_frequencies[abs_x, abs_y, direction] = math.gcd(self.relative_frequencies[abs_x, abs_y, direction], self.turn_counter)
+                # if the door is instead closed
+                elif state == constants.CLOSED:
+                    # don't do anything
+                    pass
                 elif state == constants.BOUNDARY:
-                    # basically the door always closed
                     self.relative_frequencies[abs_x, abs_y, direction] = 0
 
         def update_position(self, move):
