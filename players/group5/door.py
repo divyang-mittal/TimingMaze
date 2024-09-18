@@ -6,9 +6,9 @@ import constants
 
 @dataclass
 class DoorIdentifier:
-    relative_coord: List[int]
     absolute_coord: List[int]
     door_type: int
+    relative_coord: List[int] | None = None
 
 
 # TODO: doing this for every door would be time consuming; also make it more memory efficient (gc)

@@ -3,6 +3,7 @@ import numpy as np
 import logging
 
 import constants
+from players.group5.door import DoorIdentifier
 from players.group5.player_map import PlayerMapInterface, SimplePlayerCentricMap, StartPosCentricPlayerMap
 from timing_maze_state import TimingMazeState
 from players.group5.converge import converge_basic, converge
@@ -87,13 +88,20 @@ class G5_Player:
         try:
             self.turns += 1
             self.player_map.update_map(self.turns, current_percept)
+            cur_pos = self.player_map.get_cur_pos()
+            
+            valid_moves = self.player_map.get_valid_moves(self.turns)
+            self.logger.debug(f"Valid moves: {valid_moves}")
+
+            # example_freq_set = self.player_map.get_wall_freq_candidates(door_id=DoorIdentifier(absolute_coord=cur_pos, door_type=0))
+            # self.logger.debug(f"Example freq set for coordinate {cur_pos}: {example_freq_set}")
 
             exists, end_pos = self.player_map.get_end_pos_if_known()
-            self.logger.debug(f"End pos: {end_pos}")
-            self.logger.debug(f"Cur pos: {self.player_map.get_cur_pos()}")
             if not exists:
-                return self.simple_search()
-            return converge(self.player_map.get_cur_pos(), end_pos)
+                move = self.simple_search()
+                return move if move in valid_moves else constants.WAIT  # TODO: this is if-statement is to demonstrate valid_moves is correct (@eylam, replace with actual logic)
+            move = converge(self.player_map.get_cur_pos(), end_pos)
+            return move if move in valid_moves else constants.WAIT
         except Exception as e:
             self.logger.debug(e, e.with_traceback)
             return constants.WAIT
