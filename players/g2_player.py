@@ -33,13 +33,9 @@ class Player:
         self.turn = 0
         self.path = []
         self.move_directions = []
-        # comment out next two when done
         self.final_path = []
         self.final_move_directions = []
-        self.path = []
-        self.to_end_directions = []
         self.start = (self.cur_x, self.cur_y)
-        self.move_i = 0
 
     @staticmethod
     def findSmallestGap(seen):
@@ -85,14 +81,9 @@ class Player:
     def getDrone(self, maze_state):
 
         drone = {} # drone view around the current x, y, at radius r
-        doors = {}
-        # print ("doors issue")
         for door in maze_state:
-            if (door[0] == self.cur_x and door[1] == self.cur_y):
-                doors[door[2]] = door[3]
             if (door[0], door[1]) not in drone:
                 drone[(door[0], door[1])] = {constants.LEFT: -1, constants.UP: -1, constants.RIGHT: -1, constants.DOWN: -1}
-        # print ("not doors issue")
         for (x, y) in drone: # these x, y are centered around 
             # print ("x, y:", x, y)
             # if (x, y) in self.knowns:
@@ -181,8 +172,7 @@ class Player:
                         drone[x, y][constants.DOWN] = self.knowns[(x + self.cur_x, y + self.cur_y)][constants.DOWN]
                     else:
                         drone[x, y][constants.DOWN] = self.rng.integers(low= 1, high=self.maximum_door_frequency, endpoint=True)
-        # print ("return issue")
-        return (drone, doors)
+        return drone
 
          
     def setInfo(self, maze_state, turn) -> dict:
@@ -259,57 +249,6 @@ class Player:
 
         return drone
     
-    # TODO: implement logic to track the real coordinates of the current coordinate (to check)
-    def move(self, current_percept) -> int:
-        self.turn += 1
-        info = self.setInfo(current_percept.maze_state, self.turn)
-        drone = info[0]
-        doors = info[1]
-
-        if current_percept.is_end_visible:
-            # create path 
-            # print("current position:", (self.cur_x, self.cur_y))
-            # print("end position:", (current_percept.end_x, current_percept.end_y))
-            path = self.a_star_search((self.cur_x, self.cur_y), (current_percept.end_x, current_percept.end_y), drone)
-            # print ("current path:", path)
-            # print ("doors:", doors)
-
-            self.to_end_directions = []
-            self.move_i = 0
-
-            for i in range(len(path) - 2):
-                # print("creating move dirctions")
-                self.to_end_directions.append(self.get_move_direction(path[i], path[i+1]))
-            
-            # print(self.to_end_directions)
-        
-        else:
-            if not self.to_end_directions:
-                (x, y) = self.generate_goal()
-                path = self.a_star_search((self.cur_x, self.cur_y), (x,y), drone)
-            else:
-                self.move_i += 1
-
-        # declaring a move based on the path 
-        if self.to_end_directions[self.move_i] == constants.LEFT:
-            if doors[constants.LEFT] == constants.OPEN:
-                self.cur_x -= 1
-                return constants.LEFT
-        elif self.to_end_directions[self.move_i] == constants.RIGHT:
-            if doors[constants.RIGHT] == constants.OPEN:
-                self.cur_x += 1
-                return constants.RIGHT
-        elif self.to_end_directions[self.move_i] == constants.UP:
-            if doors[constants.UP] == constants.OPEN:
-                self.cur_y -= 1
-                return constants.UP
-        elif self.to_end_directions[self.move_i] == constants.DOWN:
-            if doors[constants.DOWN] == constants.OPEN:
-                self.cur_y += 1
-                return constants.DOWN
-        return constants.WAIT
-
-    ''' 
     def move(self, current_percept) -> int:
         # print("Im inside move")
         """Function which retrieves the current state of the amoeba map and returns an amoeba movement
@@ -332,20 +271,22 @@ class Player:
 
         """
         self.turn = self.turn + 1
-        info = self.setInfo(current_percept.maze_state, self.turn)
-        drone = info[0]
-        doors = info[1]
 
+        # if self.turn <= 100:
+        #     return constants.WAIT
+    
+        # print("Im before drone")
+        drone = self.setInfo(current_percept.maze_state, self.turn)
+        # print("Im after drone")
 
         if current_percept.is_end_visible:
             # print("I am inside is end visible")
             if not self.final_move_directions:
                 # print("creating path")
-                print("current position:", (self.cur_x, self.cur_y))
-                print("end position:", (current_percept.end_x, current_percept.end_y))
+                # print((self.cur_x, self.cur_y))
+                # print((current_percept.end_x, current_percept.end_y))
                 final_path = self.a_star_search((self.cur_x, self.cur_y), (current_percept.end_x, current_percept.end_y), drone)
-                print("final path:", final_path)
-                print ("doors:", doors)
+                print(final_path)
 
                 for i in range(len(final_path) - 2):
                     # print("creating move dirctions")
@@ -441,7 +382,6 @@ class Player:
                 return constants.WAIT
 
         return 0
-    '''
 
     def generate_goal(self):
         x = y = -float('inf')
@@ -680,4 +620,3 @@ class Player:
         # print(directions)
 
         return directions
-        
