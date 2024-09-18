@@ -9,16 +9,13 @@ from constants import *
 import constants
 from utils import *
 from players.default_player import Player as DefaultPlayer
-from players.g1_player import Player as G1_Player
-from players.g2_player import Player as G2_Player
-from players.g3_player import Player as G3_Player
-from players.g4_player import Player as G4_Player
 from players.group5.player import G5_Player as G5_Player
 from players.G6_Player import G6_Player
-from players.g7.g7_player import Player as G7_Player
-from players.group9_player import Player as G9_Player
+from players.g2_player import Player as DefaultPlayer
 from collections import deque as queue
 import tkinter as tk
+
+from players.g1_player import Player as G1_Player
 
 class TimingMazeGame:
     # Direction vectors

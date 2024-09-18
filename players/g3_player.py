@@ -1,5 +1,3 @@
-from audioop import reverse
-
 import numpy as np
 import logging
 
@@ -43,13 +41,10 @@ class Player:
         self.inside_out_state = 0
         self.inside_out_rem = None
         self.inside_out_start_radius = self.radius
+        self.inside_out_timer = 0
+        self.inside_out_reverse_timer = 0
         self.rush_in_timer = maximum_door_frequency
         self.rush_in_reverse_timer = maximum_door_frequency
-        self.relative_frequencies = np.full((201, 201, 4), -1, dtype=int)
-        self.door_timers = np.full((201, 201, 4), 0, dtype=int)
-        self.always_closed = np.full((201, 201, 4), False, dtype=bool)
-        self.current_relative_pos = [100, 100]
-        self.turn_counter = 0
 
     def move(self, current_percept) -> int:
         """Function which retrieves the current state of the map and returns a movement
@@ -64,7 +59,7 @@ class Player:
                     RIGHT = 2
                     DOWN = 3
         """
-        self.update_door_timers(current_percept)
+
         if current_percept.is_end_visible:
             direction = [0, 0, 0, 0]
             reverse_direction = [0, 0, 0, 0]
@@ -99,35 +94,6 @@ class Player:
                 return constants.WAIT
         else:
             return self.move_inside_out(current_percept)
-
-    def update_door_timers(self, current_percept):
-        door_seen = np.full((201, 201, 4), False, dtype=bool)
-        for cell in current_percept.maze_state:
-            x, y, direction, state = cell
-
-            # positions relative to start position
-            abs_x = x - current_percept.start_x
-            abs_y = y - current_percept.start_y
-            door_seen[abs_x, abs_y, direction] = True
-
-            # if we see the door on this turn, then increment the timer if the door is closed
-            if state == constants.CLOSED:
-                self.door_timers[abs_x, abs_y, direction] += 1
-
-            # if the door is closed for more than the maximum frequency, then mark it as always closed
-            if self.door_timers[abs_x, abs_y, direction] >= self.maximum_door_frequency:
-                self.always_closed[abs_x, abs_y, direction] = True
-
-            #if the door is open, then reset the timer
-            if state == constants.OPEN:
-                self.door_timers[abs_x, abs_y, direction] = 0
-
-        # for all doors that we were not present in current_percept.maze_state, set the timer as -1
-        for i in range(201):
-            for j in range(201):
-                for k in range(4):
-                    if not door_seen[i, j, k]:
-                        self.door_timers[i, j, k] = 0
 
 
     def rush_in_vertical(self, current_percept, direction, rev_direction) -> int:
@@ -226,13 +192,13 @@ class Player:
                 reverse_direction[constants.RIGHT] = maze_state[3]
             if maze_state[0] == -1 and maze_state[1] == 0 and maze_state[2] == constants.RIGHT:
                 reverse_direction[constants.LEFT] = maze_state[3]
-        abs_x = - current_percept.start_x
-        abs_y = - current_percept.start_y
 
         if self.inside_out_state == 0:
-            self.inside_out_rem = [self.inside_out_start_radius+self.radius, self.inside_out_start_radius+self.radius, self.inside_out_start_radius, self.inside_out_start_radius]
-            self.inside_out_start_radius = self.inside_out_start_radius + self.radius
+            self.inside_out_rem = [self.inside_out_start_radius*2, self.inside_out_start_radius*2, self.inside_out_start_radius, self.inside_out_start_radius]
+            self.inside_out_start_radius = self.inside_out_start_radius*2
             self.inside_out_state = 1
+            self.inside_out_timer = self.maximum_door_frequency
+            self.inside_out_reverse_timer = self.maximum_door_frequency
 
         if self.inside_out_state == 1:
             if self.inside_out_rem[2] <= 0:
@@ -241,17 +207,22 @@ class Player:
                 if self.inside_out_rem[2] > 0:
                     if direction[constants.RIGHT] == constants.OPEN and reverse_direction[constants.RIGHT] == constants.OPEN:
                         self.inside_out_rem[2] -= 1
+                        self.inside_out_timer = self.maximum_door_frequency
+                        self.inside_out_reverse_timer = self.maximum_door_frequency
                         return constants.RIGHT
+                    else:
+                        self.inside_out_timer -= 1
 
-                if ((self.always_closed[abs_x][abs_y][constants.RIGHT] or self.always_closed[abs_x+1][abs_y][constants.LEFT])
-                        and direction[constants.DOWN] == constants.OPEN and reverse_direction[constants.DOWN] == constants.OPEN):
+                if (self.inside_out_timer < 0 or self.inside_out_reverse_timer < 0) and direction[constants.DOWN] == constants.OPEN and reverse_direction[constants.DOWN] == constants.OPEN:
                     self.inside_out_rem[3] -= 1
+                    self.inside_out_timer = self.maximum_door_frequency
+                    self.inside_out_reverse_timer = self.maximum_door_frequency
                     return constants.DOWN
 
-                if ((self.always_closed[abs_x][abs_y][constants.RIGHT] or self.always_closed[abs_x+1][abs_y][constants.LEFT])
-                        and (self.always_closed[abs_x][abs_y][constants.DOWN] or self.always_closed[abs_x][abs_y+1][constants.UP])
-                        and direction[constants.UP] == constants.OPEN and reverse_direction[constants.UP] == constants.OPEN):
+                if (self.inside_out_timer < -self.maximum_door_frequency or self.inside_out_reverse_timer < -self.maximum_door_frequency) and direction[constants.UP] == constants.OPEN and reverse_direction[constants.UP] == constants.OPEN:
                     self.inside_out_rem[1] -= 1
+                    self.inside_out_timer = self.maximum_door_frequency
+                    self.inside_out_reverse_timer = self.maximum_door_frequency
                     return constants.UP
 
         if self.inside_out_state == 2:
@@ -261,17 +232,22 @@ class Player:
                 if self.inside_out_rem[3] > 0:
                     if direction[constants.DOWN] == constants.OPEN and reverse_direction[constants.DOWN] == constants.OPEN:
                         self.inside_out_rem[3] -= 1
+                        self.inside_out_timer = self.maximum_door_frequency
+                        self.inside_out_reverse_timer = self.maximum_door_frequency
                         return constants.DOWN
+                    else:
+                        self.inside_out_timer -= 1
 
-                if ((self.always_closed[abs_x][abs_y][constants.DOWN] or self.always_closed[abs_x][abs_y+1][constants.UP])
-                        and direction[constants.LEFT] == constants.OPEN and reverse_direction[constants.LEFT] == constants.OPEN):
+                if (self.inside_out_timer < 0 or self.inside_out_reverse_timer < 0) and direction[constants.LEFT] == constants.OPEN and reverse_direction[constants.LEFT] == constants.OPEN:
                     self.inside_out_rem[0] -= 1
+                    self.inside_out_timer = self.maximum_door_frequency
+                    self.inside_out_reverse_timer = self.maximum_door_frequency
                     return constants.LEFT
 
-                if ((self.always_closed[abs_x][abs_y][constants.DOWN] or self.always_closed[abs_x][abs_y+1][constants.UP])
-                        and (self.always_closed[abs_x][abs_y][constants.LEFT] or self.always_closed[abs_x-1][abs_y][constants.RIGHT])
-                        and direction[constants.RIGHT] == constants.OPEN and reverse_direction[constants.RIGHT] == constants.OPEN):
+                if (self.inside_out_timer < -self.maximum_door_frequency or self.inside_out_reverse_timer < -self.maximum_door_frequency) and direction[constants.RIGHT] == constants.OPEN and reverse_direction[constants.RIGHT] == constants.OPEN:
                     self.inside_out_rem[2] -= 1
+                    self.inside_out_timer = self.maximum_door_frequency
+                    self.inside_out_reverse_timer = self.maximum_door_frequency
                     return constants.RIGHT
 
         if self.inside_out_state == 3:
@@ -281,17 +257,22 @@ class Player:
                 if self.inside_out_rem[0] > 0:
                     if direction[constants.LEFT] == constants.OPEN and reverse_direction[constants.LEFT] == constants.OPEN:
                         self.inside_out_rem[0] -= 1
+                        self.inside_out_timer = self.maximum_door_frequency
+                        self.inside_out_reverse_timer = self.maximum_door_frequency
                         return constants.LEFT
+                    else:
+                        self.inside_out_timer -= 1
 
-                if ((self.always_closed[abs_x][abs_y][constants.LEFT] or self.always_closed[abs_x-1][abs_y][constants.RIGHT])
-                        and direction[constants.UP] == constants.OPEN and reverse_direction[constants.UP] == constants.OPEN):
+                if (self.inside_out_timer < 0 or self.inside_out_reverse_timer < 0) and direction[constants.UP] == constants.OPEN and reverse_direction[constants.UP] == constants.OPEN:
                     self.inside_out_rem[1] -= 1
+                    self.inside_out_timer = self.maximum_door_frequency
+                    self.inside_out_reverse_timer = self.maximum_door_frequency
                     return constants.UP
 
-                if ((self.always_closed[abs_x][abs_y][constants.LEFT] or self.always_closed[abs_x-1][abs_y][constants.RIGHT])
-                        and (self.always_closed[abs_x][abs_y][constants.UP] or self.always_closed[abs_x][abs_y-1][constants.DOWN])
-                        and direction[constants.DOWN] == constants.OPEN and reverse_direction[constants.DOWN] == constants.OPEN):
+                if (self.inside_out_timer < -self.maximum_door_frequency or self.inside_out_reverse_timer < -self.maximum_door_frequency) and direction[constants.DOWN] == constants.OPEN and reverse_direction[constants.DOWN] == constants.OPEN:
                     self.inside_out_rem[3] -= 1
+                    self.inside_out_timer = self.maximum_door_frequency
+                    self.inside_out_reverse_timer = self.maximum_door_frequency
                     return constants.DOWN
 
         if self.inside_out_state == 4:
@@ -301,42 +282,44 @@ class Player:
                 if self.inside_out_rem[1] > 0:
                     if direction[constants.UP] == constants.OPEN and reverse_direction[constants.UP] == constants.OPEN:
                         self.inside_out_rem[1] -= 1
+                        self.inside_out_timer = self.maximum_door_frequency
+                        self.inside_out_reverse_timer = self.maximum_door_frequency
                         return constants.UP
+                    else:
+                        self.inside_out_timer -= 1
 
-                if ((self.always_closed[abs_x][abs_y][constants.UP] or self.always_closed[abs_x][abs_y-1][constants.DOWN])
-                        and direction[constants.RIGHT] == constants.OPEN and reverse_direction[constants.RIGHT] == constants.OPEN):
-                    self.inside_out_rem[2] -= 1
+                if (self.inside_out_timer < 0 or self.inside_out_reverse_timer < 0) and direction[constants.RIGHT] == constants.OPEN and reverse_direction[constants.RIGHT] == constants.OPEN:
+                    self.inside_out_timer = self.maximum_door_frequency
+                    self.inside_out_reverse_timer = self.maximum_door_frequency
                     return constants.RIGHT
 
-                if ((self.always_closed[abs_x][abs_y][constants.UP] or self.always_closed[abs_x][abs_y-1][constants.DOWN])
-                        and (self.always_closed[abs_x][abs_y][constants.RIGHT] or self.always_closed[abs_x+1][abs_y][constants.LEFT])
-                        and direction[constants.LEFT] == constants.OPEN and reverse_direction[constants.LEFT] == constants.OPEN):
+                if (self.inside_out_timer < -self.maximum_door_frequency or self.inside_out_reverse_timer < -self.maximum_door_frequency) and direction[constants.LEFT] == constants.OPEN and reverse_direction[constants.LEFT] == constants.OPEN:
                     self.inside_out_rem[0] -= 1
+                    self.inside_out_timer = self.maximum_door_frequency
+                    self.inside_out_reverse_timer = self.maximum_door_frequency
                     return constants.LEFT
 
         return constants.WAIT
 
         def update_relative_frequencies(self, current_percept):
-            self.turn_counter += 1 # assuming that update_relative_frequencies is called every time we make a move or wait
             for cell in current_percept.maze_state:
+                print(cell)
                 x, y, direction, state = cell
                 abs_x = self.current_relative_pos[0] + x
                 abs_y = self.current_relative_pos[1] + y
 
-                # if the door is open
                 if state == constants.OPEN:
-                    # and it's the first time we are seeing this door (because all rel freq cells are initialized to -1)
-                    if self.relative_frequencies[abs_x, abs_y, direction] == -1:
-                        self.relative_frequencies[abs_x, abs_y, direction] = self.turn_counter
-                    else:
-                        # otherwise, if we've seen this cell open before too, take GCD of current turn number and previous frequency estimate
-                        # this way, over time, the values will all converge to their precise frequencies
-                        self.relative_frequencies[abs_x, abs_y, direction] = math.gcd(self.relative_frequencies[abs_x, abs_y, direction], self.turn_counter)
-                # if the door is instead closed
+                    # door is always open
+                    self.relative_frequencies[abs_x, abs_y, direction] = 1
                 elif state == constants.CLOSED:
-                    # don't do anything
-                    pass
+                    # if it's the first time seeing the door (since -1 indicates unexplored), set to max_freq so we assume the worst case
+                    if self.relative_frequencies[abs_x, abs_y, direction] == -1:
+                        self.relative_frequencies[abs_x, abs_y, direction] = self.maximum_door_frequency
+                    # if we've seen it before and it's closed, decrement the frequency (it opens less frequently than we thought)
+                    elif self.relative_frequencies[abs_x, abs_y, direction] > 1:
+                        self.relative_frequencies[abs_x, abs_y, direction] -= 1
                 elif state == constants.BOUNDARY:
+                    # basically the door always closed
                     self.relative_frequencies[abs_x, abs_y, direction] = 0
 
         def update_position(self, move):
