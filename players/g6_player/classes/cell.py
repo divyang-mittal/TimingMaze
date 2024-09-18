@@ -18,7 +18,8 @@ class Cell:
         self.w_neighbour = None
 
     def tick(self, some_info):
-        """Updates the cell information - Called every tick"""
+        """Updates the cell information -
+        Called every tick when the cell is seen"""
         # TODO: only tick door if its open
         self.n_door.tick(some_info)
         self.s_door.tick(some_info)
@@ -33,7 +34,11 @@ class Cell:
         south: Optional["Cell"],
         west: Optional["Cell"],
     ):
-        """Neighbours are optional because edge and corner cells don't have all four neighbours"""
+        """Called during initialization by the Maze -
+        Can't be apart of __init()__ as all other neighbour Cells must be defined before this step
+
+        Neighbours are optional because edge and corner cells don't have all four neighbours
+        """
         self.n_neighbour = north
         self.e_neighbour = east
         self.s_neighbour = south
