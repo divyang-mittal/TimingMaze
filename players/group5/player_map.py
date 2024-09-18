@@ -618,6 +618,25 @@ class StartPosCentricPlayerMap(PlayerMapInterface):
             seen_counts.append(seen_count)
 
         return seen_counts
+    
+    def get_unseen_counts(self, coords: List[List[int]]) -> int:
+        """
+        Function which returns the number of times each cell has been seen
+        
+            Args:
+                coords (List[List[int]]): List of cell coordinates (not user-centric, but map-centric/absolute)
+            Returns:
+                int: Number of cells that have been seen at least once in the specified region
+        """
+
+        discovered_count = 0
+        for c in coords:
+            if not isinstance(c, list):
+                continue
+            elif not self._is_out_of_bound(c) and self._cell_seen_count.get(tuple(c), 0) == 0:
+                discovered_count += 1
+
+        return discovered_count
 
     def get_valid_moves(self, turn_num: int) -> List[int]:
         if turn_num != self.turn_num:
