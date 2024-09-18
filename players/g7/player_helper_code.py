@@ -56,11 +56,13 @@ class MemoryDoor:
 
         return probability_distribution
     
-    def roll_freq(self):
+    def roll_freq(self, use_max=False):
         # Returns a frequency based on the distribution
             # Calculate cumulative distribution
         if self.freq_distribution == {}:
             return 0
+        if use_max:
+            return max(self.freq_distribution)
         cumulative_dist = []
         cumulative_sum = 0
         for freq, prob in self.freq_distribution.items():
@@ -263,10 +265,11 @@ def reconstruct_path(parent, startNode, targetNode):
     path.reverse()  # Reverse the path to get it from start to target
     return path
 
-def build_graph_from_memory(player_memory: PlayerMemory) -> MazeGraph:
+def build_graph_from_memory(player_memory: PlayerMemory, use_max=False) -> MazeGraph:
     graph = MazeGraph()
 
     # Iterate through the map_memory and add edges to the graph
+    # use_max will make the heuristic assume worst case door frequency
     for y in range(len(player_memory.memory)): # i is the row index (basically y)
         for x in range(len(player_memory.memory[0])): # j is the column index (basically x)
             currMemSquare: MemorySquare = player_memory.memory[y][x]
@@ -290,29 +293,29 @@ def build_graph_from_memory(player_memory: PlayerMemory) -> MazeGraph:
             if x > 0:
                 leftSquare: MemorySquare = player_memory.memory[y][x - 1]
                 graph.add_bidirectional_edge((y, x), neighbors['left'],
-                                                currMemSquare.doors[constants.LEFT].roll_freq(),
-                                                leftSquare.doors[constants.RIGHT].roll_freq())
+                                                currMemSquare.doors[constants.LEFT].roll_freq(use_max),
+                                                leftSquare.doors[constants.RIGHT].roll_freq(use_max))
 
             # Right neighbor exists 
             if x < len(player_memory.memory[0]) - 1:  
                 rightSquare: MemorySquare = player_memory.memory[y][x + 1]
                 graph.add_bidirectional_edge((y, x), neighbors['right'],
-                                                currMemSquare.doors[constants.RIGHT].roll_freq(),
-                                                rightSquare.doors[constants.LEFT].roll_freq())
+                                                currMemSquare.doors[constants.RIGHT].roll_freq(use_max),
+                                                rightSquare.doors[constants.LEFT].roll_freq(use_max))
             
             # Up neighbor exists 
             if y > 0: 
                 upSquare: MemorySquare = player_memory.memory[y - 1][x]
                 graph.add_bidirectional_edge((y, x), neighbors['up'],
-                                                currMemSquare.doors[constants.UP].roll_freq(),
-                                                upSquare.doors[constants.DOWN].roll_freq())
+                                                currMemSquare.doors[constants.UP].roll_freq(use_max),
+                                                upSquare.doors[constants.DOWN].roll_freq(use_max))
             
             # Down neighbor exists
             if y < len(player_memory.memory) - 1:
                 downSquare: MemorySquare = player_memory.memory[y + 1][x]
                 graph.add_bidirectional_edge((y, x), neighbors['down'],
-                                                currMemSquare.doors[constants.DOWN].roll_freq(),
-                                                downSquare.doors[constants.UP].roll_freq())
+                                                currMemSquare.doors[constants.DOWN].roll_freq(use_max),
+                                                downSquare.doors[constants.UP].roll_freq(use_max))
 
     return graph
 
