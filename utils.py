@@ -60,3 +60,10 @@ def isiterable(obj):
 
 def count_iterable(i):
     return sum(1 for e in i)
+
+def get_divisors(n):
+        divisors = set([n])
+        for i in range(1, int((n ** 0.5)) + 1):
+            if n % i == 0:
+                divisors.add(i)
+        return divisors
