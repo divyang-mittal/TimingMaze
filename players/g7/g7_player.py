@@ -8,7 +8,7 @@ from dataclasses import dataclass
 import networkx as nx # pip install networkx
 import matplotlib.pyplot as plt # pip install matplotlib
 from math import lcm
-from players.g7.player_helper_code import build_graph_from_memory, MazeGraph, PlayerMemory, findShortestPathsToEachNode, reconstruct_path, is_move_valid, MemorySquare
+from players.g7.player_helper_code import build_graph_from_memory, MazeGraph, PlayerMemory, findShortestPathsToEachNode, reconstruct_path, is_move_valid, MemorySquare, Boundary
 
 
 import constants
@@ -50,6 +50,8 @@ class Player:
         self.turn = 0
         self.starting_position_set = False #check
         self.target_node_absolute_coords = None
+        self.current_intermediate_target = None
+        self.current_intermediate_target_age = 0
 
     
     def move(self, current_percept) -> int:
@@ -117,8 +119,20 @@ class Player:
 
 
         # If the end is not visible, choosing an intermediate node
-        target_node = self.choose_intermediate_target_node(minDistanceArray)
-        path = reconstruct_path(parent, target_node)
+
+        # If we have intermediate target node. Follow it for at least 10 steps. Then switch to a new one.
+
+        if self.current_intermediate_target == self.memory.pos: # we have reached this intermediate target
+            self.current_intermediate_target = None
+        
+        how_long_to_follow_intermediate_target = 10
+        if self.current_intermediate_target and self.current_intermediate_target_age < how_long_to_follow_intermediate_target:
+            self.current_intermediate_target_age += 1 # increment the age
+        else: # update the intermediate target
+            self.current_intermediate_target_age = 0
+            self.current_intermediate_target = self.choose_intermediate_target_node(minDistanceArray)
+
+        path = reconstruct_path(parent, self.current_intermediate_target)
         if path and len(path) > 1:
             # Case 1: We know the end position and we can reach it. Follow path..
                 next_move = self.get_move_direction(path)
@@ -144,51 +158,55 @@ class Player:
         
         most_new_visible_squares = 0
         best_new_pos = self.memory.pos
+        boundary: Boundary = self.memory.get_boundary_coords()
         for new_pos in options:
-            num_unseen_squares = len(self.get_unseen_squares(new_pos))
+            num_unseen_squares = len(self.get_unseen_squares(new_pos, boundary))
             if num_unseen_squares > most_new_visible_squares:
                 most_new_visible_squares = num_unseen_squares
                 best_new_pos = new_pos
 
         return best_new_pos
     
-    def find_min_time_max_dist(self, options):
-        best = self.memory.pos
-        best_dist = 0
-        for coord, dist in options.items():
-            newdist = np.linalg.norm(np.array(coord) - np.array(self.memory.pos)) / (dist + 1)
-            if newdist > best_dist and not self.memory.memory[coord[0]][coord[1]].visited:
-                best = coord
-                best_dist = newdist
-        return (best[0] - self.memory.pos[0], best[1] - self.memory.pos[1])
+    # def find_min_time_max_dist(self, options):
+    #     best = self.memory.pos
+    #     best_dist = 0
+    #     for coord, dist in options.items():
+    #         newdist = np.linalg.norm(np.array(coord) - np.array(self.memory.pos)) / (dist + 1)
+    #         if newdist > best_dist and not self.memory.memory[coord[0]][coord[1]].visited:
+    #             best = coord
+    #             best_dist = newdist
+    #     return (best[0] - self.memory.pos[0], best[1] - self.memory.pos[1])
 
-    def get_unseen_squares(self, pos):
-        squares: list[list[MemorySquare]] = self.get_visible_squares_at_pos(pos)
+    def get_unseen_squares(self, pos, boundary: Boundary):
+        squares = self.get_visible_squares_at_pos(pos, boundary)
         not_seen_squares = []
+
         if squares:
-            for y, row in enumerate(squares):
-                for x, square in enumerate(row):
-                    if not square.seen:
+            for y in range(len(squares)):
+                for x in range(len(squares[0])):
+                    square = squares[y][x]
+                    if not square.seen:  # Add only unseen squares within boundaries
                         not_seen_squares.append((y, x))
         return not_seen_squares
-    
-    def get_visible_squares_at_pos(self, pos):
-        # Get the visible squares at the current position
+
+    def get_visible_squares_at_pos(self, pos, boundary: Boundary):
+        """
+        Get the visible squares at the current position
+        NOTE: THIS MAKES SURE THEY ARE WITHIN THE BOUNDARY
+        """
         y, x = pos
-        return [row[x - self.radius:x + self.radius] for row in self.memory.memory[y - self.radius:y + self.radius]]
+        visible_squares = []
+        
+        y_start = max(y - self.radius, boundary.up if boundary.is_vertical_boundary_known() else y - self.radius)
+        y_end = min(y + self.radius, boundary.down if boundary.is_vertical_boundary_known() else y + self.radius)
+        x_start = max(x - self.radius, boundary.left if boundary.is_horizontal_boundary_known() else x - self.radius)
+        x_end = min(x + self.radius, boundary.right if boundary.is_horizontal_boundary_known() else x + self.radius)
 
+        # A square is only visible if it is inside the boundary
+        for row in self.memory.memory[y_start:y_end]:
+            visible_squares.append(row[x_start:x_end])
 
-
-
-
-    # def choose_intermediate_target_node(self, current_percept): #when goal node is not visible
-
-    #     unexplored_nodes = self.get_unexplored_nodes(current_percept)
-    #     if unexplored_nodes:
-    #         return random.choice(unexplored_nodes)
-    #     else:
-    #         # Fallback to current position or some default strategy
-    #         return self.memory.pos
+        return visible_squares
 
     def get_move_direction(self, path): #current to next position
         """        

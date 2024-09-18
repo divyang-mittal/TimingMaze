@@ -102,6 +102,8 @@ class PlayerMemory:
     def __init__(self, map_size: int = 100):
         self.memory = [[MemorySquare() for _ in range(map_size * 2)] for _ in range(map_size * 2)]
         self.pos = (map_size, map_size) #(y, x)
+        self.boundary = Boundary(-1, -1, -1, -1)
+
     
     def update_memory(self, state, turn):
         # state = [door] = (row_offset, col_offset, door_type, door_status)
@@ -124,26 +126,51 @@ class PlayerMemory:
             self.pos = (self.pos[0] + 1, self.pos[1])
     	
     def get_boundary_coords(self):
-        bounds = [-1,-1,-1,-1]
+        if self.boundary.is_boundary_fully_known():
+            return self.boundary
 
+        # search for boundary
+        new_boundary = Boundary(-1, -1, -1, -1)
         for y in range(len(self.memory)):
             for x in range(len(self.memory[0])):
-                if all(bounds != -1 for bounds in bounds):
-                    return bounds # We can break early if we have all the bounds
+                
+                if new_boundary.is_boundary_fully_known():
+                    self.boundary = new_boundary
+                    return new_boundary # We can break early if we have all the bounds
+                
                 if self.memory[y][x].doors[constants.LEFT].is_boundary:
-                    left_bound = bounds[0] = x
-                    right_bound = bounds[1] = x + 99
+                    new_boundary.left = x
+                    new_boundary.right = x + 99
                 if self.memory[y][x].doors[constants.RIGHT].is_boundary:
-                    right_bound = bounds[1] = x
-                    left_bound = bounds[0] = x - 99
+                    new_boundary.right = x
+                    new_boundary.left = x - 99
                 if self.memory[y][x].doors[constants.UP].is_boundary:
-                    up_bound = bounds[2] = y
-                    down_bound = bounds[3] = y + 99
+                    new_boundary.up = y
+                    new_boundary.down = y + 99
                 if self.memory[y][x].doors[constants.DOWN].is_boundary:
-                    down_bound = bounds[3] = y
-                    up_bound = bounds[2] = y - 99
-        return [left_bound, right_bound, up_bound, down_bound]
+                    new_boundary.down = y
+                    new_boundary.up = y - 99
+        self.boundary = new_boundary
+        
+        return self.boundary
     
+@dataclass
+class Boundary:
+    left: int
+    right: int
+    up: int
+    down: int
+
+    def is_boundary_fully_known(self):
+        return self.left != -1 and self.right != -1 and self.up != -1 and self.down != -1
+    
+    def is_horizontal_boundary_known(self):
+        return self.left != -1 and self.right != -1
+    
+    def is_vertical_boundary_known(self):
+        return self.up != -1 and self.down != -1
+
+
 
 class MazeGraph:
     def __init__(self, graph: dict = {}):
