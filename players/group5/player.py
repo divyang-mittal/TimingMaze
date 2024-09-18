@@ -141,10 +141,12 @@ class G5_Player:
 
             exists, end_pos = self.player_map.get_end_pos_if_known()
             if not exists:
-                return self.simple_search()
-            move = converge(self.player_map.get_cur_pos(), end_pos)
+                move = self.simple_search()
+            else:
+                move = converge(self.player_map.get_cur_pos(), end_pos, self.turns, self.player_map)
             self.last_move = move
             self.last_pos = cur_pos
+            
             return move if move in valid_moves else constants.WAIT
         except Exception as e:
             self.logger.debug(e, e.with_traceback)
