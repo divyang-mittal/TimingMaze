@@ -14,4 +14,6 @@ class TimingMazeState:
         if is_end_visible:
             self.end_x = end_x
             self.end_y = end_y
-
+    
+    def __str__(self):
+        return f"Is End Visibile: {self.is_end_visible}\nStart: [{self.start_x},{self.start_y}]\n"
