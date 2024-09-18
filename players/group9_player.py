@@ -53,7 +53,7 @@ class Player:
 
         self.step = 0
         self.cur_pos = [0, 0]
-        self.epsilon = 0.05
+        self.epsilon = 0.00
         self.door_states = {}
         self.values = {}
         self.best_path_found = {}
