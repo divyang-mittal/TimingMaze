@@ -15,9 +15,11 @@ from players.group1_misc.experience import Experience
 # For heap in a*
 import heapq
 #################
-
+import math
+import traceback
 
 class Player:
+    turn =0
     def __init__(self, rng: np.random.Generator, logger: logging.Logger,
                  precomp_dir: str, maximum_door_frequency: int, radius: int) -> None:
         """Initialise the player with the basic amoeba information
@@ -60,6 +62,69 @@ class Player:
         self.experience = Experience(self.maximum_door_frequency, self.radius)
         ######################
 
+        self.frequency={}
+        self.cur_percept={}
+
+    ####### Adithi:
+    def update_door_frequencies(self, current_percept):
+        for x, y, direction, state in current_percept.maze_state:
+            if state == constants.OPEN:
+                glob_x = x-current_percept.start_x
+                glob_y = y-current_percept.start_y
+                key = (glob_x, glob_y, direction)
+                self.cur_percept[key]=1
+                #self.logger.info(f"{x},{y} direction: {direction} is open at turn {self.turn}")
+                if key not in self.frequency:
+                    self.frequency[key] = Player.turn
+                else:
+                    self.frequency[key]= math.gcd(Player.turn, self.frequency[key])
+
+    
+    def heuristic(self,cur, target,parent):
+         distance = abs(cur[0]- target[0])+ abs(cur[1]-target[1])
+         wait_time = self.find_wait(parent,cur)
+         # Todo: Try different weights for wait_Time
+         return (distance*1)+ (wait_time*1)
+    
+    def find_wait(self,cur,next):
+         cur_to_next = (cur[0],cur[1],self.get_dir(cur,next))
+         next_to_cur = (next[0],next[1],self.get_dir(next,cur))
+         frequency= self.maximum_door_frequency+1
+         if cur_to_next in self.frequency and next_to_cur in self.frequency:
+             frequency = math.gcd(self.frequency[cur_to_next], self.frequency[next_to_cur])
+         return (frequency - (Player.turn%frequency))%Player.turn
+                #  Wait time is (x−(ymodx))modx
+                # Where: x is the number of turns after which the door opens, y is the current turn.
+    
+    # def get_neighbours(self,node):
+    #     neighbours = []
+    #     if (node[0],node[1], constants.LEFT) in self.cur_percept and (node[0]-1, node[1], constants.RIGHT) in self.cur_percept:
+    #         neighbours.append((node[0]-1, node[1]))
+    #     if (node[0],node[1], constants.RIGHT) in self.cur_percept and (node[0]+1, node[1], constants.LEFT) in self.cur_percept:
+    #         neighbours.append((node[0]+1, node[1]))
+    #     if (node[0],node[1], constants.UP) in self.cur_percept and (node[0], node[1]-1, constants.DOWN) in self.cur_percept:
+    #         neighbours.append((node[0], node[1]-1))
+    #     if (node[0],node[1], constants.DOWN) in self.cur_percept and (node[0], node[1]+1, constants.UP) in self.cur_percept:
+    #         neighbours.append((node[0], node[1]+1))
+    #     self.logger.info(f"Neighbours for node {node} is {neighbours}")
+    #     return neighbours
+    
+    def get_rel_start(self,cur,start):
+         return (cur[0]-start[0], cur[1]-start[1])
+    
+    def get_dir(self,cur,next_move):
+        dx = next_move[0] - cur[0]
+        dy = next_move[1] - cur[1]
+        if dx == -1:
+            return constants.UP
+        elif dx == 1:
+            return constants.DOWN
+        elif dy == -1:
+            return constants.LEFT
+        elif dy == 1:
+            return constants.RIGHT
+        return constants.WAIT
+    #########
 
     def move(self, current_percept) -> int:
         """Function which retrieves the current state of the amoeba map and returns an amoeba movement
@@ -74,27 +139,36 @@ class Player:
                     RIGHT = 2
                     DOWN = 3
         """
-        ################################ Tom (9/15): Comment this chunk to go back to default player
-        if current_percept.is_end_visible:
-            # If there's no path, run A* to find one
-            if not self.path:
-                #print("not self.path")
-                self.path = self.a_star(current_percept)
-            
-            # If A* found a path, execute the next move
-            else:
-                # Get the next move from the path
-                #print("yes self.path")
-                next_move = self.path.pop(0) 
-                #print("next move is")
-                #print(next_move)
-                return next_move
-        else: # If End is not visible
+        try:
+            Player.turn+=1
+            self.cur_percept={}
+            self.update_door_frequencies(current_percept)
+            ################################ Tom (9/15): Comment this chunk to go back to default player
+            if current_percept.is_end_visible:
+                cur =self.get_rel_start((0,0),(current_percept.start_x, current_percept.start_y))
+                target =self.get_rel_start((current_percept.end_x, current_percept.end_y),(current_percept.start_x, current_percept.start_y))
+                self.logger.info(f"Cur {cur}, Target: {target}")
+                # If there's no path, run A* to find one
+                if not self.path:
+                    #print("not self.path")
+                    self.path = self.a_star(current_percept, cur, target)
+                
+                # If A* found a path, execute the next move
+                else:
+                    # Get the next move from the path
+                    #print("yes self.path")
+                    next_move = self.path.pop(0) 
+                    #print("next move is")
+                    #print(next_move)
+                    return next_move
+            else: # If End is not visible
 
-            ########## Frank (9/16):
-            return self.experience.move(current_percept)
-            ###########################
-            
+                ########## Frank (9/16):
+                return self.experience.move(current_percept)
+                ###########################
+        except Exception as e:
+            print(e)
+            traceback.print_exc()
         ############################################ Comment this chunk to go back to default player
 
         # default_player:
@@ -197,18 +271,18 @@ class Player:
     
 
     ########################################## Tom (9/15):
-    def a_star (self, current_percept):
+    def a_star (self, current_percept, start, goal):
         # Reset frontier and explored set
         self.frontier = []
         self.explored = set()
 
-        # Start position and goal position
-        start = (0, 0)  # (x, y) relative position
-        #print("start is: ")
-        #print(start)
-        goal = (current_percept.end_x, current_percept.end_y)
-        #print("goal is:")
-        #print(goal)
+        # # Start position and goal position
+        # start = (0, 0)  # (x, y) relative position
+        # #print("start is: ")
+        # #print(start)
+        # goal = (current_percept.end_x, current_percept.end_y)
+        # #print("goal is:")
+        # #print(goal)
 
         # Push the start state to the frontier with a cost of 0
         heapq.heappush(self.frontier, (0, start))
@@ -236,7 +310,7 @@ class Player:
                 new_cost = cost_so_far[current] + 1  # Assume each move costs 1
                 if neighbor not in cost_so_far or new_cost < cost_so_far[neighbor]:
                     cost_so_far[neighbor] = new_cost
-                    priority = new_cost + self.heuristic(neighbor, goal)
+                    priority = new_cost + self.heuristic(neighbor, goal, current)
                     heapq.heappush(self.frontier, (priority, neighbor))
                     came_from[neighbor] = (current, direction)
         
@@ -244,8 +318,8 @@ class Player:
     
 
     # Manhattan distance heuristic for A*
-    def heuristic(self, current, goal):
-        return abs(current[0] - goal[0]) + abs(current[1] - goal[1])
+    # def heuristic(self, current, goal):
+    #     return abs(current[0] - goal[0]) + abs(current[1] - goal[1])
 
 
     # Get neighbors and their movement directions based on door states.
