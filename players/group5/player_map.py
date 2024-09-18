@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from collections import defaultdict
 import logging
+import math
 import os
 from typing import List, Optional, Set, Tuple
 
@@ -650,19 +651,36 @@ class StartPosCentricPlayerMap(PlayerMapInterface):
 
     def get_wall_freq_candidates(self, door_id: DoorIdentifier) -> List[Set[int]]:
         door_freq_candidates = self._get_freq_candidates_usecase(door_id.absolute_coord, door_id.door_type)
+
+        # print("Inner Door freq candidates: ", door_freq_candidates)
+        # print("Door ID: ", door_id)
         
         door_type_to_touching_door_offsets = {
-            constants.LEFT: ([0, -1], constants.RIGHT),
-            constants.UP: ([-1, 0], constants.DOWN),
-            constants.RIGHT: ([0, 1], constants.LEFT),
-            constants.DOWN: ([1, 0], constants.UP),
+            constants.LEFT: ([-1, 0], constants.RIGHT),
+            constants.UP: ([0, -1], constants.DOWN),
+            constants.RIGHT: ([1, 0], constants.LEFT),
+            constants.DOWN: ([0, 1], constants.UP),
         }
         touching_door_offset, touching_door_type = door_type_to_touching_door_offsets[door_id.door_type]
         touching_door_coord = [door_id.absolute_coord[0] + touching_door_offset[0], door_id.absolute_coord[1] + touching_door_offset[1]]
+
+        # print("Touching Door coord: ", touching_door_coord)
         
         touching_door_freq_candidates = self._get_freq_candidates_usecase(touching_door_coord, touching_door_type)
 
-        return [door_freq_candidates, touching_door_freq_candidates]
+        # print("Outer Door freq candidates: ", touching_door_freq_candidates)
+
+        wall_freq_candidates = [door_freq_candidates, touching_door_freq_candidates]
+
+        # find LCM of two lists
+        def lcm(a, b):
+            if a==0 or b==0:
+                return 0
+            return abs(a * b) // math.gcd(a, b)
+
+        return [lcm(f1, f2) for f1 in door_freq_candidates for f2 in touching_door_freq_candidates]
+
+        # return [door_freq_candidates, touching_door_freq_candidates]
 
     def get_freq_candidates(self, door_id: DoorIdentifier) -> Set[int]:
         return self._get_freq_candidates_usecase(door_id.absolute_coord, door_id.door_type)

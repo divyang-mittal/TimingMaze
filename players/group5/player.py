@@ -6,7 +6,8 @@ import constants
 from players.group5.door import DoorIdentifier
 from players.group5.player_map import PlayerMapInterface, SimplePlayerCentricMap, StartPosCentricPlayerMap
 from timing_maze_state import TimingMazeState
-from players.group5.converge import converge_basic, converge
+from players.group5.converge import converge
+from players.group5.simple_search import simple_search
 
 
 class G5_Player:
@@ -39,39 +40,6 @@ class G5_Player:
         fh.setFormatter(logging.Formatter('%(message)s'))
         self.logger.addHandler(fh)
 
-    def simple_search(self):        
-        nw, sw, ne, se = 0, 0, 0, 0
-
-        cur_pos = self.player_map.get_cur_pos()
-        cur_pos_i, cur_pos_j = cur_pos[0], cur_pos[1]
-        for i in range(self.radius):
-            for j in range(self.radius):
-                if self.player_map.get_seen_counts([[cur_pos_i-i, cur_pos_j-j]])[0]>0:
-                    nw += 1
-                if self.player_map.get_seen_counts([[cur_pos_i+i, cur_pos_j-j]])[0]>0:
-                    sw += 1
-                if self.player_map.get_seen_counts([[cur_pos_i-i, cur_pos_j+j]])[0]>0:
-                    ne += 1
-                if self.player_map.get_seen_counts([[cur_pos_i+i, cur_pos_j+j]])[0]>0:
-                    se += 1
-        best_diagonal = min(nw, sw, ne, se)
-        if best_diagonal == nw:
-            if ne > sw:
-                return constants.UP
-            return constants.LEFT
-        elif best_diagonal == sw:
-            if se > nw:
-                return constants.DOWN
-            return constants.LEFT
-        elif best_diagonal == ne:
-            if nw > se:
-                return constants.UP
-            return constants.RIGHT
-        else:
-            if sw > ne:
-                return constants.DOWN
-            return constants.RIGHT
-
     def move(self, current_percept: TimingMazeState) -> int:
         """Function which retrieves the current state of the amoeba map and returns an amoeba movement
 
@@ -100,9 +68,13 @@ class G5_Player:
             if not exists:
                 move = self.simple_search()
                 return move if move in valid_moves else constants.WAIT  # TODO: this is if-statement is to demonstrate valid_moves is correct (@eylam, replace with actual logic)
-            move = converge(self.player_map.get_cur_pos(), end_pos)
+            move = converge(self.player_map.get_cur_pos(), end_pos, self.turns, self.player_map)
+            return move
             return move if move in valid_moves else constants.WAIT
         except Exception as e:
             self.logger.debug(e, e.with_traceback)
             return constants.WAIT
+
+    def simple_search(self):
+        return simple_search(self.player_map, self.radius)
 
