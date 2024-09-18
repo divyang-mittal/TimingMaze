@@ -60,6 +60,10 @@ class Player:
         self.boundary = [100, 100, 100, 100]
 
     def update_graph_information(self, current_percept):
+        """
+            Now that the percept has updated & another step has been taken, update our 
+            knowledge of door frequencies and cells
+        """
         for cell in current_percept.maze_state:
             relative_x = int(cell[0] + self.cur_pos[0])
             relative_y = int(cell[1] + self.cur_pos[1])
@@ -68,6 +72,9 @@ class Player:
             self.update_cell_value(cell_coordinates, cell[3])
 
     def update_cell_state(self, coordinates, direction, state):
+        """
+            Update the known frequencies of the doors in the given cell
+        """
         if coordinates not in self.door_states:
             self.door_states[coordinates] = [0, 0, 0, 0] # Left Top Right Bottom
 
@@ -80,10 +87,12 @@ class Player:
         elif state == constants.BOUNDARY:
             self.door_states[coordinates][direction] = -1   
             x_or_y = 1 if direction % 2 == 0 else 0 # Which coordinate to update
-            # print("Direction, Coordinates, x or y: ", direction, coordinates, x_or_y)
             self.boundary[direction] = coordinates[x_or_y]
 
     def update_cell_value(self, coordinates, door_type):
+        """
+            Update greedy-epsilon values
+        """
         if coordinates not in self.values:
             if door_type == constants.BOUNDARY:
                 self.values[coordinates] = -1
@@ -109,25 +118,10 @@ class Player:
                     RIGHT = 2
                     DOWN = 3
         """
-        # for state in current_percept.maze_state:
-        #     if state[3] == 3:
-        #         print(state)
         self.step += 1
         self.update_graph_information(current_percept)
 
-        if current_percept.is_end_visible:
-            best_move = self.move_toward_visible_end(current_percept)
-            match best_move:
-                case constants.LEFT:
-                    self.cur_pos[0] -= 1
-                case constants.UP:
-                    self.cur_pos[1] -= 1
-                case constants.RIGHT:
-                    self.cur_pos[0] += 1
-                case constants.DOWN:
-                    self.cur_pos[1] += 1
-            return best_move
-        
+        # TODO: Do we need this?
         moves = []
         for i in range(4):
             if self.can_move_in_direction(i):
@@ -135,6 +129,11 @@ class Player:
 
         if not moves:
             return constants.WAIT
+
+        if current_percept.is_end_visible:
+            best_move = self.move_toward_visible_end(current_percept)
+            self.update_position(best_move)
+            return best_move
         
         #Epsilon-Greedy 
         exploit = random.choices([True, False], weights = [(1 - self.epsilon), self.epsilon], k = 1)
@@ -151,13 +150,9 @@ class Player:
                 target_coord = (changed_dim if x_or_y == 0 else self.cur_pos[0], changed_dim if x_or_y == 1 else self.cur_pos[1]) 
                 
                 # Check if we have found a boundary and whether or not our vision is beyond it
-                # print("Move: ", move)
-                # print("boundary for move: ", self.boundary[move])
-                # print("shifted: ", abs(changed_dim) )
                 if self.boundary[move] != 100 and abs(changed_dim) >= abs(self.boundary[move]):
                     move_rewards.append(math.inf)
                     continue
-                # print(self.boundary)
                 regret = 0
 
                 for i in range(-1, 2, 1):
@@ -176,17 +171,16 @@ class Player:
         else:
             best_move = random.choice(moves)
         
-        match best_move:
-            case constants.LEFT:
-                self.cur_pos[0] -= 1
-            case constants.UP:
-                self.cur_pos[1] -= 1
-            case constants.RIGHT:
-                self.cur_pos[0] += 1
-            case constants.DOWN:
-                self.cur_pos[1] += 1
+        self.update_position(best_move)
 
         return best_move
+    
+    def update_position(self, direction):
+        """
+            Player has moved in the given direction. Update known position to match.
+        """
+        if direction >= 0:
+            self.cur_pos = get_neighbor(self.cur_pos, direction)
 
     def move_toward_visible_end(self, current_percept) -> int:
         """
@@ -196,6 +190,8 @@ class Player:
         # Look for the best path to current position if one hasn't been found yet
         if len(self.best_path_found) == 0 or curr_cell not in self.best_path_found:
             self.find_path(current_percept.end_x, current_percept.end_y)
+        
+        if curr_cell not in self.best_path_found:
             return constants.WAIT
         
         direction_to_goal = self.best_path_found[curr_cell]
@@ -276,7 +272,10 @@ class Player:
 
                 
 def get_neighbor(coordinates, direction):
-    return get_neighbors(coordinates)[direction]
+    x,y = coordinates
+    if direction % 2 == 0: # Left or Right
+        return (x+direction-1, y)
+    return (x, y+direction-2)
 
 def get_neighbors(coordinates): 
     # left up right down
