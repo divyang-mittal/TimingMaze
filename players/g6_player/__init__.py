@@ -5,6 +5,7 @@ import constants
 
 from players.g6_player.data import Move
 from timing_maze_state import TimingMazeState
+from players.g6_player.classes.maze import Maze
 
 
 class G6_Player:
@@ -27,11 +28,12 @@ class G6_Player:
         self.maximum_door_frequency = maximum_door_frequency
         self.radius = radius
         self.known_target = False
-        # Data structure to hold state information about the doors inside the radius
-        self.curr_maze = {}
         self.seen = np.zeros((100, 100))
         self.curr_pos = (0, 0)
         self.turn = 0
+        
+        # Data structure to hold state information about the doors inside the radius
+        self.curr_maze = Maze(self.turn, self.maximum_door_frequency, self.radius)
 
         # a random unseen cell which the agent tries to navigate towards
         self.search_target = (0, 0)
@@ -42,7 +44,7 @@ class G6_Player:
     def move(self, current_percept: TimingMazeState) -> int:
         self.turn += 1
 
-        self.__update_maze(current_percept)
+        self.curr_maze.update_maze(current_percept, self.turn)
 
         # seen_count = np.sum(self.seen)
 
