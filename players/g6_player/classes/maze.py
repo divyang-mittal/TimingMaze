@@ -33,6 +33,8 @@ class Maze:
         self.curr_pos = (CENTER_POS - current_percept.start_x,
                          CENTER_POS - current_percept.start_y)
         for cell in current_percept.maze_state:
+            # Iterating over cells seen by drone
+            # cell[0]=x, cell[1]=y, cell[2]=door type, cell[3]=door state
             x = self.curr_pos[0] + cell[0]
             y = self.curr_pos[1] + cell[1]
             if cell[2] == UP:
