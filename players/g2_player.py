@@ -34,7 +34,7 @@ class Player:
         self.path = []
         self.move_directions = []
         self.final_path = []
-        self.final_move_directions = []
+        self.next_move = 0
         self.start = (self.cur_x, self.cur_y)
         self.curr_stationary_moves = 0
 
@@ -273,28 +273,32 @@ class Player:
         """
         self.turn = self.turn + 1
 
+        # Waiting for 100 turns to gain LCM information 
         # if self.turn <= 100:
         #     return constants.WAIT
     
-        # print("Im before drone")
+        # Get LCM info 
         drone = self.setInfo(current_percept.maze_state, self.turn)
-        # print("Im after drone")
 
+        # Checking if end is visible, however, even when end is not visible our goal will probably be the edge of the 
+        # radius so this shoulf always be true in our case during exploration and final search
         if current_percept.is_end_visible:
-            # print("I am inside is end visible")
             
-                # print("creating path")
-                # print((self.cur_x, self.cur_y))
-                # print((current_percept.end_x, current_percept.end_y))
+            # Call A* with current coordinates as start and end coordinates that should 
+            # be set when end is visible by timing_maze-_state line 15
+            # Also we're calling A* everytime
             final_path = self.a_star_search((self.cur_x, self.cur_y), (current_percept.end_x, current_percept.end_y), drone)
-            print(final_path)
+            # Convert the change in coordinates to a direction 
+            curr_pos = final_path[0]
+            self.next_move = self.get_move_direction(final_path[0], final_path[1])
+            print(curr_pos)
+            print((self.cur_x, self.cur_y))
+            print((current_percept.end_x, current_percept.end_y))
+          #  if (curr_pos[0] == self.curr_x)
+        
+            print(self.next_move)
 
-            for i in range(len(final_path) - 2):
-                # print("creating move dirctions")
-                self.final_move_directions.append(self.get_move_direction(final_path[i], final_path[i+1]))
-            print(self.final_move_directions)
-
-            if self.final_move_directions[0] == constants.LEFT:
+            if self.next_move == constants.LEFT:
                 for maze_state in current_percept.maze_state:
                     if (maze_state[0] == self.cur_x and maze_state[1] == self.cur_y and maze_state[2] == constants.LEFT
                             and maze_state[3] == constants.OPEN):
@@ -305,7 +309,7 @@ class Player:
                     else: self.curr_stationary_moves +=1
                 return constants.WAIT
 
-            elif self.final_move_directions[0] == constants.RIGHT:
+            elif self.next_move == constants.RIGHT:
                 for maze_state in current_percept.maze_state:
                     if (maze_state[0] == self.cur_x and maze_state[1] == self.cur_y and maze_state[2] == constants.RIGHT
                             and maze_state[3] == constants.OPEN):
@@ -316,18 +320,18 @@ class Player:
                     else: self.curr_stationary_moves +=1
                 return constants.WAIT
 
-            elif self.final_move_directions[0] == constants.UP:
+            elif self.next_move == constants.UP:
                 for maze_state in current_percept.maze_state:
                     if (maze_state[0] == self.cur_x and maze_state[1] == self.cur_y and maze_state[2] == constants.UP
                             and maze_state[3] == constants.OPEN):
-                        self.cur_y +=1 
+                        self.cur_y -=1 
                         self.final_move_directions.pop(0)
                         self.curr_stationary_moves = 0
                         return constants.UP
                     else: self.curr_stationary_moves +=1
                 return constants.WAIT
 
-            elif self.final_move_directions[0] == constants.DOWN:
+            elif self.next_move == constants.DOWN:
                 # print("I am inside")
 
                 for maze_state in current_percept.maze_state:
@@ -335,101 +339,18 @@ class Player:
                             and maze_state[3] == constants.OPEN):
                         
                         self.final_move_directions.pop(0)
-                        self.cur_y -= 1
+                        self.cur_y += 1
                         return constants.DOWN
                     else: self.curr_stationary_moves +=1
 
                     
                 return constants.WAIT
-            print(self.curr_stationary_moves)
 
             return constants.WAIT
                 
-        else:
-            # print("Im before move directions")
-            if not self.move_directions:
-                # print("generate goal")
-                (x, y) = self.generate_goal()
-                path = self.a_star_search((self.cur_x, self.cur_y), (x,y), drone)
-                # print("Im after move directions" + path)
-                # print(x,y)
-
-                for i in range(len(path) - 2):
-                    self.move_directions.append(self.get_move_direction(path[i], path[i+1]))
-
-            if self.move_directions[0] == constants.LEFT:
-                for maze_state in current_percept.maze_state:
-                    if (maze_state[0] == self.cur_x and maze_state[1] == self.cur_y and maze_state[2] == constants.LEFT
-                            and maze_state[3] == constants.OPEN):
-                        self.cur_x -= 1
-                        self.final_move_directions.pop(0)
-                        return constants.LEFT
-                return constants.WAIT
-            elif self.move_directions[0] == constants.RIGHT:
-                for maze_state in current_percept.maze_state:
-                    if (maze_state[0] == self.cur_x and maze_state[1] == self.cur_y and maze_state[2] == constants.RIGHT
-                            and maze_state[3] == constants.OPEN):
-                        self.cur_x += 1
-                        self.final_move_directions.pop(0)
-                        return constants.RIGHT
-                return constants.WAIT
-
-            elif self.move_directions[0] == constants.UP:
-                for maze_state in current_percept.maze_state:
-                    if (maze_state[0] == self.cur_x and maze_state[1] == self.cur_y and maze_state[2] == constants.UP
-                            and maze_state[3] == constants.OPEN):
-                        self.cur_y +=1 
-                        self.final_move_directions.pop(0)
-                        return constants.UP
-                return constants.WAIT
-
-            elif self.move_directions[0] == constants.DOWN:
-                for maze_state in current_percept.maze_state:
-                    if (maze_state[0] == self.cur_x and maze_state[1] == self.cur_y and maze_state[2] == constants.DOWN
-                            and maze_state[3] == constants.OPEN):
-                        self.cur_y -= 1
-                        self.final_move_directions.pop(0)
-                        return constants.DOWN
-                return constants.WAIT
-
         return 0
 
 
-    def take_next_open_move(self, current_percept):
-        if (self.curr_stationary_moves >= 5):
-                for maze_state in current_percept.maze_state:
-                    if (maze_state[0] == self.cur_x and maze_state[1] == self.cur_y and maze_state[2] == constants.DOWN
-                            and maze_state[3] == constants.OPEN):
-                        
-                        self.final_move_directions.pop(0)
-                        if ( maze_state[2] == constants.DOWN): self.cur_y -= 1
-                        if ( maze_state[2] == constants.UP): self.cur_y += 1
-                        if ( maze_state[2] == constants.LEFT): self.cur_x -= 1
-                        if ( maze_state[2] == constants.RIGHT): self.cur_x += 1
-                        return maze_state[2]
-                    else: self.curr_stationary_moves +=1
-                return constants.WAIT
-
-    def generate_goal(self):
-        x = y = -float('inf')
-        while not self.is_valid(x, y): 
-                # Generate random integers between -100 and 100
-                #print(x, y)
-                x = self.rng.integers(-99, 99) 
-                y = self.rng.integers(-99, 99) 
-                goal = (x,y)
-        #print(goal)
-        return goal
-
-
-
-    def is_valid(self, row, col):
-        # If cell lies out of bounds
-        if row < 0 or col < 0 or row >= constants.map_dim or col >= constants.map_dim:
-            return False
-
-        # Otherwise
-        return True
 
     def get_move_direction(self, current_position, next_position):
         """Determine the move direction from current position to next position
@@ -647,3 +568,18 @@ class Player:
         # print(directions)
 
         return directions
+
+    #  def take_next_open_move(self, current_percept):
+    #     if (self.curr_stationary_moves >= 5):
+    #             for maze_state in current_percept.maze_state:
+    #                 if (maze_state[0] == self.cur_x and maze_state[1] == self.cur_y and maze_state[2] == constants.DOWN
+    #                         and maze_state[3] == constants.OPEN):
+                        
+    #                     self.final_move_directions.pop(0)
+    #                     if ( maze_state[2] == constants.DOWN): self.cur_y -= 1
+    #                     if ( maze_state[2] == constants.UP): self.cur_y += 1
+    #                     if ( maze_state[2] == constants.LEFT): self.cur_x -= 1
+    #                     if ( maze_state[2] == constants.RIGHT): self.cur_x += 1
+    #                     return maze_state[2]
+    #                 else: self.curr_stationary_moves +=1
+    #             return constants.WAIT
