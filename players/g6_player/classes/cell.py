@@ -6,16 +6,27 @@ from constants import *
 
 class Cell:
     def __init__(self, x: int, y: int) -> None:
+        # coordinates in 199x199 grid
         self.x = x
         self.y = y
+
+        # doors of current cell
         self.n_door = Door(UP)
         self.e_door = Door(RIGHT)
         self.s_door = Door(DOWN)
         self.w_door = Door(LEFT)
+        
+        # neighbors
         self.n_cell = None
         self.e_cell = None
         self.s_cell = None
         self.w_cell = None
+        
+        # path frequencies to neighbors
+        self.n_path = None
+        self.e_path = None
+        self.s_path = None
+        self.w_path = None
 
     def save_neighbors(
         self,
@@ -62,8 +73,10 @@ class Cell:
                 )
             case _:
                 return False
-    
-    def update_cell(self):
-        # [TODO Add path frequency?]
+
+    def update_paths(self):
+        """
+        [TODO] To be used for A-star or Dijkstra's algorithm
+        """
         pass
 

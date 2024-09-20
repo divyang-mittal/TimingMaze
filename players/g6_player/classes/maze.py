@@ -11,7 +11,11 @@ class Maze:
         self.turn = turn
         self.max_door_freq = max_door_freq
         self.radius = radius
-        self.curr_pos = (CENTER_POS, CENTER_POS)        # start in the middle of the 199x199 grid
+        self.curr_pos = (CENTER_POS, CENTER_POS)        # relative to 199x199 grid
+        self.north_end = 0
+        self.east_end = GRID_DIM - 1
+        self.south_end = GRID_DIM - 1
+        self.west_end = 0
         self.__init_edges()
 
     def __init_edges(self):
@@ -28,7 +32,9 @@ class Maze:
         return self.grid[x][y]
     
     def update_maze(self, current_percept: TimingMazeState, turn: int):
-        # Update current maze with info from the drone
+        """
+        Update current maze with info from the drone
+        """
         self.turn = turn
         self.curr_pos = (CENTER_POS - current_percept.start_x,
                          CENTER_POS - current_percept.start_y)
@@ -46,4 +52,20 @@ class Maze:
             elif cell[2] == LEFT:
                 self.grid[x][y].w_door.update_turn(cell[3], turn)
 
-    
+    def update_boundary(self, curr_cell: Cell, direction: int):
+        """
+        Given a border cell, update a boundary and its opposite boundary
+        """
+        if direction == RIGHT:
+            self.east_end = curr_cell.x
+            self.west_end = curr_cell.x - map_dim + 1
+        elif direction == DOWN:
+            self.south_end = curr_cell.y
+            self.north_end = curr_cell.y - map_dim + 1
+        elif direction == LEFT:
+            self.west_end = curr_cell.x
+            self.east_end = curr_cell.x + map_dim - 1
+        elif direction == UP:
+            self.north_end = curr_cell.y
+            self.south_end = curr_cell.y + map_dim - 1
+        

@@ -9,7 +9,6 @@ class Door:
         self.turn: int = 0
         self.freq: int = 0
         self.turns_open: list[int] = []
-        self.weight: float = self.update_weight()
 
     def update_turn(self, state: int, turn: int):
         """
@@ -20,9 +19,9 @@ class Door:
         if state == OPEN:
             self.turns_open.append(turn)
             if len(self.turns_open) > 1:
-                self.freq = self.update_freq()
+                self.freq = self.__update_freq()
 
-    def update_freq(self):
+    def __update_freq(self):
         """
         Update frequency of door based on previous turns when open door was detected
         """
@@ -31,10 +30,4 @@ class Door:
             for j in range(i, len(self.turns_open)):
                 frequencies.append(abs(self.turns_open[j] - self.turns_open[i]))
         self.freq = gcd(*frequencies)
-
-    def update_weight(self):
-        """
-        [TODO] To be used for A-star or Dijkstra's algorithm
-        """
-        pass
 
