@@ -1,16 +1,12 @@
 import heapq
-import os
-import pickle
 import numpy as np
 import logging
 
-import constants
+from constants import OPEN, CLOSED, BOUNDARY, LEFT, RIGHT, UP, DOWN, WAIT, CLOSED_PROB, map_dim
 from timing_maze_state import TimingMazeState
 
-
 class Player:
-    def __init__(self, rng: np.random.Generator, logger: logging.Logger,
-                 precomp_dir: str, maximum_door_frequency: int, radius: int) -> None:
+    def __init__(self, rng: np.random.Generator, logger: logging.Logger, precomp_dir: str, maximum_door_frequency: int, radius: int) -> None:
         """Initialise the player with the basic amoeba information
 
             Args:
@@ -20,17 +16,32 @@ class Player:
                 radius (int): the radius of the drone
                 precomp_dir (str): Directory path to store/load pre-computation
         """
-
         self.rng = rng
         self.logger = logger
         self.maximum_door_frequency = maximum_door_frequency
         self.radius = radius
+
+        # initializing cur_x, cur_y to start x, y
+        self.cur_x = 0 
+        self.cur_y = 0
+        self.start = (self.cur_x, self.cur_y)
+        # tracking turn #
+        self.turn = 0 
+
+        ''' drone global variables '''
         # x, y in seens and knowns is centered around start x, y
         self.seens = dict() # dictionary w/ kv - (x, y, d): (False (uncertain)/True (certain), assumed freq, [list of turns at which x, y, d was open], [list of turns at which x, y, d could be seen])
         self.knowns = dict() # dictionary w/ kv - (x, y): {0: freq(L), 1: freq(U), 2: freq(R), 3: freq(D)}, freq = -1 if unknown
-        self.cur_x = 0 # initializing to start x
-        self.cur_y = 0 # initializing to start y
-        self.turn = 0
+        ''' boundary global variables '''
+        self.boundaryCoordinates = list
+        # boundary (x, y) in relation to the start coordinate
+        self.LRB = -100 # left-right (x of left edge)
+        self.UDB = -100 # up-down (y of up edge)
+
+        self.start_global_x = 0
+        self.start_global_y = 0
+    
+        ''' move global variables '''
         self.path = []
         self.move_directions = []
         self.final_path = []
@@ -38,258 +49,377 @@ class Player:
         self.start = (self.cur_x, self.cur_y)
         self.curr_stationary_moves = 0
 
+    """
+    helper functions for information collection
+
+    findFreq(seenOpen: list)
+    - finds the smallest gap between turns when a door is known to have been seen open.
+
+    determineCertainty (freq: int, openPair: tuple, seen: list)
+    - determines the certainty of a frequency by looking at the seen doors between the two open doors
+        - if there are no unseen doors or if none of the unseen doors could introduce a lower frequency, then we can be certain
+
+    gcd (x: int, y: int) 
+    - finds the gcd of two numbers using euclidean algorithm 
+
+    lcm(x: int, y: int)
+    - finds the lcm of two numbers by dividing (x * y) by gcd (x, y)
+
+    setBoundaryCoords(self, x: int, y: int, d: int)
+    - gets called every time a boundary is encountered and updates global variables
+    """
+        
     @staticmethod
-    def findSmallestGap(seen):
-        if len(seen) < 2:
+    def findFreq(seenOpen: list) -> int:
+        if len(seenOpen) < 2:
             return -1
-        gap = seen[1] - seen[0]
-        for i in range(len(seen) - 2):
-            if seen[i + 1] - seen[i] < gap:
-                gap = seen[i + 1] - seen[i]
-        return gap
+        gcd = Player.gcd(seenOpen[1], seenOpen[0])
+        freqDict = {gcd: [(0, 1)]}
+        for i in range(len(seenOpen) - 1):
+            tempGCD = Player.gcd(seenOpen[i + 1], seenOpen[i])
+            if tempGCD > 1 and tempGCD < gcd:
+                gcd = tempGCD
+                if gcd in freqDict:
+                    freqDict[gcd].append((i, i + 1))
+                else:
+                    freqDict[gcd] = [(i, i + 1)]
+                
+        return gcd, freqDict
     
     @staticmethod
-    def lcm(x, y):
-        if x > y:
-            greater = x
-        else:
-            greater = y
-        while(True):
-            if((greater % x == 0) and (greater % y == 0)):
-                lcm = greater
-                break
-            greater += 1
-        return lcm
+    def determineCertainty(freq: int, openPair: tuple, seen: list) -> bool:
+        
+        i = seen.index(openPair[0])
+        j = seen.index(openPair[1])
+        unseen = []
+        k = 1
+        l = 1
+        # if we have seen every door between the pair, we can be certain
+        if (j - i) == freq:
+            return True
+        
+        # created unseen, a list of turns this door was not seen. 
+        while i + k < j and openPair[0] + l < openPair[1]:
+            if seen[i + k] == openPair[0] + l:
+                k += 1
+                l += 1
+                continue
+            else:
+                unseen.append(openPair[0] + k)
+                l += 1
+
+        # if the gcd of pair[0], pair[1] and unseen is a factor of freq, we can be uncertain. 
+        for turn in unseen: 
+            gcd = Player.gcd(openPair[0], turn)
+            if freq % gcd == 0:
+                return False
+        # if the above doesn't return False, we can be certain
+        return True
     
-    # setting frequencies for doors that have been seen
-    # TODO: adapt the data structure so that it tells us which turns a door was in sight for (to help with certainty); currently will never be certain, will just assume the smallest difference
-    def setFreqs(self):
-        for (x, y, d), (certainty, freq, open, seen) in self.seens.items():
-            if not certainty:
-                smallestGap = self.findSmallestGap(open)
-                if smallestGap == -1: 
+    @staticmethod
+    def gcd(x: int, y: int) -> int:
+        if x < y:
+            temp = x 
+            x = y
+            y = temp
+        if y == 0:
+            return x
+        return Player.gcd(y, x % y)
+    
+    @staticmethod
+    def lcm(x: int, y: int):
+        return ((x * y) / Player.gcd(x, y))
+    
+    def setBoundaryCoords(self, x: int, y: int, d: int) -> None:
+        if self.LRB != -100 and self.UDB != -100:
+            self.start_global_x = 0 - self.LRB
+            self.start_global_y = 0 - self.UDB
+            return
+        self.boundaryCoordinates.append((x, y))
+        if d == LEFT:
+            self.LRB = x
+        elif d == RIGHT:
+            self.LRB = x - map_dim + 1
+        elif d == UP:
+            self.UDB = y
+        elif d == DOWN:
+            self.UDB = y - map_dim + 1
+        return
+    
+    """
+    information collection notes & functions
+    
+    maze_state: list (
+                    tuple (
+                        0: x-coordinate,
+                        1: y-coordinate, 
+                        2: door at x, y (LEFT, UP, RIGHT, DOWN), 
+                        3: door status (CLOSED, OPEN, BOUNDARY)
+                        )
+                    )
+    self.seens: dictionary 
+        -  (x, y, d): tuple (
+                        0: certainty (False/True), 
+                        1: assumed_freq,
+                        2: turns_open (list of turns when (x, y, d) was open),
+                        3: turns_seen (list of turns when (x, y, d) was seen)
+                        )
+        - centered around start_x, start_y
+    
+    self.knowns: dictionary
+        - (x, y): dict {
+                    LEFT: freq(LEFT), 
+                    UP: freq(UP),
+                    RIGHT: freq(RIGHT),
+                    DOWN: freq(DOWN)
+                    }
+        - frequencies will be 0 if boundary
+        - frequencies will be -1 if unknown
+        - centered around start_x, start_y
+
+    setSeensKnowns(self, maze_state: TimingMazeState.maze_state)
+        - utilizes the information in maze_state and the turn to populate self.seens and self.knowns
+        - on turn 1, every door within the radius that is opened will be assigned a frequency of 1
+
+    setFreqs(self)
+        - utilizes the smallest gap between turns when a door was open to determine an assumed frequency
+        - determines certainty regarding the freqs
+
+    getDrone(self, maze_state)
+        - creates drone which is a dictionary of all the x, y in a radius r to cur_x, cur_y and each doors assumed frequency
+            - utilizes LCM and when needed, random frequencies 
+        - creates doors which is a dictionary of the status (open/closed/boundary) of the 4 edges surrounding the cur_x, cur_y. checks that both doors are open on each edge.
+
+    setInfo(self, maze_state)
+        - calls setSeensKnowns, setFreqs and getDrone to return info (tuple(drone, doors))
+    """
+
+    def setSeensKnowns(self, maze_state) -> None:
+        for ms in maze_state:
+            x = ms[0]
+            y = ms[1]
+            door = ms[2]
+            status = ms[3]
+            
+            if self.turn == 1:
+                if status == CLOSED: 
                     continue
-                elif freq == -1 or smallestGap < freq:
-                    self.seens[(x, y, d)][1] = smallestGap
+                elif status == OPEN:
                     if (x, y) not in self.knowns:
                         self.knowns[(x, y)] = {}
-                    self.knowns[(x, y)][d] = smallestGap
+                        self.knowns[(x, y)][door] = 1
+                    if (x, y, door) not in self.seens:
+                        self.seens[(x, y, door)] = (True, 1, [0, 1], [1])
+                elif status == BOUNDARY:
+                    if (x, y) not in self.knowns:
+                        self.knowns[(x, y)] = {}
+                    self.knowns[(x, y)][door] = 0
+                    self.setBoundaryCoords(x, y, door)
+            else: # turns after turn 1
+                x = ms[0] + self.cur_x
+                y = ms[1] + self.cur_y
+                if (x, y, door) not in self.seens:
+                    self.seens[(x, y, door)] = [False, -1, [0], []]
+                # append the turn # to the list of turns when the door has been seen
+                if door == CLOSED:
+                    self.seens[(x, y, door)][3].append (self.turn)
+                elif door == OPEN:
+                    # if uncertain about frequency
+                    if ((x, y, door) in self.seens) and (not self.seens[(x, y, door)][0]):
+                        self.seens[(x, y, door)][2].append (self.turn)
+                        self.seens[(x, y, door)][3].append (self.turn)
+                elif door == BOUNDARY:
+                    if (x, y) not in self.knowns: 
+                        self.knowns[(x, y)] = {}
+                    self.knowns[(x, y)][door] = 0
+                    self.seens[(x, y, door)] = [True, 0, [], []]
+                    self.setBoundaryCoords(x, y, door)
+        return 
+    
+    def setFreqs(self) -> None:
+        for (x, y, d), (certainty, assumed_freq, turns_open, turns_seen) in self.seens.items():
+            if not certainty:
+                smallestGap = self.findFreq(turns_open)
+                freq = smallestGap[0]
+                # first pair of turns that (x, y, d) had the frequency as their gap
+                openPair = smallestGap[1][freq][0]
+                # adjusting certainty
+                self.seens[(x, y, d)][0] = self.determineCertainty(freq, openPair, turns_seen)
 
-    # create the final dictionary with all doors within the radius with LCMs. 
-    # TODO: make this more efficient
-    # create the final dictionary with all doors within the radius with LCMs. 
-    # TODO: make this more efficient, make it account for boundaries (when self.knowns[(x, y)][d]
-    def getDrone(self, maze_state):
+                if freq == -1: 
+                    continue
+                elif assumed_freq == -1 or freq < assumed_freq:
+                    self.seens[(x, y, d)][1] = freq
+                    if (x, y) not in self.knowns:
+                        self.knowns[(x, y)] = {}
+                    self.knowns[(x, y)][d] = freq
+          
+    def getDrone(self, maze_state) -> tuple:
+        drone = {} # drone view around the cur_x, cur_y, at radius r
+        doors = {LEFT: -1, UP: -1, RIGHT: -1, DOWN: -1}
 
-        drone = {} # drone view around the current x, y, at radius r
-        doors = {constants.LEFT: -1, constants.UP: -1, constants.RIGHT: -1, constants.DOWN: -1}
-        # print ("doors issue")
-        for door in maze_state:
-            if (door[0], door[1]) not in drone:
-                drone[(door[0], door[1])] = {constants.LEFT: -1, constants.UP: -1, constants.RIGHT: -1, constants.DOWN: -1}
-            if door[0] == self.cur_x and door[1] == self.cur_y: 
-                print ("(cur_x, cur_y):", door)
-                if doors[door[2]] == -1:
-                    doors[door[2]] = door[3]
-                elif doors[door[2]] == 2 and door[3] != 2:
-                    doors[door[2]] = door[3]
-            # dealing with the door to the left
-            elif door[0] == self.cur_x - 1 and door[1] == self.cur_y and door[2] == constants.RIGHT:
-                print ("right door on the left:", door)
-                if doors[constants.LEFT] == -1:
-                    doors[constants.LEFT] = door[3]
-                elif doors[constants.LEFT] == 2 and door[3] != 2:
-                    doors[constants.LEFT] = door[3]
-            # dealing with the door up
-            elif door[0] == self.cur_x and door[1] == self.cur_y - 1 and door[2] == constants.DOWN:
-                print ("bottom door on the top:", door)
-                if doors[constants.UP] == -1:
-                    doors[constants.UP] = door[3]
-                elif doors[constants.UP] == 2 and door[3] != 2:
-                    doors[constants.UP] = door[3]
-            # dealing with the door to the right
-            elif door[0] == self.cur_x + 1 and door[1] == self.cur_y and door[2] == constants.LEFT:
-                print ("left door on the right:", door)
-                if doors[constants.RIGHT] == -1:
-                    doors[constants.RIGHT] = door[3]
-                elif doors[constants.RIGHT] == 2 and door[3] != 2:
-                    doors[constants.RIGHT] = door[3]
-            # dealing with the door down
-            elif door[0] == self.cur_x and door[1] == self.cur_y + 1 and door[2] == constants.UP:
-                print ("top door on the bottom:", door)
-                if doors[constants.DOWN] == -1:
-                    doors[constants.DOWN] = door[3]
-                elif doors[constants.DOWN] == 2 and door[3] != 2:
-                    doors[constants.DOWN] = door[3]
+        # setting a weighted probability scheme for randomizing unknown frequencies 
+        probs = [CLOSED_PROB] + ((self.maximum_door_frequency) * [0])
+        for i in range (1, len(probs)):
+            inc = (self.maximum_door_frequency / 2 - i + 0.5) * (self.maximum_door_frequency / 2000)
+            probs[i] = (1 - CLOSED_PROB)/self.maximum_door_frequency - inc
 
+        # part 1: add dictionary key value pairs for each door in maze_state (all doors within radius r, centered at cur_x, cur_y) 
+        # part 2: fill in doors dictionary (open/closed status of surrounding doors)
+        for (x, y, d, s) in maze_state:
+        # part 1
+            if (x, y) not in drone:
+                drone[(x, y)] = {LEFT: -1, UP: -1, RIGHT: -1, DOWN: -1}
+        # part 2
+            # fill in the values of the doors of cur_x, cur_y before adjusting for the doors that touch them 
+            if x == self.cur_x and y == self.cur_y: 
+                # print ("(cur_x, cur_y):", (x, y, d, s))
+                if doors[d] == -1:
+                    doors[d] = s
+                elif doors[d] == OPEN and s != OPEN:
+                    doors[d] = s
+            # doors[LEFT], touches (x - 1, y), RIGHT
+            elif x == self.cur_x - 1 and y == self.cur_y and d == RIGHT:
+                # print ("right door on the left:", (x, y, d, s))
+                if doors[LEFT] == -1:
+                    doors[LEFT] = s
+                elif doors[LEFT] == OPEN and s != OPEN:
+                    doors[LEFT] = s
+            # doors[UP], touches (x, y - 1), DOWN
+            elif x == self.cur_x and y == self.cur_y - 1 and d == DOWN:
+                # print ("bottom door on the top:", (x, y, d, s))
+                if doors[UP] == -1:
+                    doors[UP] = s
+                elif doors[UP] == OPEN and s != OPEN:
+                    doors[UP] = s
+            # doors[RIGHT], touches (x + 1, y), LEFT
+            elif x == self.cur_x + 1 and y == self.cur_y and d == LEFT:
+                # print ("left door on the right:", (x, y, d, s))
+                if doors[RIGHT] == -1:
+                    doors[RIGHT] = s
+                elif doors[RIGHT] == OPEN and s != OPEN:
+                    doors[RIGHT] = s
+            # doors[DOWN], touches (x, y + 1), UP
+            elif x == self.cur_x and y == self.cur_y + 1 and d == UP:
+                # print ("top door on the bottom:", (x, y, d, s))
+                if doors[DOWN] == -1:
+                    doors[DOWN] = s
+                elif doors[DOWN] == OPEN and s != OPEN:
+                    doors[DOWN] = s
 
-        for (x, y) in drone: # these x, y are centered around 
-            # print ("x, y:", x, y)
-            # if (x, y) in self.knowns:
-            #     print ("self.knowns(x, y):", self.knowns[(x, y)])
+        # create a frequency dictionary that is centered around cur_x, cur_y
+        for (x, y) in drone:
             f1 = 0
             f2 = 0
-            
-            # filling in the left edge of (x, y)
+            adjX = x + self.cur_x
+            adjY = y + self.cur_y
+
+            # LEFT edge of (x, y)
             if (x - 1, y) in drone:
-                if drone[x, y][constants.LEFT] == -1 and drone [x - 1, y][constants.RIGHT] == -1:
-                    if ((x + self.cur_x, y + self.cur_y) in self.knowns) and (constants.LEFT in self.knowns[(x + self.cur_x, y + self.cur_y)]):
-                        f1 = self.knowns[(x + self.cur_x, y + self.cur_y)][constants.LEFT]
+                # if neither freq has been set
+                if drone[(x, y)][LEFT] == -1 and drone[(x - 1, y)][RIGHT] == -1:
+                    if ((adjX, adjY) in self.knowns) and (LEFT in self.knowns[(adjX, adjY)]):
+                        f1 = self.knowns[(adjX, adjY)][LEFT]
                     else:
-                        f1 = self.rng.integers(low= 1, high=self.maximum_door_frequency, endpoint=True)
-                    if ((x - 1 + self.cur_x, y + self.cur_y) in self.knowns) and (constants.RIGHT in self.knowns[(x - 1 + self.cur_x, y + self.cur_y)]):
-                        f2 = self.knowns[(x - 1 + self.cur_x, y + self.cur_y)][constants.RIGHT]
+                        f1 = np.random.choice(a=self.maximum_door_frequency + 1, p=probs)
+                    if ((adjX - 1, adjY) in self.knowns) and (RIGHT in self.knowns[(adjX - 1, adjY)]):
+                        f2 = self.knowns[(adjX - 1, adjY)][RIGHT]
                     else:
-                        f2 = self.rng.integers(low= 1, high=self.maximum_door_frequency, endpoint=True)
-                    f = self.lcm(f1, f2)
-                    drone[x, y][constants.LEFT] = f
-                    drone [x - 1, y][constants.RIGHT] = f
+                        f2 = np.random.choice(a=self.maximum_door_frequency + 1, p=probs)
+                    
+                    f = 0 
+                    if f1 != 0 and f2 != 0:
+                        f = self.lcm(f1, f2)
+                    drone[(x, y)][LEFT] = f
+                    drone[(x - 1, y)][RIGHT] = f
             else:
-                if drone[x, y][constants.LEFT] == -1: 
-                    if ((x + self.cur_x, y + self.cur_y) in self.knowns) and (constants.LEFT in self.knowns[(x + self.cur_x, y + self.cur_y)]): 
-                        drone[x, y][constants.LEFT] = self.knowns[(x + self.cur_x, y + self.cur_y)][constants.LEFT]
+                if drone[(x,y)][LEFT] == -1:
+                    if ((adjX, adjY) in self.knowns) and (LEFT in self.knowns[(adjX, adjY)]):
+                        drone[(x, y)][LEFT] = self.knowns[(adjX, adjY)][LEFT]
                     else:
-                        drone[x, y][constants.LEFT] = self.rng.integers(low= 1, high=self.maximum_door_frequency, endpoint=True)
+                        drone[(x, y)][LEFT] = np.random.choice(a=self.maximum_door_frequency + 1, p=probs)
 
-            # filling in the up edge of (x, y)
+            # UP edge of (x, y)
             if (x, y - 1) in drone:
-                if drone[x, y][constants.UP] == -1 and drone [x, y - 1][constants.DOWN] == -1:
-                    if ((x + self.cur_x, y + self.cur_y) in self.knowns) and (constants.UP in self.knowns[(x + self.cur_x, y + self.cur_y)]): 
-                        f1 = self.knowns[(x + self.cur_x, y + self.cur_y)][constants.UP]
+                if drone[(x, y)][UP] == -1 and drone[(x, y - 1)][DOWN] == -1:
+                    if ((adjX, adjY) in self.knowns) and (UP in self.knowns[(adjX, adjY)]):
+                        f1 = self.knowns[(adjX, adjY)][UP]
                     else:
-                        f1 = self.rng.integers(low= 1, high=self.maximum_door_frequency, endpoint=True)
-                    if ((x + self.cur_x, y - 1 + self.cur_y) in self.knowns) and (constants.DOWN in self.knowns[(x + self.cur_x, y - 1 + self.cur_y)]):  
-                        f2 = self.knowns[(x + self.cur_x, y - 1 + self.cur_y)][constants.DOWN]
+                        f1 = np.random.choice(a=self.maximum_door_frequency + 1, p=probs)
+                    if ((adjX, adjY - 1) in self.knowns) and (DOWN in self.knowns[(adjX, adjY - 1)]):
+                        f2 = self.knowns[(adjX, adjY - 1)][DOWN]
                     else:
-                        f2 = self.rng.integers(low= 1, high=self.maximum_door_frequency, endpoint=True)
-                    f = self.lcm(f1, f2)
-                    drone[x, y][constants.UP] = f
-                    drone [x, y - 1][constants.DOWN] = f
+                        f2 = np.random.choice(a=self.maximum_door_frequency + 1, p=probs)
+                    
+                    f = 0 
+                    if f1 != 0 and f2 != 0:
+                        f = self.lcm(f1, f2)
+                    drone[(x, y)][UP] = f
+                    drone[(x, y - 1)][DOWN] = f
             else:
-                if drone[x, y][constants.UP] == -1: 
-                    if ((x + self.cur_x, y + self.cur_y) in self.knowns) and (constants.UP in self.knowns[(x + self.cur_x, y + self.cur_y)]): 
-                        drone[x, y][constants.UP] = self.knowns[(x + self.cur_x, y + self.cur_y)][constants.UP]
+                if drone[(x,y)][UP] == -1:
+                    if ((adjX, adjY) in self.knowns) and (UP in self.knowns[(adjX, adjY)]):
+                        drone[(x, y)][UP] = self.knowns[(adjX, adjY)][UP]
                     else:
-                        drone[x, y][constants.UP] = self.rng.integers(low= 1, high=self.maximum_door_frequency, endpoint=True)
+                        drone[(x, y)][UP] = np.random.choice(a=self.maximum_door_frequency + 1, p=probs)
 
+            # RIGHT edge of (x, y)
             if (x + 1, y) in drone:
-                if drone[x, y][constants.RIGHT] == -1 and drone [x + 1, y][constants.LEFT] == -1:
-                    if ((x + self.cur_x, y + self.cur_y) in self.knowns) and (constants.RIGHT in self.knowns[(x + self.cur_x, y + self.cur_y)]):
-                        f1 = self.knowns[(x + self.cur_x, y + self.cur_y)][constants.RIGHT]
+                # if neither freq has been set
+                if drone[(x, y)][RIGHT] == -1 and drone[(x + 1, y)][LEFT] == -1:
+                    if ((adjX, adjY) in self.knowns) and (RIGHT in self.knowns[(adjX, adjY)]):
+                        f1 = self.knowns[(adjX, adjY)][RIGHT]
                     else:
-                        f1 = self.rng.integers(low= 1, high=self.maximum_door_frequency, endpoint=True)
-                    if ((x + 1 + self.cur_x, y + self.cur_y) in self.knowns) and (constants.LEFT in self.knowns[(x + 1 + self.cur_x, y + self.cur_y)]): 
-                        f2 = self.knowns[(x + 1 + self.cur_x, y + self.cur_y)][constants.LEFT]
+                        f1 = np.random.choice(a=self.maximum_door_frequency + 1, p=probs)
+                    if ((adjX + 1, adjY) in self.knowns) and (LEFT in self.knowns[(adjX + 1, adjY)]):
+                        f2 = self.knowns[(adjX + 1, adjY)][LEFT]
                     else:
-                        f2 = self.rng.integers(low= 1, high=self.maximum_door_frequency, endpoint=True)
-                    f = self.lcm(f1, f2)
-                    drone[x, y][constants.RIGHT] = f
-                    drone [x + 1, y][constants.LEFT] = f
+                        f2 = np.random.choice(a=self.maximum_door_frequency + 1, p=probs)
+                    
+                    f = 0 
+                    if f1 != 0 and f2 != 0:
+                        f = self.lcm(f1, f2)
+                    drone[(x, y)][RIGHT] = f
+                    drone[(x + 1, y)][LEFT] = f
             else:
-                if drone[x, y][constants.RIGHT] == -1: 
-                    if ((x + self.cur_x, y + self.cur_y) in self.knowns) and (constants.RIGHT in self.knowns[(x + self.cur_x, y + self.cur_y)]): 
-                        drone[x, y][constants.RIGHT] = self.knowns[(x + self.cur_x, y + self.cur_y)][constants.RIGHT]
+                if drone[(x,y)][RIGHT] == -1:
+                    if ((adjX, adjY) in self.knowns) and (RIGHT in self.knowns[(adjX, adjY)]):
+                        drone[(x, y)][RIGHT] = self.knowns[(adjX, adjY)][RIGHT]
                     else:
-                        drone[x, y][constants.RIGHT] = self.rng.integers(low= 1, high=self.maximum_door_frequency, endpoint=True)
+                        drone[(x, y)][RIGHT] = np.random.choice(a=self.maximum_door_frequency + 1, p=probs)
 
-            if (x, y + 1) in drone: 
-                if drone[x, y][constants.DOWN] == -1 and drone [x, y + 1][constants.UP] == -1:
-                    if ((x + self.cur_x, y + self.cur_y) in self.knowns) and (constants.DOWN in self.knowns[(x + self.cur_x, y + self.cur_y)]): 
-                        f1 = self.knowns[(x + self.cur_x, y + self.cur_y)][constants.DOWN]
+            # DOWN edge of (x, y)
+            if (x, y + 1) in drone:
+                if drone[(x, y)][DOWN] == -1 and drone[(x, y + 1)][UP] == -1:
+                    if ((adjX, adjY) in self.knowns) and (DOWN in self.knowns[(adjX, adjY)]):
+                        f1 = self.knowns[(adjX, adjY)][DOWN]
                     else:
-                        f1 = self.rng.integers(low= 1, high=self.maximum_door_frequency, endpoint=True)
-                    if ((x + self.cur_x, y + 1 + self.cur_y) in self.knowns) and (constants.UP in self.knowns[(x + self.cur_x, y + 1 + self.cur_y)]): 
-                        f2 = self.knowns[(x + self.cur_x, y + 1 + self.cur_y)][constants.UP]
+                        f1 = np.random.choice(a=self.maximum_door_frequency + 1, p=probs)
+                    if ((adjX, adjY + 1) in self.knowns) and (UP in self.knowns[(adjX, adjY + 1)]):
+                        f2 = self.knowns[(adjX, adjY + 1)][UP]
                     else:
-                        f2 = self.rng.integers(low= 1, high=self.maximum_door_frequency, endpoint=True)
-                    f = self.lcm(f1, f2)
-                    drone[x, y][constants.DOWN] = f
-                    drone [x, y + 1][constants.UP] = f
+                        f2 = np.random.choice(a=self.maximum_door_frequency + 1, p=probs)
+                    
+                    f = 0 
+                    if f1 != 0 and f2 != 0:
+                        f = self.lcm(f1, f2)
+                    drone[(x, y)][DOWN] = f
+                    drone[(x, y + 1)][UP] = f
             else:
-                if drone[x, y][constants.DOWN] == -1: 
-                    if ((x + self.cur_x, y + self.cur_y) in self.knowns) and (constants.DOWN in self.knowns[(x + self.cur_x, y + self.cur_y)]): 
-                        drone[x, y][constants.DOWN] = self.knowns[(x + self.cur_x, y + self.cur_y)][constants.DOWN]
+                if drone[(x,y)][DOWN] == -1:
+                    if ((adjX, adjY) in self.knowns) and (DOWN in self.knowns[(adjX, adjY)]):
+                        drone[(x, y)][DOWN] = self.knowns[(adjX, adjY)][DOWN]
                     else:
-                        drone[x, y][constants.DOWN] = self.rng.integers(low= 1, high=self.maximum_door_frequency, endpoint=True)
-        return drone
+                        drone[(x, y)][DOWN] = np.random.choice(a=self.maximum_door_frequency + 1, p=probs)
+        return (drone, doors)
 
-         
-    def setInfo(self, maze_state, turn) -> dict:
-        """Function receives the current state of the amoeba map and returns a dictionary of door frequencies centered around the start position.
-
-        notes: 
-        current_percept.maze_state[0,1]: coordinates around current position
-        current_percept.maze_state[2]: direction of door (L: 0, U: 1, R: 2, D: 3)
-        current_percept.maze_state[3]: status of door (Closed: 1, Open: 2, Boundary: 3)
-
-        doors that touch each other (n, m, d): 
-        (n, m, 0) - (n - 1, m, 2)
-        (n, m, 1) - (n, m - 1, 3)
-        (n, m, 2) - (n + 1, m, 0)
-        (n, m, 3) - (n, m + 1, 1)
-
-        returns: dictionary that changes the keys of knowns (within current radius) to center around cur_x, cur_y and randomizes unknown frequencies
-        """
-
-        # print("I am inside drone")
-        # gathers info from the maze_state and populates self.seens and self.knowns
-        for ms in maze_state:
-            if self.turn == 1:
-                if ms[3] == constants.CLOSED:
-                    continue
-                elif ms[3] == constants.OPEN:
-                    if (ms[0], ms[1]) not in self.knowns:
-                        self.knowns[(ms[0], ms[1])] = {}
-                    self.knowns[(ms[0], ms[1])][ms[2]] = 1
-                    if (ms[0], ms[1], ms[2]) not in self.seens:
-                        self.seens[(ms[0], ms[1], ms[2])] = (True, 1, [0, 1], [1])
-                elif ms[3] == constants.BOUNDARY:
-                    if (ms[0], ms[1]) not in self.knowns:
-                        self.knowns[(ms[0], ms[1])] = {}
-                    self.knowns[(ms[0], ms[1])][ms[2]] = 0 # 0 as frequency will mean boundary
-            else: # turns after turn 1
-                if (ms[0] + self.cur_x, ms[1] + self.cur_y, ms[2]) not in self.seens:
-                    self.seens[(ms[0] + self.cur_x, ms[1] + self.cur_y, ms[2])] = [False, -1, [0], []]
-                if ms[3] == constants.CLOSED:
-                    self.seens[(ms[0] + self.cur_x, ms[1] + self.cur_y, ms[2])][3].append(turn)
-                    continue
-                elif ms[3] == constants.OPEN:
-                    # already certain about frequency
-                    if ((ms[0] + self.cur_x, ms[1] + self.cur_y, ms[2]) in self.seens) and (self.seens[(ms[0] + self.cur_x, ms[1] + self.cur_y, ms[2])][0] == True):
-                        continue
-                    # uncertain about frequency
-                    else:
-                        self.seens[(ms[0] + self.cur_x, ms[1] + self.cur_y, ms[2])][2].append(turn)
-                        self.seens[(ms[0] + self.cur_x, ms[1] + self.cur_y, ms[2])][3].append(turn)
-                elif ms[3] == constants.BOUNDARY:
-                    if (ms[0] + self.cur_x, ms[1] + self.cur_y) not in self.knowns:
-                        self.knowns[(ms[0] + self.cur_x, ms[1] + self.cur_y)] = {}
-                    self.knowns[(ms[0] + self.cur_x, ms[1] + self.cur_y)][ms[2]] = 0 # 0 as frequency will mean boundary
-                    self.seens[(ms[0] + self.cur_x, ms[1] + self.cur_y, ms[2])][0] = True
-                    self.seens[(ms[0] + self.cur_x, ms[1] + self.cur_y, ms[2])][1] = 0
-
-        
+    def setInfo (self, maze_state) -> dict:
+        self.setSeensKnowns(maze_state=maze_state)
         self.setFreqs()
-       # print("I am right before creating drone")
-        info = self.getDrone(maze_state)
-       # print(drone)
-       # print("I am right after creating drone")
-
-        """print statements for debugging"""
-        #print ("seens:", self.seens)
-
-        # for k in drone:
-        #     print (k)
-        #     try:
-        #         print ("knowns:", self.knowns[k])
-        #     except: 
-        #         print ("no knowns")
-        #     print ("drone:", drone[k])
-
+        info  = self.getDrone(maze_state=maze_state)
         return info
-    
+
     def move(self, current_percept) -> int:
-        # print("Im inside move")
         """Function which retrieves the current state of the amoeba map and returns an amoeba movement
 
             Args:
@@ -301,96 +431,69 @@ class Player:
                     UP = 1
                     RIGHT = 2
                     DOWN = 3
-        """
-
-        """ Until you find target, find a random dest to move to, and return the move type. 
-        Once you find destination, call A* again. 
-
-
-
+        - Until you find target, find a random dest to move to, and return the move type. 
+        - Once you find destination, call A* again. 
         """
         self.turn = self.turn + 1
 
         # Waiting for 100 turns to gain LCM information 
         # if self.turn <= 100:
-        #     return constants.WAIT
-    
-        # Get LCM info 
-        info = self.setInfo(current_percept.maze_state, self.turn)
-        drone = info[0]
-        doors = info[1]
+        #     return WAIT
 
+        # get LCM map & open doors information
+        # print ("error in drone")
+        drone, doors = self.setInfo(current_percept.maze_state)
+        # print ("drone:", drone)
+        # print ("doors:", doors)
+        # print ("not error in drone")
         # Checking if end is visible, however, even when end is not visible our goal will probably be the edge of the 
-        # radius so this shoulf always be true in our case during exploration and final search
+        # radius so this should always be true in our case during exploration and final search
         if current_percept.is_end_visible:
             
             # Call A* with current coordinates as start and end coordinates that should 
             # be set when end is visible by timing_maze-_state line 15
             # Also we're calling A* everytime
+            # print ("error in a*")
             final_path = self.a_star_search((self.cur_x, self.cur_y), (current_percept.end_x, current_percept.end_y), drone)
+            # print ("not error in a*")
             # Convert the change in coordinates to a direction 
-           
+            # print ("error in get_move_direction")
             self.next_move = self.get_move_direction(final_path[0], final_path[1])
-            
-          #  if (self.curr_x == current_percept.end_x and self.curr_y == current_percept.end_y):
-                # WE REACHED YAY
+            # print ("not error in get_move_direction")
         
-            print(self.next_move)
+            print("next move:", self.next_move)
 
-            if self.next_move == constants.LEFT:
-                for maze_state in current_percept.maze_state:
-                    if (maze_state[0] == self.cur_x and maze_state[1] == self.cur_y and maze_state[2] == constants.LEFT
-                            and maze_state[3] == constants.OPEN):
-                        self.cur_x -= 1
-                        self.final_move_directions.pop(0)
-                        self.curr_stationary_moves = 0
-                        return constants.LEFT
-                    else: self.curr_stationary_moves +=1
-                return constants.WAIT
+            if self.next_move == LEFT:
+                if (doors[LEFT] == OPEN):
+                    self.cur_x -= 1
+                    self.final_move_directions.pop(0)
+                    self.curr_stationary_moves = 0
+                    return LEFT
 
-            elif self.next_move == constants.RIGHT:
-                for maze_state in current_percept.maze_state:
-                    if (maze_state[0] == self.cur_x and maze_state[1] == self.cur_y and maze_state[2] == constants.RIGHT
-                            and maze_state[3] == constants.OPEN):
-                        self.cur_x += 1
-                        self.final_move_directions.pop(0)
-                        self.curr_stationary_moves = 0
-                        return constants.RIGHT
-                    else: self.curr_stationary_moves +=1
-                return constants.WAIT
+            elif self.next_move == RIGHT:
+                if (doors[RIGHT] == OPEN):
+                    self.cur_x += 1
+                    self.final_move_directions.pop(0)
+                    self.curr_stationary_moves = 0
+                    return RIGHT
 
-            elif self.next_move == constants.UP:
-                for maze_state in current_percept.maze_state:
-                    if (maze_state[0] == self.cur_x and maze_state[1] == self.cur_y and maze_state[2] == constants.UP
-                            and maze_state[3] == constants.OPEN):
-                        self.cur_y -=1 
-                        self.final_move_directions.pop(0)
-                        self.curr_stationary_moves = 0
-                        return constants.UP
-                    else: self.curr_stationary_moves +=1
-                return constants.WAIT
+            elif self.next_move == UP:
+                if (doors[UP] == OPEN):
+                    self.cur_y -=1 
+                    self.final_move_directions.pop(0)
+                    self.curr_stationary_moves = 0
+                    return UP
 
-            elif self.next_move == constants.DOWN:
-                # print("I am inside")
 
-                for maze_state in current_percept.maze_state:
-                    if (maze_state[0] == self.cur_x and maze_state[1] == self.cur_y and maze_state[2] == constants.DOWN
-                            and maze_state[3] == constants.OPEN):
-                        
-                        self.final_move_directions.pop(0)
-                        self.cur_y += 1
-                        return constants.DOWN
-                    else: self.curr_stationary_moves +=1
-
-                    
-                return constants.WAIT
-
-            return constants.WAIT
-                
+            elif self.next_move == DOWN:
+                if (doors[DOWN] == OPEN):
+                    self.cur_y += 1
+                    self.final_move_directions.pop(0)
+                    return DOWN
+            self.curr_stationary_moves +=1
+            return WAIT 
         return 0
-
-
-
+    
     def get_move_direction(self, current_position, next_position):
         """Determine the move direction from current position to next position
             Returns:
@@ -406,15 +509,15 @@ class Player:
         # print(dx , dy)
         
         if dx == -1 and dy == 0:
-            return constants.LEFT  # LEFT
+            return LEFT  # LEFT
         elif dx == 0 and dy == -1:
-            return constants.UP  # UP
+            return UP  # UP
         elif dx == 1 and dy == 0:
-            return constants.RIGHT  # RIGHTx
+            return RIGHT  # RIGHTx
         elif dx == 0 and dy == 1:
-            return constants.DOWN  # DOWN
+            return DOWN  # DOWN
         else:
-            return constants.WAIT  # WAIT or invalid move
+            return WAIT  # WAIT or invalid move
 
     def a_star_search(self, start, goal, LCM_map):
         # print("Im inside A*")
@@ -440,7 +543,7 @@ class Player:
             # Check if we have reached the goal
             if current == goal:
                 # print("i am inside path found")
-                # print(self.reconstruct_path(came_from, current))
+                print(self.reconstruct_path(came_from, current))
                 return self.reconstruct_path(came_from, current)
 
             # Explore neighbors
@@ -456,7 +559,9 @@ class Player:
                     came_from[neighbor] = current
                     g_score[neighbor] = tentative_g_score
                     # f_score = tentative_g_score + self.heuristic_(neighbor, goal)
+                    # print ("error in heuristic_manhatten")
                     f_score = tentative_g_score + self.heuristic_manhatten(neighbor, goal, current_turn, LCM_map)
+                    # print ("not error in heuristic_manhatten")
                     # print(f_score)
                     heapq.heappush(open_set, (f_score, neighbor, current_turn + 1))
 
@@ -596,13 +701,13 @@ class Player:
             x1, y1 = path[i - 1][0], path[i - 1][1] 
             x2, y2 = path[i][0], path[i][1]
             if x1 < x2:
-                directions.append(constants.RIGHT)
+                directions.append(RIGHT)
             elif x1 > x2:
-                directions.append(constants.LEFT)
+                directions.append(LEFT)
             elif y1 < y2:
-                directions.append(constants.DOWN)
+                directions.append(DOWN)
             else:
-                directions.append(constants.UP)
+                directions.append(UP)
 
         # print(directions)
 
@@ -611,14 +716,14 @@ class Player:
     #  def take_next_open_move(self, current_percept):
     #     if (self.curr_stationary_moves >= 5):
     #             for maze_state in current_percept.maze_state:
-    #                 if (maze_state[0] == self.cur_x and maze_state[1] == self.cur_y and maze_state[2] == constants.DOWN
-    #                         and maze_state[3] == constants.OPEN):
+    #                 if (maze_state[0] == self.cur_x and maze_state[1] == self.cur_y and maze_state[2] == DOWN
+    #                         and maze_state[3] == OPEN):
                         
     #                     self.final_move_directions.pop(0)
-    #                     if ( maze_state[2] == constants.DOWN): self.cur_y -= 1
-    #                     if ( maze_state[2] == constants.UP): self.cur_y += 1
-    #                     if ( maze_state[2] == constants.LEFT): self.cur_x -= 1
-    #                     if ( maze_state[2] == constants.RIGHT): self.cur_x += 1
+    #                     if ( maze_state[2] == DOWN): self.cur_y -= 1
+    #                     if ( maze_state[2] == UP): self.cur_y += 1
+    #                     if ( maze_state[2] == LEFT): self.cur_x -= 1
+    #                     if ( maze_state[2] == RIGHT): self.cur_x += 1
     #                     return maze_state[2]
     #                 else: self.curr_stationary_moves +=1
-    #             return constants.WAIT
+    #             return WAIT
