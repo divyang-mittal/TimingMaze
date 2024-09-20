@@ -289,12 +289,11 @@ class Player:
             # Also we're calling A* everytime
             final_path = self.a_star_search((self.cur_x, self.cur_y), (current_percept.end_x, current_percept.end_y), drone)
             # Convert the change in coordinates to a direction 
-            curr_pos = final_path[0]
+           
             self.next_move = self.get_move_direction(final_path[0], final_path[1])
-            print(curr_pos)
-            print((self.cur_x, self.cur_y))
-            print((current_percept.end_x, current_percept.end_y))
-          #  if (curr_pos[0] == self.curr_x)
+            
+          #  if (self.curr_x == current_percept.end_x and self.curr_y == current_percept.end_y):
+                # WE REACHED YAY
         
             print(self.next_move)
 
