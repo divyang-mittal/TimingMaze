@@ -3,11 +3,11 @@ import pickle
 import numpy as np
 import logging
 import random
-from utils import get_divisors
-from dataclasses import dataclass
+# from utils import get_divisors
+# from dataclasses import dataclass
 import networkx as nx # pip install networkx
 import matplotlib.pyplot as plt # pip install matplotlib
-from math import lcm
+import math
 from players.g7.player_helper_code import build_graph_from_memory, MazeGraph, PlayerMemory, findShortestPathsToEachNode, reconstruct_path, is_move_valid, MemorySquare, Boundary
 
 
@@ -203,8 +203,21 @@ class Player:
         x_end = min(x + self.radius, boundary.right if boundary.is_horizontal_boundary_known() else x + self.radius)
 
         # A square is only visible if it is inside the boundary
-        for row in self.memory.memory[y_start:y_end]:
-            visible_squares.append(row[x_start:x_end])
+        # for row in self.memory.memory[y_start:y_end]:
+        #     visible_squares.append(row[x_start:x_end])
+
+        # A square is only visible if it is inside the boundary and within the Euclidean distance of 'r'
+        for row in range(y_start, y_end + 1):
+            visible_row = []
+            for col in range(x_start, x_end + 1):
+                # Calculate the Euclidean distance from the current position to the square (row, col)
+                distance = math.sqrt((row - y) ** 2 + (col - x) ** 2)
+
+                # If the square is within the visibility radius and boundary, add it to visible squares
+                if distance <= self.radius:
+                    visible_row.append(self.memory.memory[row][col])
+
+            visible_squares.append(visible_row) 
 
         return visible_squares
 
