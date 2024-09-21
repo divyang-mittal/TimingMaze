@@ -49,13 +49,13 @@ class Maze:
             x = self.curr_pos[0] + cell[0]
             y = self.curr_pos[1] + cell[1]
             if cell[2] == UP:
-                self.grid[x][y].n_door.update_turn(cell[3], turn)
+                self.grid[x][y].n_door.update(cell[3], turn)
             elif cell[2] == RIGHT:
-                self.grid[x][y].e_door.update_turn(cell[3], turn)
+                self.grid[x][y].e_door.update(cell[3], turn)
             elif cell[2] == DOWN:
-                self.grid[x][y].s_door.update_turn(cell[3], turn)
+                self.grid[x][y].s_door.update(cell[3], turn)
             elif cell[2] == LEFT:
-                self.grid[x][y].w_door.update_turn(cell[3], turn)
+                self.grid[x][y].w_door.update(cell[3], turn)
 
     def update_boundary(self, curr_cell: Cell, direction: int):
         """
