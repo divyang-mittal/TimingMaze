@@ -2,7 +2,8 @@ import numpy as np
 import logging
 import random
 
-from constants import *
+
+from constants import UP, DOWN, LEFT, RIGHT, WAIT, BOUNDARY
 from players.g6_player.classes.typed_timing_maze_state import (
     TypedTimingMazeState,
     convert,
@@ -34,7 +35,6 @@ class G6_Player:
         self.logger = logger
         self.maximum_door_frequency = maximum_door_frequency
         self.radius = radius
-        self.turn = 0
 
         # Variables to facilitate knowing where the player has been and if they are trapped
         self.stuck = 0
@@ -42,7 +42,7 @@ class G6_Player:
         self.prev_move = None
 
         # Initialize Maze object to hold information about cells and doors perceived by the drone
-        self.maze = Maze(self.turn, self.maximum_door_frequency, self.radius)
+        self.maze = Maze(self.maximum_door_frequency, self.radius)
 
         # an interim target which the agent tries to navigate towards
         self.search_target = None
@@ -53,15 +53,14 @@ class G6_Player:
         self.layer = 0
         self.phase = 4  # phases match directions in constants.py; 4 = find SE corner
 
-    def move(self, untyped_current_percept: TimingMazeState) -> int:
+    def move(self, current_percept: TimingMazeState) -> int:
         """
         Increments the turn count and updates the maze with the current percept. Calls
         __move() to determine the next move.
         """
-        current_percept: TypedTimingMazeState = convert(untyped_current_percept)
+        current_percept: TypedTimingMazeState = convert(current_percept)
 
-        self.turn += 1
-        self.maze.update_maze(current_percept, self.turn)
+        self.maze.update(current_percept)
         self.__update_history()
         player_move = self.__move(current_percept)
 
