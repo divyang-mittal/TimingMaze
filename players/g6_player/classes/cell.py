@@ -1,7 +1,7 @@
 from players.g6_player.data import Move
 from players.g6_player.classes.door import Door
 from typing import Optional
-from constants import UP, DOWN, LEFT, RIGHT, OPEN
+from constants import OPEN
 
 
 class Cell:
@@ -11,10 +11,10 @@ class Cell:
         self.y = y
 
         # doors of current cell
-        self.n_door = Door(UP)
-        self.e_door = Door(RIGHT)
-        self.s_door = Door(DOWN)
-        self.w_door = Door(LEFT)
+        self.n_door = Door(Move.UP)
+        self.e_door = Door(Move.RIGHT)
+        self.s_door = Door(Move.DOWN)
+        self.w_door = Door(Move.LEFT)
 
         # neighbors
         self.n_cell = None
@@ -79,3 +79,9 @@ class Cell:
         [TODO] To be used for A-star or Dijkstra's algorithm
         """
         pass
+
+    def __str__(self) -> str:
+        return f"Cell({self.x}, {self.y})"
+
+    def __repr__(self) -> str:
+        return str(self)

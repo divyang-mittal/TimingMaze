@@ -1,10 +1,11 @@
 from constants import OPEN, CLOSED
 from math import gcd
+from players.g6_player.data import Move, str_to_move
 
 
 class Door:
-    def __init__(self, door_type: int) -> None:
-        self.door_type: int = door_type
+    def __init__(self, door_type: Move) -> None:
+        self.door_type: Move = door_type
         self.state: int = CLOSED
         self.turn: int = 0
         self.freq: int = 0
@@ -30,3 +31,9 @@ class Door:
             for j in range(i, len(self.turns_open)):
                 frequencies.append(abs(self.turns_open[j] - self.turns_open[i]))
         self.freq = gcd(*frequencies)
+
+    def __str__(self) -> str:
+        return f"Door({str_to_move(self.door_type)})"
+
+    def __repr__(self) -> str:
+        return str(self)
