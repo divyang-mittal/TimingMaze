@@ -1,9 +1,12 @@
 from players.g6_player.classes.cell import Cell
 from timing_maze_state import TimingMazeState
-from constants import *
+from constants import UP, DOWN, RIGHT, LEFT, map_dim
 
-GRID_DIM = 199
-CENTER_POS = 99
+# 199 usually
+GRID_DIM = map_dim * 2 - 1
+# 99 usually
+CENTER_POS = map_dim - 1
+
 
 class Maze:
     def __init__(self, turn: int, max_door_freq: int, radius: int) -> None:
@@ -11,7 +14,7 @@ class Maze:
         self.turn = turn
         self.max_door_freq = max_door_freq
         self.radius = radius
-        self.curr_pos = (CENTER_POS, CENTER_POS)        # relative to 199x199 grid
+        self.curr_pos = (CENTER_POS, CENTER_POS)  # relative to 199x199 grid
         self.north_end = 0
         self.east_end = GRID_DIM - 1
         self.south_end = GRID_DIM - 1
@@ -30,14 +33,16 @@ class Maze:
 
     def get_cell(self, x: int, y: int) -> Cell:
         return self.grid[x][y]
-    
+
     def update_maze(self, current_percept: TimingMazeState, turn: int):
         """
         Update current maze with info from the drone
         """
         self.turn = turn
-        self.curr_pos = (CENTER_POS - current_percept.start_x,
-                         CENTER_POS - current_percept.start_y)
+        self.curr_pos = (
+            CENTER_POS - current_percept.start_x,
+            CENTER_POS - current_percept.start_y,
+        )
         for cell in current_percept.maze_state:
             # Iterating over cells seen by drone
             # cell[0]=x, cell[1]=y, cell[2]=door type, cell[3]=door state
@@ -68,4 +73,3 @@ class Maze:
         elif direction == UP:
             self.north_end = curr_cell.y
             self.south_end = curr_cell.y + map_dim - 1
-        
