@@ -1,5 +1,5 @@
 from players.g6_player.classes.cell import Cell
-from timing_maze_state import TimingMazeState
+from players.g6_player.classes.typed_timing_state_maze import TypedTimingMazeState
 from constants import UP, DOWN, RIGHT, LEFT, map_dim
 
 # 199 usually
@@ -8,11 +8,10 @@ GRID_DIM = map_dim * 2 - 1
 CENTER_POS = map_dim - 1
 
 
-
 class Maze:
-    def __init__(self, turn: int, max_door_freq: int, radius: int) -> None:
+    def __init__(self, max_door_freq: int, radius: int) -> None:
         self.grid = [[Cell(x=x, y=y) for y in range(GRID_DIM)] for x in range(GRID_DIM)]
-        self.turn = turn
+        self.turn = 0
         self.max_door_freq = max_door_freq
         self.radius = radius
         self.curr_pos = (CENTER_POS, CENTER_POS)  # relative to 199x199 grid
@@ -35,11 +34,11 @@ class Maze:
     def get_cell(self, x: int, y: int) -> Cell:
         return self.grid[x][y]
 
-    def update_maze(self, current_percept: TypedTimingMazeState, turn: int):
+    def update(self, current_percept: TypedTimingMazeState):
         """
         Update current maze with info from the drone
         """
-        self.turn = turn
+        self.turn += 1
         self.curr_pos = (
             CENTER_POS - current_percept.start_x,
             CENTER_POS - current_percept.start_y,
@@ -50,13 +49,13 @@ class Maze:
             x = self.curr_pos[0] + cell[0]
             y = self.curr_pos[1] + cell[1]
             if cell[2] == UP:
-                self.grid[x][y].n_door.update(cell[3], turn)
+                self.grid[x][y].n_door.update(cell[3], self.turn)
             elif cell[2] == RIGHT:
-                self.grid[x][y].e_door.update(cell[3], turn)
+                self.grid[x][y].e_door.update(cell[3], self.turn)
             elif cell[2] == DOWN:
-                self.grid[x][y].s_door.update(cell[3], turn)
+                self.grid[x][y].s_door.update(cell[3], self.turn)
             elif cell[2] == LEFT:
-                self.grid[x][y].w_door.update(cell[3], turn)
+                self.grid[x][y].w_door.update(cell[3], self.turn)
 
     def update_boundary(self, curr_cell: Cell, direction: int):
         """
