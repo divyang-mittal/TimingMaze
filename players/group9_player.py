@@ -10,6 +10,32 @@ import sys
 import constants
 from timing_maze_state import TimingMazeState
 
+def get_neighbor(coordinates, direction):
+    x,y = coordinates
+    if direction % 2 == 0: # Left or Right
+        return (x+direction-1, y)
+    return (x, y+direction-2)
+
+def get_neighbors(coordinates): 
+    # left up right down
+    x,y = coordinates
+    return [(x-1, y), (x, y-1), (x+1, y), (x, y+1)]
+
+def manhattan_dist(coord1, coord2):
+    x1,y1 = coord1
+    x2,y2 = coord2
+    return abs(x2-x1) + abs(y2-y1)
+
+# Helper that maps directions to their opposites 
+def opposite(direction) -> int:
+    if direction == constants.UP:
+        return constants.DOWN
+    elif direction == constants.DOWN:
+        return constants.UP
+    elif direction == constants.LEFT:
+        return constants.RIGHT
+    return constants.LEFT
+
 def GCD(a, b):
         if b == 0:
             return a
@@ -53,11 +79,19 @@ class Player:
 
         self.step = 0
         self.cur_pos = [0, 0]
-        self.epsilon = 0.00
+        self.epsilon = 0.0
         self.door_states = {}
         self.values = {}
         self.best_path_found = {}
         self.boundary = [100, 100, 100, 100]
+        self.corners = [[100, 100], [100, 100], [100, 100], [100, 100]] # (Left, Bottom), (Left, Top), (Right, Top), (Right, Bottom), 
+        self.past_moves = []
+        self.watied = 0
+
+    class Corner:
+        def __init__(self, x, y):
+            self.end_x = x
+            self.end_y = y
 
     def update_graph_information(self, current_percept):
         """
@@ -84,7 +118,7 @@ class Player:
             else:
                 self.door_states[coordinates][direction] = GCD(self.door_states[coordinates][direction], self.step)
 
-        elif state == constants.BOUNDARY:
+        elif state == constants.BOUNDARY and self.boundary[direction] == 100:
             # print("---Updating Boundary----")
             # print("Boundary Found at: ", coordinates)
             # print("Which Door is it? ", direction)
@@ -92,6 +126,10 @@ class Player:
             x_or_y = 0 if direction % 2 == 0 else 1 # Which coordinate to update
             # print("X OR y (0 or 1)", x_or_y)
             self.boundary[direction] = coordinates[x_or_y]
+
+            # Update self.corners
+            self.corners[direction][x_or_y] = coordinates[x_or_y]
+            self.corners[(direction + 1) % 4][x_or_y] = coordinates[x_or_y]
             # print(self.boundary)
 
     def update_cell_value(self, coordinates, door_type):
@@ -110,6 +148,21 @@ class Player:
             if self.values[coordinates] != -1:
                 self.values[coordinates] += 1
 
+    def close_to_corner(self) -> tuple:
+        for i in range(len(self.corners)):
+            coords_valid = True
+            for coord in self.corners[i]:
+                if coord == 100:
+                    coords_valid = False
+                    break
+            if not coords_valid or tuple(self.corners[i]) in self.values:
+                continue
+            dist_from_corner = manhattan_dist(tuple(self.corners[i]), tuple(self.cur_pos))
+            if dist_from_corner <= math.sqrt(2(self.radius ** 2)) + self.radius:
+                return tuple(self.corners[i])
+
+        return (100, 100)
+
     def move(self, current_percept) -> int:
         """Function which retrieves the current state of the amoeba map and returns an amoeba movement
 
@@ -126,27 +179,42 @@ class Player:
         self.step += 1
         self.update_graph_information(current_percept)
 
-        # TODO: Do we need this?
+        if current_percept.is_end_visible:
+            best_move = self.move_toward_visible_end(current_percept)
+            self.update_position(best_move)
+            return best_move
+
+        corner_coord = self.close_to_corner()
+        if (corner_coord != (100, 100)):
+            best_move = self.move_toward_visible_end(self.Corner(corner_coord[0], corner_coord[1]))
+            self.update_position(best_move)
+            return best_move
+
         moves = []
         for i in range(4):
             if self.can_move_in_direction(i):
+                x_or_y = 0 if i % 2 == 0 else 1
+                neg_or_pos = -1 if i <= 1 else 1
+
+                changed_dim = self.cur_pos[x_or_y] + (self.radius * neg_or_pos)
+                # Check if we have found a boundary and whether or not our vision is beyond it
+                if self.boundary[move] != 100 and abs(changed_dim) >= abs(self.boundary[move]):
+                    continue
+
                 moves.append(i)
 
         if not moves:
             return constants.WAIT
 
-        if current_percept.is_end_visible:
-            best_move = self.move_toward_visible_end(current_percept)
-            self.update_position(best_move)
-            return best_move
+        
         
         #Epsilon-Greedy 
         exploit = random.choices([True, False], weights = [(1 - self.epsilon), self.epsilon], k = 1)
         best_move = constants.WAIT
 
         move_rewards = []
-        print("Am I Exploiting?", exploit[0])
-
+        print("Exploiting" if exploit[0] else "Random move")
+        
         if exploit[0]:
             for move in moves:
                 # print("Checking Move: ", move)
@@ -158,10 +226,6 @@ class Player:
                 # print("Boundary Check: ", self.boundary[move])
                 # print("Shifted dim: ", changed_dim)
 
-                # Check if we have found a boundary and whether or not our vision is beyond it
-                if self.boundary[move] != 100 and abs(changed_dim) >= abs(self.boundary[move]):
-                    move_rewards.append(math.inf)
-                    continue
                 regret = 0
 
                 for i in range(-1, 2, 1):
@@ -169,7 +233,7 @@ class Player:
                         cur_coord = (target_coord[0] + i, target_coord[1] + j)
                         if cur_coord in self.values:
                             val = self.values[cur_coord]
-                            regret += val if val > 0 else 50 #Arbitrary 50 for the reward of a nearby boundary
+                            regret += val 
                 move_rewards.append(regret)
             
             min_regret = math.inf
@@ -177,6 +241,13 @@ class Player:
                 if move_rewards[i] < min_regret:
                     min_regret = move_rewards[i]
                     best_move = moves[i]
+            
+            # TODO: Find a good heuristic for waiting
+            # If we are backtracking, then figure out why.
+            if (opposite(self.past_moves[-1]) == best_move):
+                door_freqs = self.door_states[tuple(self.cur_pos)]
+
+            
         else:
             best_move = random.choice(moves)
         
@@ -189,8 +260,10 @@ class Player:
     
     def update_position(self, direction):
         """
-            Player has moved in the given direction. Update known position to match.
+            Player has moved in the given direction. Append move to past_moves. Update known position to match. 
         """
+        self.past_moves.append(direction)
+
         if direction >= 0:
             self.cur_pos = get_neighbor(self.cur_pos, direction)
 
@@ -281,30 +354,3 @@ class Player:
                     self.best_path_found[neighbor] = opposite(direction)
 
                     heapq.heappush(queue, (dist_from_here, neighbor))
-
-                
-def get_neighbor(coordinates, direction):
-    x,y = coordinates
-    if direction % 2 == 0: # Left or Right
-        return (x+direction-1, y)
-    return (x, y+direction-2)
-
-def get_neighbors(coordinates): 
-    # left up right down
-    x,y = coordinates
-    return [(x-1, y), (x, y-1), (x+1, y), (x, y+1)]
-
-def manhattan_dist(coord1, coord2):
-    x1,y1 = coord1
-    x2,y2 = coord2
-    return abs(x2-x1) + abs(y2-y1)
-
-# Helper that maps directions to their opposites 
-def opposite(direction) -> int:
-    if direction == constants.UP:
-        return constants.DOWN
-    elif direction == constants.DOWN:
-        return constants.UP
-    elif direction == constants.LEFT:
-        return constants.RIGHT
-    return constants.LEFT
