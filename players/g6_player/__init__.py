@@ -3,6 +3,10 @@ import logging
 import random
 
 from constants import *
+from players.g6_player.classes.typed_timing_state_maze import (
+    TypedTimingMazeState,
+    convert,
+)
 from players.g6_player.data import Move
 from timing_maze_state import TimingMazeState
 from players.g6_player.classes.maze import Maze
@@ -49,11 +53,13 @@ class G6_Player:
         self.layer = 0
         self.phase = 4  # phases match directions in constants.py; 4 = find SE corner
 
-    def move(self, current_percept: TimingMazeState) -> int:
+    def move(self, untyped_current_percept: TimingMazeState) -> int:
         """
         Increments the turn count and updates the maze with the current percept. Calls
         __move() to determine the next move.
         """
+        current_percept: TypedTimingMazeState = convert(untyped_current_percept)
+
         self.turn += 1
         self.maze.update_maze(current_percept, self.turn)
         self.__update_history()
@@ -61,7 +67,7 @@ class G6_Player:
 
         return player_move.value
 
-    def __move(self, current_percept: TimingMazeState) -> Move:
+    def __move(self, current_percept: TypedTimingMazeState) -> Move:
         """
         Helper function to move().
         """
@@ -281,7 +287,7 @@ class G6_Player:
 
         return Move.WAIT
 
-    def __exploit(self, current_state: TimingMazeState) -> Move:
+    def __exploit(self, current_state: TypedTimingMazeState) -> Move:
         """
         [TODO] Implement A star algorithm
         [TODO] Implement greedy algorithm if one of the following conditions is met:
@@ -308,7 +314,7 @@ class G6_Player:
 
     def __str__(self) -> str:
         # TODO: how do we get the current position
-        return f"G6_Player()"
+        return "G6_Player()"
 
     def __repr__(self) -> str:
         return str(self)
