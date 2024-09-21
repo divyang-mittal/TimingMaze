@@ -57,7 +57,8 @@ class Experience:
             self.walls = (
                 right + self.cur_pos[0],
                 self.walls[1],
-                self.walls[2],
+                right + self.cur_pos[0]-100,
+                #self.walls[2],
                 self.walls[3],
             )
         if top < self.r:
@@ -65,11 +66,13 @@ class Experience:
                 self.walls[0],
                 top + self.cur_pos[1],
                 self.walls[2],
-                self.walls[3],
+                top + self.cur_pos[1]-100,
+                #self.walls[3],
             )
         if left > -self.r:
             self.walls = (
-                self.walls[0],
+                left + self.cur_pos[0]+100,
+                #self.walls[0],
                 self.walls[1],
                 left + self.cur_pos[0],
                 self.walls[3],
@@ -77,7 +80,8 @@ class Experience:
         if bottom > -self.r:
             self.walls = (
                 self.walls[0],
-                self.walls[1],
+                bottom + self.cur_pos[1]+100,
+                #self.walls[1],
                 self.walls[2],
                 bottom + self.cur_pos[1],
             )
