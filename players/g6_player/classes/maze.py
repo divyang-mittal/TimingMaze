@@ -48,7 +48,7 @@ class Maze:
             # cell[0]=x, cell[1]=y, cell[2]=door type, cell[3]=door state
             x = self.curr_pos[0] + cell[0]
             y = self.curr_pos[1] + cell[1]
-            if cell[2] == LEFT:
+            if cell[2] == UP:
                 self.grid[x][y].n_door.update_turn(cell[3], turn)
             elif cell[2] == RIGHT:
                 self.grid[x][y].e_door.update_turn(cell[3], turn)
