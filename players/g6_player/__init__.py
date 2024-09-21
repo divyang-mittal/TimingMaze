@@ -32,6 +32,11 @@ class G6_Player:
         self.radius = radius
         self.turn = 0
 
+        # Variables to facilitate knowing where the player has been and if they are trapped
+        self.stuck = 0
+        self.move_history = []
+        self.prev_move = None
+
         # Initialize Maze object to hold information about cells and doors perceived by the drone
         self.maze = Maze(self.turn, self.maximum_door_frequency, self.radius)
 
@@ -56,7 +61,6 @@ class G6_Player:
         player_move = self.__move(current_percept)
         
         return player_move.value
-    
 
     def __move(self, current_percept: TimingMazeState) -> Move:
         """
@@ -68,6 +72,31 @@ class G6_Player:
 
         # Otherwise, go to target
         return self.__exploit(current_percept)
+
+    def __get_prev_move(self):
+        delta = (self.maze.curr_pos[0] - self.move_history[-1][0], self.maze.curr_pos[1] - self.move_history[-1][1])
+        if delta == (-1, 0):
+            return LEFT
+        elif delta == (1, 0):
+            return RIGHT
+        elif delta == (0, -1):
+            return DOWN
+        else:
+            return UP
+
+    def __update_history(self):
+        """
+        This function adjusts the move_history ordered list of coordinates that the player has already visited.
+        """
+        if len(self.move_history) == 0:
+            return self.move_history.append(self.maze.curr_pos)
+        elif self.move_history[-1] == self.maze.curr_pos:
+            self.stuck += 1
+            return
+        else:
+            self.stuck = 0
+            self.prev_move = self.__get_prev_move()
+            return self.move_history.append(self.maze.curr_pos)
     
     
     def __explore(self) -> Move:
@@ -75,6 +104,10 @@ class G6_Player:
         Move towards the southeast corner and perform inward spiral when right
         and down boundaries are visible by drone
         """
+
+        if self.stuck >= (self.maximum_door_frequency * (self.maximum_door_frequency - 1)):
+            return self.__get_unstuck()
+
         if not self.found_right_boundary:
             self.found_right_boundary = self.__is_boundary_in_sight(RIGHT)
         if not self.found_down_boundary:
@@ -174,7 +207,31 @@ class G6_Player:
         elif self.phase == DOWN:
             self.search_target = (self.maze.east_end - cum_offset,
                                   self.maze.south_end - cum_offset - offset)
-    
+
+
+    def __get_available_moves(self):
+        curr_x, curr_y = self.maze.curr_pos
+        curr_cell = self.maze.get_cell(curr_x, curr_y)
+        curr_available_moves = []
+
+        for move in Move:
+            if curr_cell.is_move_available(move):
+                curr_available_moves.append(move)
+        return curr_available_moves
+
+
+    def __get_unstuck(self):
+        curr_available_moves = self.__get_available_moves()
+
+        # [TODO] - this will not work if there is a full three-sided trap (like a maze with a dead end).
+        for available_move in curr_available_moves:
+           if self.prev_move in [RIGHT, LEFT] and available_move in [Move.UP, Move.DOWN]:
+               return available_move
+           elif self.prev_move in [DOWN, UP] and available_move in [Move.LEFT, Move.RIGHT]:
+                return available_move
+           else:
+               return WAIT
+
 
     def __greedy_move(self, directions: list[int] = [], target: tuple = ()) -> Move:
         """
