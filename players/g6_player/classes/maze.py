@@ -1,12 +1,11 @@
 from players.g6_player.classes.cell import Cell
-from timing_maze_state import TimingMazeState
 from constants import UP, DOWN, RIGHT, LEFT, map_dim
+from players.g6_player.classes.typed_timing_maze_state import TypedTimingMazeState
 
 # 199 usually
 GRID_DIM = map_dim * 2 - 1
 # 99 usually
 CENTER_POS = map_dim - 1
-
 
 
 class Maze:
@@ -74,3 +73,9 @@ class Maze:
         elif direction == UP:
             self.north_end = curr_cell.y
             self.south_end = curr_cell.y + map_dim - 1
+
+    def __str__(self) -> str:
+        return f"Maze(turn: {self.turn})"
+
+    def __repr__(self) -> str:
+        return str(self)
