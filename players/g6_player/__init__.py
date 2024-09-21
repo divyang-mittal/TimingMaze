@@ -2,8 +2,9 @@ import numpy as np
 import logging
 import random
 
+
 from constants import UP, DOWN, LEFT, RIGHT, WAIT, BOUNDARY
-from players.g6_player.classes.typed_timing_state_maze import (
+from players.g6_player.classes.typed_timing_maze_state import (
     TypedTimingMazeState,
     convert,
 )
@@ -309,3 +310,10 @@ class G6_Player:
             return Move.DOWN
 
         return Move.WAIT
+
+    def __str__(self) -> str:
+        # TODO: how do we get the current position
+        return "G6_Player()"
+
+    def __repr__(self) -> str:
+        return str(self)
