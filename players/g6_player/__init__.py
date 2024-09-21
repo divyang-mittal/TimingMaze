@@ -3,7 +3,7 @@ import logging
 import random
 
 from constants import *
-from players.g6_player.classes.typed_timing_state_maze import (
+from players.g6_player.classes.typed_timing_maze_state import (
     TypedTimingMazeState,
     convert,
 )

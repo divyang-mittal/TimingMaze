@@ -1,6 +1,6 @@
 from constants import OPEN, CLOSED
 from math import gcd
-from players.g6_player.data import Move, str_to_move
+from players.g6_player.data import Move, move_to_str
 
 
 class Door:
@@ -40,7 +40,7 @@ class Door:
             self.last_open = turn
 
     def __str__(self) -> str:
-        return f"Door({str_to_move(self.door_type)})"
+        return f"Door({move_to_str(self.door_type)})"
 
     def __repr__(self) -> str:
         return str(self)
