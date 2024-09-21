@@ -36,6 +36,7 @@ class Player:
         self.final_path = []
         self.final_move_directions = []
         self.start = (self.cur_x, self.cur_y)
+        self.curr_stationary_moves = 0
 
     @staticmethod
     def findSmallestGap(seen):
@@ -192,7 +193,7 @@ class Player:
         returns: dictionary that changes the keys of knowns (within current radius) to center around cur_x, cur_y and randomizes unknown frequencies
         """
 
-        print("I am inside drone")
+        # print("I am inside drone")
         # gathers info from the maze_state and populates self.seens and self.knowns
         for ms in maze_state:
             if self.turn == 1:
@@ -250,7 +251,7 @@ class Player:
         return drone
     
     def move(self, current_percept) -> int:
-        print("Im inside move")
+        # print("Im inside move")
         """Function which retrieves the current state of the amoeba map and returns an amoeba movement
 
             Args:
@@ -271,22 +272,27 @@ class Player:
 
         """
         self.turn = self.turn + 1
-        print("Im before drone")
+
+        # if self.turn <= 100:
+        #     return constants.WAIT
+    
+        # print("Im before drone")
         drone = self.setInfo(current_percept.maze_state, self.turn)
-        print("Im after drone")
+        # print("Im after drone")
 
         if current_percept.is_end_visible:
-            print("I am inside is end visible")
-            if not self.final_move_directions:
-                print("creating path")
-                print((self.cur_x, self.cur_y))
-                print((current_percept.end_x, current_percept.end_y))
-                final_path = self.a_star_search((self.cur_x, self.cur_y), (current_percept.end_x, current_percept.end_y), drone)
+            # print("I am inside is end visible")
+            
+                # print("creating path")
+                # print((self.cur_x, self.cur_y))
+                # print((current_percept.end_x, current_percept.end_y))
+            final_path = self.a_star_search((self.cur_x, self.cur_y), (current_percept.end_x, current_percept.end_y), drone)
+            print(final_path)
 
-                for i in range(len(final_path) - 2):
-                    print("creating move dirctions")
-                    self.final_move_directions.append(self.get_move_direction(final_path[i], final_path[i+1]))
-                print(self.final_move_directions)
+            for i in range(len(final_path) - 2):
+                # print("creating move dirctions")
+                self.final_move_directions.append(self.get_move_direction(final_path[i], final_path[i+1]))
+            print(self.final_move_directions)
 
             if self.final_move_directions[0] == constants.LEFT:
                 for maze_state in current_percept.maze_state:
@@ -294,7 +300,9 @@ class Player:
                             and maze_state[3] == constants.OPEN):
                         self.cur_x -= 1
                         self.final_move_directions.pop(0)
+                        self.curr_stationary_moves = 0
                         return constants.LEFT
+                    else: self.curr_stationary_moves +=1
                 return constants.WAIT
 
             elif self.final_move_directions[0] == constants.RIGHT:
@@ -303,7 +311,9 @@ class Player:
                             and maze_state[3] == constants.OPEN):
                         self.cur_x += 1
                         self.final_move_directions.pop(0)
+                        self.curr_stationary_moves = 0
                         return constants.RIGHT
+                    else: self.curr_stationary_moves +=1
                 return constants.WAIT
 
             elif self.final_move_directions[0] == constants.UP:
@@ -312,11 +322,13 @@ class Player:
                             and maze_state[3] == constants.OPEN):
                         self.cur_y +=1 
                         self.final_move_directions.pop(0)
+                        self.curr_stationary_moves = 0
                         return constants.UP
+                    else: self.curr_stationary_moves +=1
                 return constants.WAIT
 
             elif self.final_move_directions[0] == constants.DOWN:
-                print("I am inside")
+                # print("I am inside")
 
                 for maze_state in current_percept.maze_state:
                     if (maze_state[0] == self.cur_x and maze_state[1] == self.cur_y and maze_state[2] == constants.DOWN
@@ -325,18 +337,22 @@ class Player:
                         self.final_move_directions.pop(0)
                         self.cur_y -= 1
                         return constants.DOWN
+                    else: self.curr_stationary_moves +=1
+
+                    
                 return constants.WAIT
+            print(self.curr_stationary_moves)
 
             return constants.WAIT
                 
         else:
-            print("Im before move directions")
+            # print("Im before move directions")
             if not self.move_directions:
-                print("generate goal")
+                # print("generate goal")
                 (x, y) = self.generate_goal()
                 path = self.a_star_search((self.cur_x, self.cur_y), (x,y), drone)
-                print("Im after move directions" + path)
-                print(x,y)
+                # print("Im after move directions" + path)
+                # print(x,y)
 
                 for i in range(len(path) - 2):
                     self.move_directions.append(self.get_move_direction(path[i], path[i+1]))
@@ -378,6 +394,22 @@ class Player:
 
         return 0
 
+
+    def take_next_open_move(self, current_percept):
+        if (self.curr_stationary_moves >= 5):
+                for maze_state in current_percept.maze_state:
+                    if (maze_state[0] == self.cur_x and maze_state[1] == self.cur_y and maze_state[2] == constants.DOWN
+                            and maze_state[3] == constants.OPEN):
+                        
+                        self.final_move_directions.pop(0)
+                        if ( maze_state[2] == constants.DOWN): self.cur_y -= 1
+                        if ( maze_state[2] == constants.UP): self.cur_y += 1
+                        if ( maze_state[2] == constants.LEFT): self.cur_x -= 1
+                        if ( maze_state[2] == constants.RIGHT): self.cur_x += 1
+                        return maze_state[2]
+                    else: self.curr_stationary_moves +=1
+                return constants.WAIT
+
     def generate_goal(self):
         x = y = -float('inf')
         while not self.is_valid(x, y): 
@@ -410,22 +442,22 @@ class Player:
         """
         dx = next_position[0] - current_position[0]
         dy = next_position[1] - current_position[1]
-        print("Inside move dir")
-        print(dx , dy)
+        # print("Inside move dir")
+        # print(dx , dy)
         
         if dx == -1 and dy == 0:
             return constants.LEFT  # LEFT
-        elif dx == 0 and dy == 1:
+        elif dx == 0 and dy == -1:
             return constants.UP  # UP
         elif dx == 1 and dy == 0:
-            return constants.RIGHT  # RIGHT
-        elif dx == 0 and dy == -1:
+            return constants.RIGHT  # RIGHTx
+        elif dx == 0 and dy == 1:
             return constants.DOWN  # DOWN
         else:
             return constants.WAIT  # WAIT or invalid move
 
     def a_star_search(self, start, goal, LCM_map):
-        print("Im inside A*")
+        # print("Im inside A*")
         # LCM_map: (x, y) -> {LEFT: #, ...}
 
         # Open set represented as a priority queue with (f_score, node)
@@ -440,30 +472,32 @@ class Player:
 
         vis = set({})
         while open_set:
-            print("Im inside open set")
+            # print("Im inside open set")
             # Get the node in open_set with the lowest f_score
             current_f_score, current, current_turn = heapq.heappop(open_set)
             vis.add(current)
 
             # Check if we have reached the goal
             if current == goal:
-                print("i am inside path found")
+                # print("i am inside path found")
                 print(self.reconstruct_path(came_from, current))
                 return self.reconstruct_path(came_from, current)
 
             # Explore neighbors
             moves = [(-1, 0), (0, 1), (1, 0), (0, -1)]
             for i, move in enumerate(moves):
-                print("Im inside enumerate move")
+                # print("Im inside enumerate move")
                 neighbor = (current[0] + move[0], current[1] + move[1])
                 tentative_g_score = g_score[current] + LCM_map[current][i] - current_turn % LCM_map[current][i]
 
                 # If this path to neighbor is better than any previous one
                 if (neighbor not in g_score or tentative_g_score < g_score[neighbor]) and neighbor not in vis:
-                    print("Im inside random neighbour")
+                    # print("Im inside random neighbour")
                     came_from[neighbor] = current
                     g_score[neighbor] = tentative_g_score
-                    f_score = tentative_g_score + self.heuristic(neighbor, goal)
+                    # f_score = tentative_g_score + self.heuristic_(neighbor, goal)
+                    f_score = tentative_g_score + self.heuristic_manhatten(neighbor, goal, current_turn, LCM_map)
+                    # print(f_score)
                     heapq.heappush(open_set, (f_score, neighbor, current_turn + 1))
 
         # No path found
@@ -480,3 +514,136 @@ class Player:
     
     def heuristic(self, current, goal):
         return abs(current[0] - goal[0]) + abs(current[1] - goal[1])
+    
+    def heuristic_manhatten(self, current, goal, current_turn, LCM_map):
+        moves = [[-1, 0], [0, -1], [1, 0], [0, 1]] # [L, U, R, D]
+
+        dir = self.path_to_directions(self.manhattan_path(current, goal))
+
+        # print(dir)
+
+        cost = current_turn
+        for i in dir:
+            # print("i" + str(i))
+            LCM = LCM_map[tuple(current)][i]
+            # print("LCM" + str(LCM))
+            if (cost + 1) % LCM == 0:
+                # print("if" + str(cost))
+                cost = cost + 1
+                # print("if" + str(cost))
+            else:
+                # print("else" + str(cost))
+                cost = cost + LCM - (cost % LCM)
+                # print("else" + str(cost))
+            
+            current = list(current)
+            # print(type(current))
+            # print(current[0] + moves[i][0])
+            current[0] = current[0] + moves[i][0]
+            # print(current)
+            current[1] = current[1] + moves[i][1]
+            # print(current)
+            # print("==============")
+            # print(i)
+            # print(cost)
+            # print(current)
+        cost = cost + 1
+        # print("returning cost: " + str(cost))
+        return cost
+    
+    def manhattan_path(self, start, goal):
+        """
+        Generates the Manhattan path between the given start and goal coordinates on a grid.
+
+        Args:
+            start: A tuple representing the x and y coordinates of the starting point.
+            goal: A tuple representing the x and y coordinates of the goal point.
+
+        Returns:
+            A list of tuples representing the coordinates of the points on the Manhattan path.
+        """
+
+        path = []
+        x_start, y_start = start[0], start[1]
+        x_goal, y_goal = goal[0], goal[1]
+
+        cnt = 0
+
+        while x_start != x_goal and y_start != y_goal and cnt < 4:
+            if x_start < x_goal:
+                x_start += 1
+            else:
+                x_start -= 1
+            path.append((x_start, y_start))
+            cnt = cnt + 1
+
+            if y_start < y_goal:
+                y_start += 1
+            else:
+                y_start -= 1
+            path.append((x_start, y_start))
+            cnt = cnt + 1
+        
+        while cnt < 4 and x_start != x_goal:
+            if x_start < x_goal:
+                x_start += 1
+            else:
+                x_start -= 1
+            path.append((x_start, y_start))
+            cnt = cnt + 1
+
+        while cnt < 4 and y_start != y_goal:
+            if y_start < y_goal:
+                y_start += 1
+            else:
+                y_start -= 1
+            path.append((x_start, y_start))
+            cnt = cnt + 1
+
+        # # Move along the x-axis first
+        # while x_start != x_goal:
+        #     if x_start < x_goal:
+        #         x_start += 1
+        #     else:
+        #         x_start -= 1
+        #     path.append((x_start, y_start))
+
+        # # Move along the y-axis
+        # while y_start != y_goal:
+        #     if y_start < y_goal:
+        #         y_start += 1
+        #     else:
+            #     y_start -= 1
+            # path.append((x_start, y_start))
+
+        # print(path)
+
+        return path
+    
+    def path_to_directions(self, path):
+        """
+        Converts a path represented as a list of coordinates to a list of directions (LEFT, RIGHT, UP, DOWN).
+
+        Args:
+            path: A list of tuples representing the coordinates of the points on the path.
+
+        Returns:
+            A list of strings representing the directions between each pair of points on the path.
+        """
+
+        directions = []
+        for i in range(1, len(path)):
+            x1, y1 = path[i - 1][0], path[i - 1][1] 
+            x2, y2 = path[i][0], path[i][1]
+            if x1 < x2:
+                directions.append(constants.RIGHT)
+            elif x1 > x2:
+                directions.append(constants.LEFT)
+            elif y1 < y2:
+                directions.append(constants.DOWN)
+            else:
+                directions.append(constants.UP)
+
+        # print(directions)
+
+        return directions
