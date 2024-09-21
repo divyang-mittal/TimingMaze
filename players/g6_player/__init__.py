@@ -52,6 +52,7 @@ class G6_Player:
         """
         self.turn += 1
         self.maze.update_maze(current_percept, self.turn)
+        self.__update_history()
         player_move = self.__move(current_percept)
         
         return player_move.value
