@@ -9,7 +9,7 @@ class Door:
         self.freq: int = 0
         self.last_open = 0
 
-    def update_turn(self, state: int, turn: int):
+    def update(self, state: int, turn: int):
         """
         Updates the door's state and refines the frequency estimate on each turn.
 
