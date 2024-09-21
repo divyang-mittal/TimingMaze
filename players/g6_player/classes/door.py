@@ -1,4 +1,4 @@
-from constants import *
+from constants import OPEN, CLOSED
 from math import gcd
 
 
@@ -19,7 +19,7 @@ class Door:
         if state == OPEN:
             self.turns_open.append(turn)
             if len(self.turns_open) > 1:
-                self.freq = self.__update_freq()
+                self.__update_freq()
 
     def __update_freq(self):
         """
@@ -30,4 +30,3 @@ class Door:
             for j in range(i, len(self.turns_open)):
                 frequencies.append(abs(self.turns_open[j] - self.turns_open[i]))
         self.freq = gcd(*frequencies)
-
