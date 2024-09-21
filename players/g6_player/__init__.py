@@ -3,6 +3,10 @@ import logging
 import random
 
 from constants import *
+from players.g6_player.classes.typed_timing_state_maze import (
+    TypedTimingMazeState,
+    convert,
+)
 from players.g6_player.data import Move
 from timing_maze_state import TimingMazeState
 from players.g6_player.classes.maze import Maze
@@ -19,12 +23,12 @@ class G6_Player:
     ) -> None:
         """Initialise the player with the basic amoeba information
 
-            Args:
-                rng (np.random.Generator): numpy random number generator, use this for same player behavior across run
-                logger (logging.Logger): logger use this like logger.info("message")
-                maximum_door_frequency (int): the maximum frequency of doors
-                radius (int): the radius of the drone
-                precomp_dir (str): Directory path to store/load pre-computation
+        Args:
+            rng (np.random.Generator): numpy random number generator, use this for same player behavior across run
+            logger (logging.Logger): logger use this like logger.info("message")
+            maximum_door_frequency (int): the maximum frequency of doors
+            radius (int): the radius of the drone
+            precomp_dir (str): Directory path to store/load pre-computation
         """
         self.rng = rng
         self.logger = logger
@@ -47,22 +51,23 @@ class G6_Player:
         self.found_right_boundary = False
         self.found_down_boundary = False
         self.layer = 0
-        self.phase = 4      # phases match directions in constants.py; 4 = find SE corner
+        self.phase = 4  # phases match directions in constants.py; 4 = find SE corner
 
-
-    def move(self, current_percept: TimingMazeState) -> int:
+    def move(self, untyped_current_percept: TimingMazeState) -> int:
         """
         Increments the turn count and updates the maze with the current percept. Calls
         __move() to determine the next move.
         """
+        current_percept: TypedTimingMazeState = convert(untyped_current_percept)
+
         self.turn += 1
         self.maze.update_maze(current_percept, self.turn)
         self.__update_history()
         player_move = self.__move(current_percept)
-        
+
         return player_move.value
 
-    def __move(self, current_percept: TimingMazeState) -> Move:
+    def __move(self, current_percept: TypedTimingMazeState) -> Move:
         """
         Helper function to move().
         """
@@ -74,7 +79,10 @@ class G6_Player:
         return self.__exploit(current_percept)
 
     def __get_prev_move(self):
-        delta = (self.maze.curr_pos[0] - self.move_history[-1][0], self.maze.curr_pos[1] - self.move_history[-1][1])
+        delta = (
+            self.maze.curr_pos[0] - self.move_history[-1][0],
+            self.maze.curr_pos[1] - self.move_history[-1][1],
+        )
         if delta == (-1, 0):
             return LEFT
         elif delta == (1, 0):
@@ -97,15 +105,16 @@ class G6_Player:
             self.stuck = 0
             self.prev_move = self.__get_prev_move()
             return self.move_history.append(self.maze.curr_pos)
-    
-    
+
     def __explore(self) -> Move:
         """
         Move towards the southeast corner and perform inward spiral when right
         and down boundaries are visible by drone
         """
 
-        if self.stuck >= (self.maximum_door_frequency * (self.maximum_door_frequency - 1)):
+        if self.stuck >= (
+            self.maximum_door_frequency * (self.maximum_door_frequency - 1)
+        ):
             return self.__get_unstuck()
 
         if not self.found_right_boundary:
@@ -121,7 +130,6 @@ class G6_Player:
             return self.__greedy_move(directions=[DOWN])
 
         return self.__inward_spiral()
-    
 
     def __is_boundary_in_sight(self, direction: int) -> bool:
         """
@@ -151,9 +159,8 @@ class G6_Player:
                     self.maze.update_boundary(curr_cell, UP)
                     return True
                 curr_cell = curr_cell.n_cell
-        
-        return False
 
+        return False
 
     def __inward_spiral(self):
         """
@@ -162,18 +169,20 @@ class G6_Player:
         # Set initial search target so that radius touches southeast corner
         if self.layer == 0 and self.phase == 4:
             offset = int(np.floor(self.radius / np.sqrt(2)))
-            self.search_target = (self.maze.east_end - offset, self.maze.south_end - offset)
+            self.search_target = (
+                self.maze.east_end - offset,
+                self.maze.south_end - offset,
+            )
 
         # Set inward spiral phase and layer and update search target
         # [TODO] In case we are stuck getting to the exact target, we could consider
         # setting a max distance from target before we move on to the next phase
         if self.maze.curr_pos == self.search_target:
             self.__adjust_phase_and_target()
-        
+
         # print(f'Phase: {self.phase}, Layer: {self.layer}, Target: {self.search_target}, curr_pos: {self.maze.curr_pos}')
 
         return self.__greedy_move(target=self.search_target)
-    
 
     def __adjust_phase_and_target(self):
         """
@@ -187,27 +196,40 @@ class G6_Player:
         cum_offset = (2 * self.layer + 1) * offset
 
         # Set search target so that radius touches southeast corner of previous layer
-        if self.phase == 4:    
-            self.search_target = (self.maze.east_end - cum_offset, self.maze.south_end - cum_offset)
+        if self.phase == 4:
+            self.search_target = (
+                self.maze.east_end - cum_offset,
+                self.maze.south_end - cum_offset,
+            )
 
         # Set search target so that radius touches southwest corner of previous layer
         elif self.phase == LEFT:
-            self.search_target = (self.maze.west_end + cum_offset, self.maze.south_end - cum_offset)
+            self.search_target = (
+                self.maze.west_end + cum_offset,
+                self.maze.south_end - cum_offset,
+            )
 
         # Set search target so that radius touches northwest corner of previous layer
         elif self.phase == UP:
-            self.search_target = (self.maze.west_end + cum_offset, self.maze.north_end + cum_offset)
+            self.search_target = (
+                self.maze.west_end + cum_offset,
+                self.maze.north_end + cum_offset,
+            )
 
         # Set search target so that radius touches northeast corner of previous layer
         elif self.phase == RIGHT:
-            self.search_target = (self.maze.east_end - cum_offset, self.maze.north_end + cum_offset)
+            self.search_target = (
+                self.maze.east_end - cum_offset,
+                self.maze.north_end + cum_offset,
+            )
 
         # Set search target so that radius touches southeast corner of previous layer
         # Extra offset from south border to avoid overlapping with previous layer
         elif self.phase == DOWN:
-            self.search_target = (self.maze.east_end - cum_offset,
-                                  self.maze.south_end - cum_offset - offset)
-
+            self.search_target = (
+                self.maze.east_end - cum_offset,
+                self.maze.south_end - cum_offset - offset,
+            )
 
     def __get_available_moves(self):
         curr_x, curr_y = self.maze.curr_pos
@@ -219,19 +241,23 @@ class G6_Player:
                 curr_available_moves.append(move)
         return curr_available_moves
 
-
     def __get_unstuck(self):
         curr_available_moves = self.__get_available_moves()
 
         # [TODO] - this will not work if there is a full three-sided trap (like a maze with a dead end).
         for available_move in curr_available_moves:
-           if self.prev_move in [RIGHT, LEFT] and available_move in [Move.UP, Move.DOWN]:
-               return available_move
-           elif self.prev_move in [DOWN, UP] and available_move in [Move.LEFT, Move.RIGHT]:
+            if self.prev_move in [RIGHT, LEFT] and available_move in [
+                Move.UP,
+                Move.DOWN,
+            ]:
                 return available_move
-           else:
-               return WAIT
-
+            elif self.prev_move in [DOWN, UP] and available_move in [
+                Move.LEFT,
+                Move.RIGHT,
+            ]:
+                return available_move
+            else:
+                return WAIT
 
     def __greedy_move(self, directions: list[int] = [], target: tuple = ()) -> Move:
         """
@@ -248,7 +274,7 @@ class G6_Player:
                 return Move.LEFT
             if directions[0] == UP:
                 return Move.UP
-            
+
         elif target:
             if self.maze.curr_pos[0] < target[0]:
                 return Move.RIGHT
@@ -258,11 +284,10 @@ class G6_Player:
                 return Move.DOWN
             if self.maze.curr_pos[1] > target[1]:
                 return Move.UP
-        
+
         return Move.WAIT
 
-
-    def __exploit(self, current_state: TimingMazeState) -> Move:
+    def __exploit(self, current_state: TypedTimingMazeState) -> Move:
         """
         [TODO] Implement A star algorithm
         [TODO] Implement greedy algorithm if one of the following conditions is met:
@@ -286,4 +311,3 @@ class G6_Player:
             return Move.DOWN
 
         return Move.WAIT
-    

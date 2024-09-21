@@ -8,6 +8,7 @@ GRID_DIM = map_dim * 2 - 1
 CENTER_POS = map_dim - 1
 
 
+
 class Maze:
     def __init__(self, turn: int, max_door_freq: int, radius: int) -> None:
         self.grid = [[Cell(x=x, y=y) for y in range(GRID_DIM)] for x in range(GRID_DIM)]
@@ -34,7 +35,7 @@ class Maze:
     def get_cell(self, x: int, y: int) -> Cell:
         return self.grid[x][y]
 
-    def update_maze(self, current_percept: TimingMazeState, turn: int):
+    def update_maze(self, current_percept: TypedTimingMazeState, turn: int):
         """
         Update current maze with info from the drone
         """
