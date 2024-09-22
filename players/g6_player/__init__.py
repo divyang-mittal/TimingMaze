@@ -36,7 +36,6 @@ class G6_Player:
         self.radius = radius
 
         # Variables to facilitate knowing where the player has been and if they are trapped
-        self.turn = 0
         self.stuck = 0
         self.move_history = []
         self.prev_move = None

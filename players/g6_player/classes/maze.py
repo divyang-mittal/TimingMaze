@@ -37,11 +37,11 @@ class Maze:
     def get_cell(self, x: int, y: int) -> Cell:
         return self.grid[x][y]
 
-    def update(self, current_percept: TypedTimingMazeState, turn: int):
+    def update(self, current_percept: TypedTimingMazeState):
         """
         Update current maze with info from the drone
         """
-        self.turn = turn
+        self.turn += 1
         self.curr_pos = (
             CENTER_POS - current_percept.start_x,
             CENTER_POS - current_percept.start_y,
