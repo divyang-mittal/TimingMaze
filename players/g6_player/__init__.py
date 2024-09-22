@@ -226,7 +226,7 @@ class G6_Player:
                 self.maze.south_end - cum_offset - offset,
             )
 
-    def __get_available_moves(self):
+    def __get_available_moves(self) -> list[Move]:
         curr_cell = self.maze.current_cell()
         curr_available_moves = []
 
@@ -235,7 +235,7 @@ class G6_Player:
                 curr_available_moves.append(move)
         return curr_available_moves
 
-    def __get_unstuck(self):
+    def __get_unstuck(self) -> Move:
         curr_available_moves = self.__get_available_moves()
 
         # [TODO] - this will not work if there is a full three-sided trap (like a maze with a dead end).
@@ -250,8 +250,9 @@ class G6_Player:
                 Move.RIGHT,
             ]:
                 return available_move
-            else:
-                return Move.WAIT
+
+        # No available moves
+        return Move.WAIT
 
     def __greedy_move(self, directions: list[int] = [], target: tuple = ()) -> Move:
         """
