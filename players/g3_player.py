@@ -9,6 +9,8 @@ import constants
 from timing_maze_state import TimingMazeState
 from collections import deque as queue
 
+import heapq
+
 class Player:
     def __init__(self, rng: np.random.Generator, logger: logging.Logger,
                  precomp_dir: str, maximum_door_frequency: int, radius: int) -> None:
@@ -59,6 +61,10 @@ class Player:
         self.is_djikstra_available = False
         self.end_visible_timer = 0
 
+        self.a_star_path = np.full((201, 201), -1, dtype=int)
+        self.is_a_star_available = False
+
+
     def move(self, current_percept) -> int:
         """Function which retrieves the current state of the map and returns a movement
 
@@ -86,6 +92,12 @@ class Player:
             if self.is_djikstra_available:
                 move = self.traverse_djikstra(current_percept)
                 return move
+            
+            if self.is_a_star_available:
+                move = self.get_a_star(current_percept)
+                return move
+
+
 
             print("Rushing In")
             # TODO: Implement what to do if cannot find path using djikstra but know where is the end position,
@@ -256,6 +268,85 @@ class Player:
             x = parent_x
             y = parent_y
 
+        return True
+    
+    def get_a_star(self, current_percept):
+        abs_x = 100 - current_percept.start_x
+        abs_y = 100 - current_percept.start_y
+        return self.a_star_path[abs_x, abs_y].item()
+    
+    def calculate_a_star(self, current_percept) -> bool:
+        # calculates A* path to the end and stores it in 'self.a_star_path'
+        
+        # start_x and start_y are the relative positions of the start position
+        start_x = 100 - current_percept.start_x
+        start_y = 100 - current_percept.start_y
+
+        end_x = 100 + current_percept.end_x - current_percept.start_x
+        end_y = 100 + current_percept.end_y - current_percept.start_y
+
+        # initialize priority queue and arrays
+        pq = []
+        distance = np.full((201, 201), np.inf)
+        parent_direction = np.full((201, 201), -1)
+        
+        # heuristic function (Manhattan distance)
+        def heuristic(x, y):
+            return abs(x - end_x) + abs(y - end_y)
+
+        # set initial conditions
+        distance[start_x, start_y] = 0
+        heapq.heappush(pq, (heuristic(start_x, start_y), start_x, start_y, 0))  # (f(x), x, y, g(x))
+
+        # main A* loop
+        while pq:
+            f_x, x, y, g_x = heapq.heappop(pq)
+            
+            # if end is reached
+            if x == end_x and y == end_y:
+                break
+            
+            # explore all 4 neighbors
+            for i in range(4):
+                new_x = x + self.dRow[i]
+                new_y = y + self.dCol[i]
+
+                if 0 <= new_x < 201 and 0 <= new_y < 201:
+                    # check if doors are passable
+                    if self.relative_frequencies[x, y, i] > 0 and self.relative_frequencies[new_x, new_y, self.opposite[i]] > 0:
+                        lcm = math.lcm(self.relative_frequencies[x, y, i], self.relative_frequencies[new_x, new_y, self.opposite[i]])
+                        next_turn = g_x
+                        if next_turn % lcm != 0:
+                            new_distance = (next_turn // lcm + 1) * lcm
+                        new_distance = next_turn
+                        
+                        # check if new path is shorter
+                        if distance[new_x, new_y] > new_distance:
+                            distance[new_x, new_y] = new_distance
+                            parent_direction[new_x, new_y] = self.opposite[i]
+                            f_x = new_distance + heuristic(new_x, new_y)
+                            heapq.heappush(pq, (f_x, new_x, new_y, new_distance))
+
+        # if end is not reachable, return false
+        if distance[end_x, end_y] == np.inf:
+            return False
+        
+        # path construction
+        x, y = end_x, end_y
+        while x != start_x or y != start_y:
+            parent_x, parent_y = x, y
+            if parent_direction[x, y] == constants.RIGHT:
+                parent_x -= 1
+            elif parent_direction[x, y] == constants.LEFT:
+                parent_x += 1
+            elif parent_direction[x, y] == constants.DOWN:
+                parent_y -= 1
+            elif parent_direction[x, y] == constants.UP:
+                parent_y += 1
+            self.a_star_path[parent_x, parent_y] = self.opposite[parent_direction[x, y]]
+            x, y = parent_x, parent_y
+
+        self.is_a_star_available = True
         return True
 
 
