@@ -53,8 +53,6 @@ class Maze:
                 CENTER_POS - current_percept.end_y,
             )
 
-        print("Coordinates: ", self.curr_pos)
-
         self.__update_maze_door_freq(current_percept)
         self.__update_maze_path_freq(current_percept)
         self.__update_maze_graph(current_percept)
