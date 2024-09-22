@@ -1,6 +1,5 @@
 import numpy as np
 import logging
-import random
 
 from constants import UP, DOWN, LEFT, RIGHT, WAIT, BOUNDARY
 from players.g6_player.classes.typed_timing_maze_state import (
@@ -73,11 +72,10 @@ class G6_Player:
             return self.move_history.append(self.maze.curr_pos)
         elif self.move_history[-1] == self.maze.curr_pos:
             self.stuck += 1
-            return
         else:
             self.stuck = 0
             self.prev_move = self.__get_prev_move()
-            return self.move_history.append(self.maze.curr_pos)
+            self.move_history.append(self.maze.curr_pos)
 
     def __get_prev_move(self):
         delta = (
@@ -285,7 +283,7 @@ class G6_Player:
 
     def __panic_escape(self):
         curr_available_moves = self.__get_available_moves()
-        return random.choice(curr_available_moves)
+        return self.rng.choice(curr_available_moves)
 
     def __exploit(self, current_state: TypedTimingMazeState) -> Move:
         """
@@ -295,8 +293,11 @@ class G6_Player:
         b) when we are not getting closer to the target after a certain number of turns
         c) 10% random chance for any given turn
         """
-        if random.random() < 0.1:
-            return random.choice(list(Move))
+        assert current_state.end_x is not None
+        assert current_state.end_y is not None
+
+        if self.rng.random() < 0.1:
+            return self.rng.choice([move.value for move in Move])
 
         if 0 > current_state.end_x:
             return Move.LEFT

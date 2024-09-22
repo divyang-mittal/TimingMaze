@@ -21,16 +21,33 @@ class TypedTimingMazeState:
             start_x (int): x-coordinate of the start cell
             start_y (int): y-coordinate of the start cell
         """
-        self.maze_state: List[List[int]] = maze_state
+        self.maze_state: list[MazeState] = MazeState.convert(maze_state)
         self.start_x: int = start_x
         self.start_y: int = start_y
         self.is_end_visible: bool = is_end_visible
-        if is_end_visible:
-            self.end_x = end_x
-            self.end_y = end_y
+        self.end_x = end_x
+        self.end_y = end_y
 
     def __str__(self) -> str:
         return f"Is End Visible: {self.is_end_visible}\nStart: [{self.start_x},{self.start_y}]\n"
+
+
+class MazeState:
+    def __init__(self, row: int, col: int, door_type: int, door_state: int):
+        self.row = row
+        self.col = col
+        self.door_type = door_type
+        self.door_state = door_state
+
+    @staticmethod
+    def convert(maze_state: list[list[int]]) -> "list[MazeState]":
+        return [MazeState(cell[0], cell[1], cell[2], cell[3]) for cell in maze_state]
+
+    def __str__(self):
+        return f"MazeState(row: {self.row}, col: {self.col}, door: {self.door_type}, state: {self.door_state})"
+
+    def __repr__(self):
+        return str(self)
 
 
 def convert(untyped_state: TimingMazeState) -> TypedTimingMazeState:
