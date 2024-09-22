@@ -77,17 +77,18 @@ class G6_Player:
             return self.move_history.append(self.maze.curr_pos)
         elif self.move_history[-1] == self.maze.curr_pos:
             self.stuck += 1
+            return
         else:
             self.stuck = 0
-
-        self.prev_move = self.__get_prev_move()
-        return self.move_history.append(self.maze.curr_pos)
+            self.prev_move = self.__get_prev_move()
+            return self.move_history.append(self.maze.curr_pos)
 
     def __get_prev_move(self):
         delta = (
             self.maze.curr_pos[0] - self.move_history[-1][0],
             self.maze.curr_pos[1] - self.move_history[-1][1],
         )
+
         if delta == (-1, 0):
             return LEFT
         elif delta == (1, 0):
@@ -113,7 +114,7 @@ class G6_Player:
         Move towards the southeast corner and perform inward spiral when right
         and down boundaries are visible by drone
         """
-
+        print("Stuck? {}".format(self.stuck))
         if self.stuck >= (
             self.maximum_door_frequency * (self.maximum_door_frequency - 1)
         ):
@@ -247,6 +248,9 @@ class G6_Player:
         curr_available_moves = self.__get_available_moves()
 
         # [TODO] - this will not work if there is a full three-sided trap (like a maze with a dead end).
+        print("Previous move: {}".format(self.prev_move))
+        print("Available moves: {}".format(curr_available_moves))
+
         for available_move in curr_available_moves:
             if self.prev_move in [RIGHT, LEFT] and available_move in [
                 Move.UP,
@@ -260,8 +264,6 @@ class G6_Player:
                 return available_move
             else:
                 return Move.WAIT
-
-
 
     def __greedy_move(self, directions: list[int] = [], target: tuple = ()) -> Move:
         """
