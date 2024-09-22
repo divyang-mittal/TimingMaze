@@ -16,6 +16,8 @@ from players.g4.mcts import MCTS
 
 from sympy import divisors
 
+from collections import deque
+
 
 class Player:
     def __init__(
@@ -47,6 +49,14 @@ class Player:
         self.start = (0, 0)
         self.goal = None
         self.maze_graph = defaultdict(dict)
+
+        # Calculate the grid cell size based on the radius
+        self.cell_size = max(int(self.radius / math.sqrt(2)), 1)
+
+        # Initialize variables for the exploration strategy
+        self.visited_grid_cells = set()
+        self.frontier_positions = set()
+        self.frontier_set = set()
 
     def update_door_frequencies(self, curr_x, curr_y, current_percept):
         factors = set(divisors(self.curr_turn))
@@ -166,25 +176,24 @@ class Player:
         avg_cost_per_move = 1
         return (dx + dy) * avg_cost_per_move
 
-    def a_star_search(self, start, goal):
+    def a_star_search(self, start, goals):
         open_set = []
-        heapq.heappush(open_set, (self.heuristic(start, goal), start))
-
+        heapq.heappush(open_set, (self.heuristic(start, start), 0, start))
         came_from = {start: None}
         g_score = {start: 0}
 
         while open_set:
-            _, current = heapq.heappop(open_set)
+            _, current_g, current = heapq.heappop(open_set)
 
-            if current == goal:
+            if current in goals:
                 # Reconstruct path
                 path = []
                 current_node = current
                 while current_node is not None:
                     path.append(current_node)
                     current_node = came_from[current_node]
-                # Don't need to deal with entire path if maximizing efficiency, but useful for debugging
                 path.reverse()
+                # print(path)
                 return path
 
             for neighbor in self.maze_graph[current]:
@@ -194,10 +203,10 @@ class Player:
                 if neighbor not in g_score or tentative_g_score < g_score[neighbor]:
                     came_from[neighbor] = current
                     g_score[neighbor] = tentative_g_score
-                    f_score = tentative_g_score + self.heuristic(neighbor, goal)
-                    heapq.heappush(open_set, (f_score, neighbor))
+                    f_score = tentative_g_score + self.heuristic(start, neighbor)
+                    heapq.heappush(open_set, (f_score, tentative_g_score, neighbor))
 
-        # Goal not reachable
+        # No path found
         return None
 
     def move(self, current_percept) -> int:
@@ -227,30 +236,95 @@ class Player:
             self.goal = (curr_x + current_percept.end_x, curr_y + current_percept.end_y)
 
         if self.goal:
-            start = (curr_x, curr_y)
-            goal = self.goal
-
-            # Recompute path every turn
-            path = self.a_star_search(start, goal)
-            if path and len(path) > 1:
-                # Next position to move to
-                next_pos = path[1]
-                # Decide which direction to move
-                dx, dy = next_pos[0] - curr_x, next_pos[1] - curr_y
-                if dx == -1:
-                    move = constants.LEFT
-                elif dx == 1:
-                    move = constants.RIGHT
-                elif dy == -1:
-                    move = constants.UP
-                elif dy == 1:
-                    move = constants.DOWN
-                else:
-                    move = constants.WAIT
-                return move
-            else:
-                # No valid path found, or already at goal
-                return constants.WAIT
+            # Use A* search to the goal
+            return self.perform_a_star_and_get_next_move((curr_x, curr_y), {self.goal})
         else:
-            # Goal is not known; implement exploration strategy or wait
+            # Exploration strategy
+            self.update_visited_and_frontier(curr_x, curr_y)
+
+            if self.frontier_positions:
+                # Use A* search to any of the frontier positions
+                return self.perform_a_star_and_get_next_move(
+                    (curr_x, curr_y), self.frontier_positions
+                )
+
             return constants.WAIT
+
+    def get_grid_cell(self, x, y):
+        grid_x = x // self.cell_size
+        grid_y = y // self.cell_size
+        return (grid_x, grid_y)
+
+    def get_positions_in_grid_cell(self, grid_cell):
+        grid_x, grid_y = grid_cell
+
+        # Define the boundaries of the grid cell
+        min_x = grid_x * self.cell_size
+        max_x = (grid_x + 1) * self.cell_size - 1
+        min_y = grid_y * self.cell_size
+        max_y = (grid_y + 1) * self.cell_size - 1
+
+        # Collect known positions within the grid cell
+        known_positions = set(self.maze_graph.keys())
+        positions = []
+        for x in range(min_x, max_x + 1):
+            for y in range(min_y, max_y + 1):
+                if (x, y) in known_positions:
+                    positions.append((x, y))
+        return positions
+
+    def get_unvisited_neighbors(self, grid_cell):
+        x, y = grid_cell
+        neighbors = []
+        directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+        for dx, dy in directions:
+            neighbor = (x + dx, y + dy)
+            if (
+                neighbor not in self.visited_grid_cells
+                and neighbor not in self.frontier_set
+            ):
+                neighbors.append(neighbor)
+                self.frontier_set.add(neighbor)
+        return neighbors
+
+    def determine_move(self, dx, dy):
+        if dx == -1:
+            return constants.LEFT
+        elif dx == 1:
+            return constants.RIGHT
+        elif dy == -1:
+            return constants.UP
+        elif dy == 1:
+            return constants.DOWN
+        else:
+            return constants.WAIT
+
+    def perform_a_star_and_get_next_move(self, start, goals):
+        path = self.a_star_search(start, goals)
+        if path and len(path) > 1:
+            next_pos = path[1]
+            dx, dy = next_pos[0] - start[0], next_pos[1] - start[1]
+            return self.determine_move(dx, dy)
+        return constants.WAIT
+
+    def update_visited_and_frontier(self, curr_x, curr_y):
+        current_grid_cell = self.get_grid_cell(curr_x, curr_y)
+
+        if current_grid_cell not in self.visited_grid_cells:
+            self.visited_grid_cells.add(current_grid_cell)
+
+            # Remove positions in this grid cell from frontier_positions
+            positions_in_current_grid_cell = set(
+                self.get_positions_in_grid_cell(current_grid_cell)
+            )
+            self.frontier_positions -= positions_in_current_grid_cell
+
+            # Expand the frontier
+            neighbors = self.get_unvisited_neighbors(current_grid_cell)
+            for neighbor in neighbors:
+                self.frontier_set.add(neighbor)
+                # Add positions in neighbor grid cell to frontier_positions
+                positions_in_neighbor_grid_cell = set(
+                    self.get_positions_in_grid_cell(neighbor)
+                )
+                self.frontier_positions |= positions_in_neighbor_grid_cell
