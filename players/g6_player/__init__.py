@@ -108,34 +108,6 @@ class G6_Player:
         # Otherwise, go to target
         return self.__exploit(current_percept)
 
-    def __get_prev_move(self):
-        delta = (
-            self.maze.curr_pos[0] - self.move_history[-1][0],
-            self.maze.curr_pos[1] - self.move_history[-1][1],
-        )
-        if delta == (-1, 0):
-            return LEFT
-        elif delta == (1, 0):
-            return RIGHT
-        elif delta == (0, -1):
-            return DOWN
-        else:
-            return UP
-
-    def __update_history(self):
-        """
-        This function adjusts the move_history ordered list of coordinates that the player has already visited.
-        """
-        if len(self.move_history) == 0:
-            return self.move_history.append(self.maze.curr_pos)
-        elif self.move_history[-1] == self.maze.curr_pos:
-            self.stuck += 1
-            return
-        else:
-            self.stuck = 0
-            self.prev_move = self.__get_prev_move()
-            return self.move_history.append(self.maze.curr_pos)
-
     def __explore(self) -> Move:
         """
         Move towards the southeast corner and perform inward spiral when right

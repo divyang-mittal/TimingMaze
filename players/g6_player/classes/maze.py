@@ -12,7 +12,6 @@ CENTER_POS = map_dim - 1
 class Maze:
     def __init__(self, max_door_freq: int, radius: int, turn: int) -> None:
         self.grid = [[Cell(x=x, y=y) for y in range(GRID_DIM)] for x in range(GRID_DIM)]
-        self.turn = 0
         self.max_door_freq = max_door_freq
         self.radius = radius
         self.turn = turn
