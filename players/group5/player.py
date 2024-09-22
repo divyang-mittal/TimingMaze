@@ -46,6 +46,7 @@ class G5_Player:
         fh.setFormatter(logging.Formatter('%(message)s'))
         self.logger.addHandler(fh)
 
+
     def simple_search(self):
         valid_moves = self.player_map.get_valid_moves(self.turns)
         
@@ -142,12 +143,14 @@ class G5_Player:
             exists, end_pos = self.player_map.get_end_pos_if_known()
             if not exists:
                 move = self.simple_search()
-            else:
-                move = converge(self.player_map.get_cur_pos(), end_pos, self.turns, self.player_map)
-            self.last_move = move
-            self.last_pos = cur_pos
-            
+                return move if move in valid_moves else constants.WAIT  # TODO: this is if-statement is to demonstrate valid_moves is correct (@eylam, replace with actual logic)
+            move = converge(self.player_map.get_cur_pos(), [end_pos], self.turns, self.player_map, self.maximum_door_frequency)
+            return move
+
             return move if move in valid_moves else constants.WAIT
         except Exception as e:
             self.logger.debug(e, e.with_traceback)
             return constants.WAIT
+
+    def simple_search(self):
+        return simple_search(self.player_map, self.radius)
