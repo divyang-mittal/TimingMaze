@@ -2,7 +2,6 @@ import numpy as np
 import logging
 import random
 
-
 from constants import UP, DOWN, LEFT, RIGHT, WAIT, BOUNDARY
 from players.g6_player.classes.typed_timing_maze_state import (
     TypedTimingMazeState,
@@ -34,7 +33,6 @@ class G6_Player:
         self.rng = rng
         self.logger = logger
         self.maximum_door_frequency = maximum_door_frequency
-        self.max_wait_time = self.maximum_door_frequency * (self.maximum_door_frequency-1)
         self.radius = radius
 
         # Variables to facilitate knowing where the player has been and if they are trapped
@@ -44,7 +42,7 @@ class G6_Player:
         self.prev_move = None
 
         # Initialize Maze object to hold information about cells and doors perceived by the drone
-        self.maze = Maze(self.maximum_door_frequency, self.radius, self.turn)
+        self.maze = Maze(self.maximum_door_frequency, self.radius)
 
         # an interim target which the agent tries to navigate towards
         self.search_target = None
@@ -63,7 +61,7 @@ class G6_Player:
         self.turn += 1
         current_percept: TypedTimingMazeState = convert(current_percept)
 
-        self.maze.update(current_percept)
+        self.maze.update(current_percept, self.turn)
         self.__update_history()
         player_move = self.__move(current_percept)
 
@@ -114,7 +112,6 @@ class G6_Player:
         Move towards the southeast corner and perform inward spiral when right
         and down boundaries are visible by drone
         """
-        print("Stuck? {}".format(self.stuck))
         if self.stuck >= (
             self.maximum_door_frequency * (self.maximum_door_frequency - 1)
         ):
@@ -319,6 +316,16 @@ class G6_Player:
 
         if 0 < current_state.end_y:
             return Move.DOWN
+
+        return Move.WAIT
+
+    def __exploit_a_star(self, current_state: TypedTimingMazeState) -> Move:
+        """
+        [TODO] Use the A* shortest_path to generate moves towards the target.:
+        """
+        start = self.maze.curr_pos
+        target = (self.maze.target_pos[0], self.maze.target_pos[1])
+        shortest_path, path_length = self.maze.graph.astar_shortest_path(start, target)
 
         return Move.WAIT
 

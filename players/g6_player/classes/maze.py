@@ -1,4 +1,5 @@
 from players.g6_player.classes.cell import Cell
+from players.g6_player.classes.maze_graph import MazeGraph
 
 from constants import UP, DOWN, RIGHT, LEFT, map_dim
 from players.g6_player.classes.typed_timing_maze_state import TypedTimingMazeState
@@ -10,11 +11,12 @@ CENTER_POS = map_dim - 1
 
 
 class Maze:
-    def __init__(self, max_door_freq: int, radius: int, turn: int) -> None:
+    def __init__(self, max_door_freq: int, radius: int) -> None:
         self.grid = [[Cell(x=x, y=y) for y in range(GRID_DIM)] for x in range(GRID_DIM)]
+        self.graph = MazeGraph()
+        self.turn = 0
         self.max_door_freq = max_door_freq
         self.radius = radius
-        self.turn = turn
         self.curr_pos = (CENTER_POS, CENTER_POS)  # relative to 199x199 grid
         self.north_end = 0
         self.east_end = GRID_DIM - 1
@@ -35,17 +37,27 @@ class Maze:
     def get_cell(self, x: int, y: int) -> Cell:
         return self.grid[x][y]
 
-    def update(self, current_percept: TypedTimingMazeState):
+    def update(self, current_percept: TypedTimingMazeState, turn: int):
         """
         Update current maze with info from the drone
         """
+        self.turn = turn
         self.curr_pos = (
             CENTER_POS - current_percept.start_x,
             CENTER_POS - current_percept.start_y,
         )
 
+        if current_percept.is_end_visible:
+            self.target_pos = (
+                CENTER_POS - current_percept.end_x,
+                CENTER_POS - current_percept.end_y,
+            )
+
+        print("Coordinates: ", self.curr_pos)
+
         self.__update_maze_door_freq(current_percept)
         self.__update_maze_path_freq(current_percept)
+        self.__update_maze_graph(current_percept)
 
     def __update_maze_door_freq(self, current_percept: TypedTimingMazeState):
         """
@@ -76,6 +88,20 @@ class Maze:
             y = self.curr_pos[1] + cell[1]
             self.grid[x][y].update_paths()
         return
+
+    def __update_maze_graph(self, current_percept: TypedTimingMazeState):
+        for cell in current_percept.maze_state:
+            # cell[0]=x, cell[1]=y, cell[2]=door type, cell[3]=door state
+            x = self.curr_pos[0] + cell[0]
+            y = self.curr_pos[1] + cell[1]
+
+            # Update edges that exist between cell and neighbors
+            self.graph.add_edge((x, y), (x + 1, y), weight=self.grid[x][y].e_path)
+            self.graph.add_edge((x, y), (x - 1, y), weight=self.grid[x][y].w_path)
+            self.graph.add_edge((x, y), (x, y + 1), weight=self.grid[x][y].n_path)
+            self.graph.add_edge((x, y), (x, y - 1), weight=self.grid[x][y].s_path)
+
+            # self.graph.display_graph()
 
     def update_boundary(self, curr_cell: Cell, direction: int):
         """
