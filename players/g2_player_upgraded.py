@@ -4,7 +4,7 @@ import numpy as np
 import logging
 import math
 import heapq
-from collections import deque
+from collections import deque, defaultdict
 
 import constants
 from timing_maze_state import TimingMazeState
@@ -53,13 +53,29 @@ class Player:
         self.door_frequencies = {}
         self.default_frequency = sum(range(1, self.maximum_door_frequency + 1))/self.maximum_door_frequency
         
+        self.times_discovered = defaultdict(int)
+        self.current_destination = None
+        
         self.turn_number = 0
+        self.turn_path_changed = 0
+        
+    def determine_destination(self):
+        min_score = float('inf')
+        destination = None
+        for cell in self.times_discovered:
+            score = self.times_discovered[cell] + self.heuristic((self.curr_x, self.curr_y), cell)
+            if score < min_score:
+                min_score = score
+                destination = cell
+        return destination
     
     def update_door_frequencies(self, maze_state):
         for cell_door in maze_state:
             # Convert cell coordinates to global coordinates
             cell_x = cell_door[0] + self.curr_x
             cell_y = cell_door[1] + self.curr_y
+            
+            self.times_discovered[(cell_x, cell_y)] += 1
             
             # If the cell is not in the door frequencies, add it
             if (cell_x, cell_y) not in self.door_frequencies:
@@ -132,9 +148,13 @@ class Player:
                 (0, 1, 3, 1) # Down (x, y + 1, down, up)
             ]
             
-            # MAKE SURE TO CHECK FOR BOUNDARIES!!!
             for move in moves:
                 neighbor = (current[0] + move[0], current[1] + move[1])
+                
+                # Check for boundaries
+                if neighbor not in self.door_frequencies:
+                    continue
+                
                 lcm = self.calculate_LCM(self.door_frequencies[current][move[2]]['frequency'], self.door_frequencies[neighbor][move[3]]['frequency'])
                 tentative_g_score = g_score[current] + lcm - current_turn % lcm
 
@@ -193,23 +213,28 @@ class Player:
         self.turn_number += 1
                 
         self.curr_x, self.curr_y = -current_percept.start_x, -current_percept.start_y
-        print(f'Start: [{self.curr_x}, {self.curr_y}]')
-        if current_percept.is_end_visible:
+        print(f'Current Position: [{self.curr_x}, {self.curr_y}]')
+        
+        if current_percept.is_end_visible and not self.is_end_visible:
             self.target_x = current_percept.end_x + self.curr_x
             self.target_y = current_percept.end_y + self.curr_y
+            self.turn_path_changed = self.turn_number
             self.is_end_visible = True
-            print(f'End: [{self.target_x}, {self.target_y}]')
             
         self.update_door_frequencies(current_percept.maze_state)
         
-        if self.turn_number < 100:
-            return constants.WAIT
+        if self.is_end_visible:
+            if (self.turn_number - self.turn_path_changed) % 5 == 0:
+                path = self.a_star_search((self.curr_x, self.curr_y), (self.target_x, self.target_y))
+                self.path_to_end = self.coordinates_to_moves(path)
+        else:
+            if not self.path_to_end:
+                self.current_destination = self.determine_destination()
+                self.turn_path_changed = self.turn_number
+            if (self.turn_number - self.turn_path_changed) % 5 == 0:
+                path = self.a_star_search((self.curr_x, self.curr_y), self.current_destination)
+                self.path_to_end = self.coordinates_to_moves(path)
         
-        if not self.path_to_end:
-            path = self.a_star_search((self.curr_x, self.curr_y), (self.target_x, self.target_y))
-            print(path)
-            self.path_to_end = self.coordinates_to_moves(path)
-    
         attempted_direction = self.path_to_end[0]
             
         direction = [0, 0, 0, 0]

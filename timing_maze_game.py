@@ -181,7 +181,7 @@ class TimingMazeGame:
                 self.cur_pos = np.array([50, 50])
                 self.start_pos = self.cur_pos.copy()
                 while 1:
-                    self.end_pos = np.array([55, 65])
+                    self.end_pos = np.array([25, 70])
                     if self.end_pos[0] != self.cur_pos[0] and self.end_pos[1] != self.cur_pos[1]:
                         break
 
