@@ -46,6 +46,27 @@ class Cell:
         self.s_cell = south
         self.w_cell = west
 
+    def neighbours(self) -> list[tuple[int, "Cell"]]:
+        """Gets all the cell's non-null neighbours"""
+        neighbours = [
+            c
+            for c in [
+                (self.n_path, self.n_cell),
+                (self.w_path, self.w_cell),
+                (self.e_path, self.e_cell),
+                (self.s_path, self.s_cell),
+            ]
+        ]
+
+        # filter out None neighbours
+        filtered: list[tuple[int, "Cell"]] = [
+            (path, cell)
+            for path, cell in neighbours
+            if path is not None and cell is not None
+        ]
+
+        return filtered
+
     def is_move_available(self, move: Move) -> bool:
         match move:
             case Move.LEFT:
@@ -91,3 +112,12 @@ class Cell:
 
     def __repr__(self) -> str:
         return str(self)
+
+    def __eq__(self, value: "Cell") -> bool:
+        return self.x == value.x and self.y == value.y
+
+    def __hash__(self) -> int:
+        return hash((self.x, self.y))
+
+    def __lt__(self, other):
+        return True
