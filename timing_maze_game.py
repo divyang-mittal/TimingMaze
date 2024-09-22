@@ -8,14 +8,12 @@ from timing_maze_state import TimingMazeState
 from constants import *
 import constants
 from utils import *
-from players.default_player import Player as DefaultPlayer
-from players.group5.player import G5_Player as G5_Player
-from players.G6_Player import G6_Player
-from players.g2_player import Player as DefaultPlayer
+# from players.default_player import Player as DefaultPlayer
+# from players.group5.player import G5_Player as G5_Player
+# from players.G6_Player import G6_Player
+from players.g2_player_upgraded import Player as DefaultPlayer
 from collections import deque as queue
 import tkinter as tk
-
-from players.g1_player import Player as G1_Player
 
 class TimingMazeGame:
     # Direction vectors
@@ -180,12 +178,10 @@ class TimingMazeGame:
             # Generate a frequency for each cell between 0 and max_door_frequency using the rng
             # self.logger.info("Generating random maze using seed {}".format(self.rng.bit_generator.seed))
             while 1:
-                self.cur_pos = np.array([self.rng.integers(0, constants.map_dim),
-                                         self.rng.integers(0, constants.map_dim)])
+                self.cur_pos = np.array([50, 50])
                 self.start_pos = self.cur_pos.copy()
                 while 1:
-                    self.end_pos = np.array([self.rng.integers(0, constants.map_dim),
-                                             self.rng.integers(0, constants.map_dim)])
+                    self.end_pos = np.array([55, 65])
                     if self.end_pos[0] != self.cur_pos[0] and self.end_pos[1] != self.cur_pos[1]:
                         break
 
@@ -375,8 +371,8 @@ class TimingMazeGame:
                 returned_action = self.player.move(
                     current_percept=before_state
                 )
-            except Exception:
-                print("Exception in player code")
+            except Exception as e:
+                print("Exception in player code:", e)
                 returned_action = None
 
             player_time_taken = time.time() - player_start
