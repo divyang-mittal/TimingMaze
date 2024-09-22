@@ -11,13 +11,11 @@ CENTER_POS = map_dim - 1
 
 
 class Maze:
-    def __init__(self, max_door_freq: int, radius: int) -> None:
+    def __init__(self) -> None:
         self.grid = [[Cell(x=x, y=y) for y in range(GRID_DIM)] for x in range(GRID_DIM)]
         self.graph = MazeGraph()
         self.turn = 0
-        self.max_door_freq = max_door_freq
-        self.radius = radius
-        # self.curr_cell: Cell = self.grid[CENTER_POS][CENTER_POS]
+        self.target_pos = None
         self.curr_pos = (CENTER_POS, CENTER_POS)  # relative to 199x199 grid
         self.north_end = 0
         self.east_end = GRID_DIM - 1
@@ -34,6 +32,13 @@ class Maze:
                     self.grid[i][j + 1] if j < GRID_DIM - 1 else None,
                     self.grid[i - 1][j] if i > 0 else None,
                 )
+
+    def current_cell(self) -> Cell:
+        """
+        Return current cell of player
+        """
+        x, y = self.curr_pos
+        return self.grid[x][y]
 
     def get_cell(self, x: int, y: int) -> Cell:
         return self.grid[x][y]

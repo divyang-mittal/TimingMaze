@@ -40,7 +40,7 @@ class G6_Player:
         self.prev_move = None
 
         # Initialize Maze object to hold information about cells and doors perceived by the drone
-        self.maze = Maze(self.maximum_door_frequency, self.radius)
+        self.maze = Maze()
 
         # an interim target which the agent tries to navigate towards
         self.search_target = None
@@ -132,8 +132,7 @@ class G6_Player:
         """
         Check if boundary is in sight in the given direction
         """
-        curr_x, curr_y = self.maze.curr_pos
-        curr_cell = self.maze.get_cell(curr_x, curr_y)
+        curr_cell = self.maze.current_cell()
 
         for _ in range(self.radius + 1):
             if direction == RIGHT:
@@ -229,8 +228,7 @@ class G6_Player:
             )
 
     def __get_available_moves(self):
-        curr_x, curr_y = self.maze.curr_pos
-        curr_cell = self.maze.get_cell(curr_x, curr_y)
+        curr_cell = self.maze.current_cell()
         curr_available_moves = []
 
         for move in Move:
