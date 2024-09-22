@@ -5,7 +5,7 @@ from os import system
 import constants
 from typing import List, Optional, Set, Tuple
 
-from players.group5.player_map import PlayerMapInterface, SimplePlayerCentricMap, StartPosCentricPlayerMap
+from players.group5.player_map import PlayerMapInterface
 from players.group5.door import DoorIdentifier
 
 def converge(current_pos : list, goal : list[list[int]], turn : int, player_map: PlayerMapInterface, max_door_frequency) -> int:
@@ -57,16 +57,28 @@ def dyjkstra(current_pos : list, goal : list[list[int]], turn : int, player_map:
 
 			if move == constants.LEFT:
 				neighbor = [current_pos[0] - 1, current_pos[1]]
-				door = DoorIdentifier([current_pos[0], current_pos[1]], constants.LEFT)
+				door = DoorIdentifier(
+					absolute_coord=[current_pos[0], current_pos[1]],
+					door_type=constants.LEFT,
+				)
 			elif move == constants.UP:
 				neighbor = [current_pos[0], current_pos[1] - 1]
-				door = DoorIdentifier([current_pos[0], current_pos[1]], constants.UP)
+				door = DoorIdentifier(
+					absolute_coord=[current_pos[0], current_pos[1]], 
+					door_type=constants.UP,
+				)
 			elif move == constants.RIGHT:
 				neighbor = [current_pos[0] + 1, current_pos[1]]
-				door = DoorIdentifier([current_pos[0], current_pos[1]], constants.RIGHT)
+				door = DoorIdentifier(
+					absolute_coord=[current_pos[0], current_pos[1]], 
+					door_type=constants.RIGHT,
+				)
 			elif move == constants.DOWN:
 				neighbor = [current_pos[0], current_pos[1] + 1]
-				door = DoorIdentifier([current_pos[0], current_pos[1]], constants.DOWN)
+				door = DoorIdentifier(
+					absolute_coord=[current_pos[0], current_pos[1]], 
+					door_type=constants.DOWN,
+				)
 
 			# Calculate the cost of the neighbor
 			# TODO make a special function that calculates based on observations of wall intervals

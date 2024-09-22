@@ -1,6 +1,6 @@
 import os
 
-map_dim = 10
+map_dim = 100
 
 default_maze = os.path.join("maps", "default", "simple.json")
 
@@ -22,6 +22,6 @@ BOUNDARY = 3
 
 timeout = 60 * 10
 
-CELL_SIZE = 80
+CELL_SIZE = 8
 
 # two doors visible, drone radius
