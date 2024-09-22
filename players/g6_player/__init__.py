@@ -57,10 +57,9 @@ class G6_Player:
         Increments the turn count and updates the maze with the current percept. Calls
         __move() to determine the next move.
         """
-        self.turn += 1
         current_percept: TypedTimingMazeState = convert(current_percept)
 
-        self.maze.update(current_percept, self.turn)
+        self.maze.update(current_percept)
         self.__update_history()
         player_move = self.__move(current_percept)
 
