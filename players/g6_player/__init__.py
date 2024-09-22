@@ -34,15 +34,17 @@ class G6_Player:
         self.rng = rng
         self.logger = logger
         self.maximum_door_frequency = maximum_door_frequency
+        self.max_wait_time = self.maximum_door_frequency * (self.maximum_door_frequency-1)
         self.radius = radius
 
         # Variables to facilitate knowing where the player has been and if they are trapped
+        self.turn = 0
         self.stuck = 0
         self.move_history = []
         self.prev_move = None
 
         # Initialize Maze object to hold information about cells and doors perceived by the drone
-        self.maze = Maze(self.maximum_door_frequency, self.radius)
+        self.maze = Maze(self.maximum_door_frequency, self.radius, self.turn)
 
         # an interim target which the agent tries to navigate towards
         self.search_target = None
@@ -58,6 +60,7 @@ class G6_Player:
         Increments the turn count and updates the maze with the current percept. Calls
         __move() to determine the next move.
         """
+        self.turn += 1
         current_percept: TypedTimingMazeState = convert(current_percept)
 
         self.maze.update(current_percept)
@@ -65,6 +68,34 @@ class G6_Player:
         player_move = self.__move(current_percept)
 
         return player_move.value
+
+    def __update_history(self):
+        """
+        This function adjusts the move_history ordered list of coordinates that the player has already visited.
+        """
+        if len(self.move_history) == 0:
+            return self.move_history.append(self.maze.curr_pos)
+        elif self.move_history[-1] == self.maze.curr_pos:
+            self.stuck += 1
+        else:
+            self.stuck = 0
+
+        self.prev_move = self.__get_prev_move()
+        return self.move_history.append(self.maze.curr_pos)
+
+    def __get_prev_move(self):
+        delta = (
+            self.maze.curr_pos[0] - self.move_history[-1][0],
+            self.maze.curr_pos[1] - self.move_history[-1][1],
+        )
+        if delta == (-1, 0):
+            return LEFT
+        elif delta == (1, 0):
+            return RIGHT
+        elif delta == (0, -1):
+            return DOWN
+        else:
+            return UP
 
     def __move(self, current_percept: TypedTimingMazeState) -> Move:
         """
@@ -256,7 +287,9 @@ class G6_Player:
             ]:
                 return available_move
             else:
-                return WAIT
+                return Move.WAIT
+
+
 
     def __greedy_move(self, directions: list[int] = [], target: tuple = ()) -> Move:
         """
@@ -285,6 +318,10 @@ class G6_Player:
                 return Move.UP
 
         return Move.WAIT
+
+    def __panic_escape(self):
+        curr_available_moves = self.__get_available_moves()
+        return random.choice(curr_available_moves)
 
     def __exploit(self, current_state: TypedTimingMazeState) -> Move:
         """

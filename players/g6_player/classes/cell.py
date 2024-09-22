@@ -2,6 +2,7 @@ from players.g6_player.data import Move
 from players.g6_player.classes.door import Door
 from typing import Optional
 from constants import OPEN
+from math import lcm
 
 
 class Cell:
@@ -76,8 +77,13 @@ class Cell:
 
     def update_paths(self):
         """
-        [TODO] To be used for A-star or Dijkstra's algorithm
+        Calculates the path frequency for each direction using the least common multiple
         """
+        self.n_path = lcm(self.n_door.freq, self.n_cell.s_door.freq)
+        self.s_path = lcm(self.s_door.freq, self.s_cell.n_door.freq)
+        self.e_path = lcm(self.e_door.freq, self.e_cell.w_door.freq)
+        self.w_path = lcm(self.w_door.freq, self.w_cell.e_door.freq)
+
         pass
 
     def __str__(self) -> str:
