@@ -2,6 +2,7 @@ import numpy as np
 import logging
 
 from constants import UP, DOWN, LEFT, RIGHT, WAIT, BOUNDARY
+from players.g6_player.a_star import a_star
 from players.g6_player.classes.typed_timing_maze_state import (
     TypedTimingMazeState,
     convert,
@@ -294,23 +295,11 @@ class G6_Player:
         b) when we are not getting closer to the target after a certain number of turns
         c) 10% random chance for any given turn
         """
+
         assert current_state.end_x is not None
         assert current_state.end_y is not None
 
-        if self.rng.random() < 0.1:
-            return self.rng.choice([move.value for move in Move])
-
-        if 0 > current_state.end_x:
-            return Move.LEFT
-
-        if 0 < current_state.end_x:
-            return Move.RIGHT
-
-        if 0 > current_state.end_y:
-            return Move.UP
-
-        if 0 < current_state.end_y:
-            return Move.DOWN
+        result = a_star(self.maze.current_cell(), self.maze.target_cell())
 
         return Move.WAIT
 
