@@ -154,18 +154,46 @@ class Player:
             for x, dist in enumerate(min_dist_array[y]):
                 if dist < float("inf"):
                     # Find new Squares
-                    options[(y, x)] = dist
+                    options[(y, x)] = {"dist": dist, "euclidean_dist": math.sqrt((y - self.memory.pos[0]) ** 2 + (x - self.memory.pos[1]) ** 2), "final_score": 0}
         
         most_new_visible_squares = 0
         best_new_pos = self.memory.pos
         boundary: Boundary = self.memory.get_boundary_coords()
         for new_pos in options:
             num_unseen_squares = len(self.get_unseen_squares(new_pos, boundary))
-            if num_unseen_squares > most_new_visible_squares:
-                most_new_visible_squares = num_unseen_squares
-                best_new_pos = new_pos
+            options[new_pos]["num_unseen"] = num_unseen_squares
+        
+        best_new_pos = self.generate_best_option(options, min_dist_array)
+            # if num_unseen_squares > most_new_visible_squares:
+            #     most_new_visible_squares = num_unseen_squares
+            #     best_new_pos = new_pos
 
         return best_new_pos
+    
+    def generate_best_option(self, options, min_dist_array):
+        # This function is the "brain" of exploring
+        # The weights are arbitrary at the moment
+        best_score = 0
+        best_pos = self.memory.pos
+        unseen_weight = 2
+        distance_weight = 1
+        time_weight = 1
+        min_min_dist = np.min(min_dist_array)
+        max_min_dist = np.max(min_dist_array)
+        for pos in options:
+            final_score = (
+                # Normalizing each factor
+                unseen_weight * np.floor((options[pos]["num_unseen"] - 0) / (3 * self.radius**2)) + 
+                # The more times we visited the current square - the less we encourage going far
+                distance_weight * np.floor((options[pos]["euclidean_dist"] - 0) / (self.radius)) / (1 + self.memory.memory[self.memory.pos[0]][self.memory.pos[1]].visited) +
+                1 / (1 + time_weight * np.floor((options[pos]["dist"] - min_min_dist) / (max_min_dist)))
+            )
+            options[pos]["final_score"] = final_score
+            if final_score > best_score:
+                best_score = final_score
+                best_pos = pos
+        return best_pos
+
     
     # def find_min_time_max_dist(self, options):
     #     best = self.memory.pos
