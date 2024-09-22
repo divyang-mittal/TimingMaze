@@ -79,7 +79,6 @@ class Maze:
                 self.grid[x][y].s_door.update(cell.door_state, self.turn)
             elif cell.door_type == LEFT:
                 self.grid[x][y].w_door.update(cell.door_state, self.turn)
-        return
 
     def __update_maze_path_freq(self, current_percept: TypedTimingMazeState):
         """
@@ -89,7 +88,6 @@ class Maze:
             x = self.curr_pos[0] + cell.row
             y = self.curr_pos[1] + cell.col
             self.grid[x][y].update_paths()
-        return
 
     def __update_maze_graph(self, current_percept: TypedTimingMazeState):
         for cell in current_percept.maze_state:

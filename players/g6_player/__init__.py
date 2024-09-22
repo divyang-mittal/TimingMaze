@@ -72,11 +72,10 @@ class G6_Player:
             return self.move_history.append(self.maze.curr_pos)
         elif self.move_history[-1] == self.maze.curr_pos:
             self.stuck += 1
-            return
         else:
             self.stuck = 0
             self.prev_move = self.__get_prev_move()
-            return self.move_history.append(self.maze.curr_pos)
+            self.move_history.append(self.maze.curr_pos)
 
     def __get_prev_move(self):
         delta = (
