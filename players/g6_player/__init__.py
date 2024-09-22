@@ -2,7 +2,6 @@ import numpy as np
 import logging
 import random
 
-
 from constants import UP, DOWN, LEFT, RIGHT, WAIT, BOUNDARY
 from players.g6_player.classes.typed_timing_maze_state import (
     TypedTimingMazeState,
@@ -58,38 +57,14 @@ class G6_Player:
         Increments the turn count and updates the maze with the current percept. Calls
         __move() to determine the next move.
         """
+        self.turn += 1
         current_percept: TypedTimingMazeState = convert(current_percept)
 
-        self.maze.update(current_percept)
+        self.maze.update(current_percept, self.turn)
         self.__update_history()
         player_move = self.__move(current_percept)
 
         return player_move.value
-
-    def __move(self, current_percept: TypedTimingMazeState) -> Move:
-        """
-        Helper function to move().
-        """
-        # Explore map to get target within drone's view
-        if not current_percept.is_end_visible:
-            return self.__explore()
-
-        # Otherwise, go to target
-        return self.__exploit(current_percept)
-
-    def __get_prev_move(self):
-        delta = (
-            self.maze.curr_pos[0] - self.move_history[-1][0],
-            self.maze.curr_pos[1] - self.move_history[-1][1],
-        )
-        if delta == (-1, 0):
-            return LEFT
-        elif delta == (1, 0):
-            return RIGHT
-        elif delta == (0, -1):
-            return DOWN
-        else:
-            return UP
 
     def __update_history(self):
         """
@@ -105,12 +80,37 @@ class G6_Player:
             self.prev_move = self.__get_prev_move()
             return self.move_history.append(self.maze.curr_pos)
 
+    def __get_prev_move(self):
+        delta = (
+            self.maze.curr_pos[0] - self.move_history[-1][0],
+            self.maze.curr_pos[1] - self.move_history[-1][1],
+        )
+
+        if delta == (-1, 0):
+            return LEFT
+        elif delta == (1, 0):
+            return RIGHT
+        elif delta == (0, -1):
+            return DOWN
+        else:
+            return UP
+
+    def __move(self, current_percept: TypedTimingMazeState) -> Move:
+        """
+        Helper function to move().
+        """
+        # Explore map to get target within drone's view
+        if not current_percept.is_end_visible:
+            return self.__explore()
+
+        # Otherwise, go to target
+        return self.__exploit(current_percept)
+
     def __explore(self) -> Move:
         """
         Move towards the southeast corner and perform inward spiral when right
         and down boundaries are visible by drone
         """
-
         if self.stuck >= (
             self.maximum_door_frequency * (self.maximum_door_frequency - 1)
         ):
@@ -256,7 +256,7 @@ class G6_Player:
             ]:
                 return available_move
             else:
-                return WAIT
+                return Move.WAIT
 
     def __greedy_move(self, directions: list[int] = [], target: tuple = ()) -> Move:
         """
@@ -286,6 +286,10 @@ class G6_Player:
 
         return Move.WAIT
 
+    def __panic_escape(self):
+        curr_available_moves = self.__get_available_moves()
+        return random.choice(curr_available_moves)
+
     def __exploit(self, current_state: TypedTimingMazeState) -> Move:
         """
         [TODO] Implement A star algorithm
@@ -308,6 +312,16 @@ class G6_Player:
 
         if 0 < current_state.end_y:
             return Move.DOWN
+
+        return Move.WAIT
+
+    def __exploit_a_star(self, current_state: TypedTimingMazeState) -> Move:
+        """
+        [TODO] Use the A* shortest_path to generate moves towards the target.:
+        """
+        start = self.maze.curr_pos
+        target = (self.maze.target_pos[0], self.maze.target_pos[1])
+        shortest_path, path_length = self.maze.graph.astar_shortest_path(start, target)
 
         return Move.WAIT
 
