@@ -245,9 +245,6 @@ class G6_Player:
         curr_available_moves = self.__get_available_moves()
 
         # [TODO] - this will not work if there is a full three-sided trap (like a maze with a dead end).
-        print("Previous move: {}".format(self.prev_move))
-        print("Available moves: {}".format(curr_available_moves))
-
         for available_move in curr_available_moves:
             if self.prev_move in [RIGHT, LEFT] and available_move in [
                 Move.UP,
