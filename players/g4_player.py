@@ -2,7 +2,7 @@ from collections import defaultdict
 import heapq
 import random
 import time
-from constants import WAIT, LEFT, UP, RIGHT, DOWN
+from constants import WAIT, LEFT, UP, RIGHT, DOWN, CLOSED, OPEN, BOUNDARY
 import os
 import pickle
 import numpy as np
@@ -49,6 +49,10 @@ class Player:
         self.start = (0, 0)
         self.goal = None
         self.maze_graph = defaultdict(dict)
+
+        # Used for the exploration values strategy
+        self.temp_goal = None
+        self.exploration_values = {}
 
         # Calculate the grid cell size based on the radius
         self.cell_size = max(int(self.radius / math.sqrt(2)), 1)
@@ -114,6 +118,45 @@ class Player:
                 self.maze_graph[cell_pos][neighbor_pos] = expected_cost
                 self.maze_graph[neighbor_pos][cell_pos] = expected_cost
 
+    def update_exploration_values(self, curr_x, curr_y, current_percept):
+        for dX, dY, door, state in current_percept.maze_state:
+            cell_pos = (curr_x + dX, curr_y + dY)
+
+            # If the cell hasn't been explored yet, initialize its value
+            if cell_pos not in self.exploration_values:
+                self.exploration_values[cell_pos] = 0
+
+            # Each turn we see a cell, increase value by 1 (4 doors * .25 = 1)
+            self.exploration_values[cell_pos] += 0.25
+
+            # Further cells get lower increments based on distance
+            if dX != 0 and dY != 0:
+                self.exploration_values[cell_pos] += (1 / abs(dX) + 1 / abs(dY))
+            elif dX == 0 and dY != 0:
+                self.exploration_values[cell_pos] += 1 / abs(dY)
+            elif dY == 0 and dX != 0:
+                self.exploration_values[cell_pos] += 1 / abs(dX)
+        
+            # cells with boundary doors get lower values, but with decaying penalty
+            decay_factor = max(1, self.exploration_values[cell_pos] / 10)
+            if state == BOUNDARY:
+                self.exploration_values[cell_pos] -= 1 / decay_factor
+
+            # cells which contain very high frequency doors get high values
+            door_freqs = self.frequencies_per_cell[(cell_pos[0], cell_pos[1], door)]
+            # if len(door_freqs) == 1:
+            #     if self.maximum_door_frequency - door_freqs[0] <= 1:
+            #         self.exploration_values[cell_pos] += 5
+        
+        # After each move, apply a small decay to all previously explored cells
+        self.decay_exploration_values
+
+    def decay_exploration_values(self):
+        decay_rate = 0.99
+        for cell_pos in self.exploration_values:
+            if self.exploration_values[cell_pos] > 0:
+                self.exploration_values[cell_pos] *= decay_rate
+    
     def lcm(self, a, b):
         # Return 0 if one of the values is 0 (door never opens)
         if a == 0 or b == 0:
@@ -209,6 +252,34 @@ class Player:
         # No path found
         return None
 
+    def get_visible_cells(self, curr_x, curr_y, maze_state):
+        visible_cells = []
+        for dX, dY, door, state in maze_state:
+            cell_pos = (curr_x + dX, curr_y + dY)
+
+            if cell_pos not in visible_cells:
+                visible_cells.append(cell_pos)
+        
+        return visible_cells
+
+    def select_next_temp_goal(self, curr_x, curr_y, current_percept):
+        start = (curr_x, curr_y)
+        visible_cells = self.get_visible_cells(curr_x, curr_y, current_percept.maze_state)
+
+        def score(cell):
+            # Calculate the weighted score based on exploration value and distance
+            exploration_value = self.exploration_values.get(cell, float('inf'))
+            distance_to_cell = self.heuristic(start, cell)
+            alpha = 0.7  # weight for exploration value
+            beta = 0.3   # weight for distance
+            return alpha * exploration_value + beta * distance_to_cell
+        
+        # Filter out the current position from visible_cells
+        valid_cells = [cell for cell in visible_cells if (cell[0], cell[1]) != start]
+
+        # Select the cell with the lowest score
+        return min(valid_cells, key=score)
+    
     def move(self, current_percept) -> int:
         """Function which retrieves the current state of the maze and returns a movement action.
 
@@ -231,9 +302,20 @@ class Player:
         # Update graph based on current percept
         self.update_graph(curr_x, curr_y, current_percept)
 
+        # Update exploration values for the cells in drone vision
+        self.update_exploration_values(curr_x, curr_y, current_percept)
+
+        start = (curr_x, curr_y)
+
         # Update goal if end is visible
         if current_percept.is_end_visible:
             self.goal = (curr_x + current_percept.end_x, curr_y + current_percept.end_y)
+        # THIS COMMENTED OUT CODE WAS USED FOR EXPLORATION VALUES STRATEGY
+        #elif self.temp_goal is None or self.heuristic(start, self.temp_goal) <= self.radius // 3:
+        #    self.temp_goal = self.select_next_temp_goal(curr_x, curr_y, current_percept)
+
+        #goal = self.goal if self.goal is not None else self.temp_goal
+        # [perform A* search on goal to get next move]
 
         if self.goal:
             # Use A* search to the goal
