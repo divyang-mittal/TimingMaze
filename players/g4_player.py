@@ -131,10 +131,10 @@ class Player:
 
         return result
 
-    """Function which returns an approximation of the number of turns from the current turn needed to
+    def avg_time_for_both_doors_to_open(self, door1_freq_set, door2_freq_set):
+        """Function which returns an approximation of the number of turns from the current turn needed to
         wait before adjacent doors are open at the same time"""
 
-    def avg_time_for_both_doors_to_open(self, door1_freq_set, door2_freq_set):
         total_sum = 0
         count = 0
 
