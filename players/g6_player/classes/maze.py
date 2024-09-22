@@ -40,6 +40,21 @@ class Maze:
         x, y = self.curr_pos
         return self.grid[x][y]
 
+    def target_cell(self) -> Cell:
+        """
+        Returns the target cell
+        Throws an error if there is no target cell
+        """
+        if self.target_pos is None:
+            raise Exception("no target pos found")
+
+        target = self.grid[self.target_pos[0]][self.target_pos[1]]
+
+        if not isinstance(target, Cell):
+            raise Exception("target cell isn't a cell")
+
+        return target
+
     def get_cell(self, x: int, y: int) -> Cell:
         return self.grid[x][y]
 
