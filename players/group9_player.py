@@ -89,15 +89,15 @@ class Player:
         self.corners = [[100, 100], [100, 100], [100, 100], [100, 100]] # (Left, Bottom), (Left, Top), (Right, Top), (Right, Bottom), 
         self.past_moves = []
         self.past_coords = [] 
-        self.sorted_moves = {}
+        self.move_regrets = {}
         self.waited = 0
         self.escaping = False
         self.escape_route = deque([])
 
     class Corner:
-        def __init__(self, x, y):
-            self.end_x = x
-            self.end_y = y
+        def __init__(self, end_x, end_y) -> None:
+            self.end_x = end_x
+            self.end_y = end_y
 
     def update_graph_information(self, current_percept):
         """
@@ -137,6 +137,7 @@ class Player:
             self.corners[direction][x_or_y] = coordinates[x_or_y]
             self.corners[(direction + 1) % 4][x_or_y] = coordinates[x_or_y]
             # print(self.boundary)
+            # print(self.corners)
 
     def update_cell_value(self, coordinates, door_type):
         """
@@ -164,7 +165,7 @@ class Player:
             if not coords_valid or tuple(self.corners[i]) in self.values:
                 continue
             dist_from_corner = manhattan_dist(tuple(self.corners[i]), tuple(self.cur_pos))
-            if dist_from_corner <= math.sqrt(2(self.radius ** 2)) + self.radius:
+            if dist_from_corner <= math.sqrt(2 * (self.radius ** 2)) + self.radius:
                 return tuple(self.corners[i])
 
         return (100, 100)
@@ -178,15 +179,21 @@ class Player:
         for i in range(4):
             door_freq = self.door_states[coord][i]
             neighbor_door_freq = self.door_states[neighbors[i]][opposite(i)]
+            # print("Direction: ", i, "Door Freq: ", door_freq)
+            # print("Neighbor Direction: ", opposite(i), "Neighbor Door Freq: ", neighbor_door_freq)
 
             if door_freq <= 0 or neighbor_door_freq <= 0:
                 costs.append(-1)
             else:
                 common_freq = LCM(door_freq, neighbor_door_freq)
-                if current_turn >= common_freq:
-                    while (common_freq < current_turn):
-                        common_freq *= 2
-                costs.append(common_freq - current_turn)
+                can_move = common_freq
+                # print("Common Freq: ", common_freq)
+                if can_move >= common_freq:
+                    # print("Current Turn is larger than common freq")
+                    while (can_move < current_turn):
+                        can_move += common_freq
+                # print("Resulting common freq and current turn", can_move, current_turn)
+                costs.append(can_move - current_turn)
                     
         return costs
 
@@ -194,89 +201,142 @@ class Player:
     def find_best_out(self):
         hard_limit = -1
         added_steps = 0
+        move_taken = opposite(self.past_moves[-1])
 
         memo = {}
         memo_move = {}
         checked_coords = set()
-
+        print("Before evaluating Current Position")
         # Check current coord
         checked_coords.add(tuple(self.cur_pos)) 
         costs = self.cost_of_directions(tuple(self.cur_pos), added_steps)
-        # sorted_moves = self.sorted_moves[tuple(self.cur_pos)]
-        fastest_moves = sorted(range(len(costs)), key=lambda k : costs[k])
+        print("Cost of moving in current position: ", costs)
+
+        fastest_moves = sorted(range(len(costs)), key=lambda k : (costs[k], self.move_regrets[tuple(self.cur_pos)][k]))
+
+        print("After finding fastest moves")
+
         for move in fastest_moves:
-            if move != opposite(self.past_moves[-1]):
+            if move != move_taken and costs[move] >= 0:
+                print("---Setting Memo Stuff---")
                 cost = costs[move]
                 memo[tuple(self.cur_pos)] = cost
-
+                print("Cost of fastest move:", move, cost)
+                
                 actions = [constants.WAIT for i in range(cost)]
                 actions.append(move)
+                print("What I need to do to get out: ", actions)
 
                 memo_move[tuple(self.cur_pos)] = actions
-
                 break
 
-        # Error Check
+        print("After updating fastest moves in memoization")
+
+        added_steps += (1 + costs[move_taken])
+
+        # There are no moves found
         if not memo or not memo_move:
-            self.logger.error("Memo or Memo_move has not been filled")
+            print("No valid moves found, adding backtrack to memo")
+            cost = costs[move_taken]
+            memo[tuple(self.cur_pos)] = cost
+            
+            actions = [constants.WAIT for i in range(cost)]
+            actions.append(move_taken)
 
+            memo_move[tuple(self.cur_pos)] = actions
+        else:
+            # Set a hard limit
+            for i in range(3, -1, -1):
+                cost = costs[fastest_moves[i]]
+                if cost != -1 and fastest_moves[i] != move_taken:
+                    hard_limit = cost + 1
+                    break
+                
+            print("Hard Limit: ", hard_limit)
 
-        for i in range(3, -1, -1):
-            cost = costs[fastest_moves[i]]
-            if cost != -1:
-                hard_limit = cost
-                break
+            # If backtracking takes more time then just waiting for a door to open
+            if hard_limit != -1 and added_steps >= hard_limit:
+                print("It is better to wait for another door to open")
+                # print(memo_move[tuple(self.cur_pos)])
+                # print(self.escape_route)
 
-        if hard_limit == -1:
-            self.logger.error("No Cost for Moves have been found")
+                self.escaping = True
+                self.escape_route = deque(memo_move[tuple(self.cur_pos)])
 
-        if hard_limit == memo[tuple(self.cur_pos)]:
-            self.logger.log("There was only the option to go back, either need more info or dead end")
-            return constants.WAIT
-        
-        added_steps += costs[opposite(self.past_moves[-1])]
+                return self.escape_route.popleft()
 
-        # If backtracking takes more time then just waiting
-        if added_steps >= hard_limit:
-            self.escape_route = deque(memo_move[tuple(self.cur_pos)])
+            print("After added_steps condition")
 
-            return self.escape_route.popleft()
-        
-        move_taken = opposite(self.past_moves[-1])
-        moves_taken = 1
+        print("Before checking Past Coords")
         # Check all past coords to find if there is some out.
         for i in range(len(self.past_coords) - 1, -1, -1):
             coord = self.past_coords[i]
+            prev_move = self.past_moves[i - 1] if i > 0 else -1
+
             if coord in checked_coords:
                 continue
-            checked_coords.add(coord)
 
+            checked_coords.add(coord)
+            print("Before finding costs of directions")
             costs = self.cost_of_directions(coord, added_steps)
-            fastest_moves = sorted(range(len(costs)), key=lambda k : costs[k])
+            fastest_moves = sorted(range(len(costs)), key=lambda k : (costs[k], self.move_regrets[coord][k]))
+            print("Before looping through fastest moves")
+
             for move in fastest_moves:
-                if move != opposite(self.past_moves[(-1 - moves_taken)]):
+                if move != opposite(prev_move) and costs[move] >= 0:
+                    print("Found something")
                     cost = costs[move]
-                    prev_coord = get_neighbor(coord, opposite(move_taken))
+                    prev_coord = None
+                    print("Before prev coord")
+                    if i == (len(self.past_coords) - 1):
+                        prev_coord = tuple(self.cur_pos)
+                    else:
+                        prev_coord = self.past_coords[i + 1]
+                    print("After prev coord")
+                    print("Current coord: ", coord)
+                    print("Prev coord: ", prev_coord)
 
                     memo[coord] = cost
 
                     cur_actions = [constants.WAIT for i in range(cost)]
                     cur_actions.append(move)
-
-                    prev_actions = memo_move[prev_coord]
-
+                    print("Before prev actions")
+                    if prev_coord in memo_move:
+                        prev_actions = memo_move[prev_coord]
+                    else:
+                        print("Could not find prev coordinate in MemoMove")
+                    print(prev_actions)
+                    print("Before extend")
                     memo_move[coord] = prev_actions.extend(cur_actions)
-
-                    if (cost + memo[prev_coord]) >= hard_limit:
-                        self.escape_route = deque(memo_move[prev_coord])
-
-                        return self.escape_route.popleft()
-                    
-                    moves_taken += 1
-                    move_taken = move
+                    print("After extend")
                     break
+            
+            added_steps += 1 + costs[opposite(prev_move)]
 
+
+            if coord not in memo or coord not in memo_move:
+                print("No valid moves found at", coord)
+                cost = costs[opposite(prev_move)]
+                memo[coord] = cost
+                
+                actions = [constants.WAIT for i in range(cost)]
+                actions.append(opposite(prev_move))
+
+                memo_move[coord] = actions
+            else:
+                if hard_limit == -1 or added_steps >= hard_limit:
+                    self.escape_route = deque(memo_move[prev_coord])
+                    self.escaping = True
+
+                    return self.escape_route.popleft()                    
+
+            print("FINISHED CHECKING ", i)
+
+        print("Reached the end")
+        self.escape_route = deque(memo_move[(0, 0)])
         self.escaping = True
+
+        return constants.WAIT
 
     def move(self, current_percept) -> int:
         """Function which retrieves the current state of the amoeba map and returns an amoeba movement
@@ -295,25 +355,38 @@ class Player:
         self.update_graph_information(current_percept)
 
         if self.escaping:
-            best_move = self.escape_route.popleft()
-            if self.escape_route:
+            print("Player is attempting to escape!")
+            if not self.escape_route:
                 self.escaping = False
-            self.update_position(best_move)
-            return best_move
+            else:
+                best_move = self.find_best_out()
+            
+                if best_move != constants.WAIT:
+                    self.update_position(best_move)
+
+                return best_move
 
         if current_percept.is_end_visible:
             best_move = self.move_toward_visible_end(current_percept)
-            self.update_position(best_move)
+            if best_move != constants.WAIT:
+                self.update_position(best_move)
             return best_move
-
+        # print("Before running close to corner")
         corner_coord = self.close_to_corner()
+        # print("After running close to corner")
+        # print(corner_coord)
         if (corner_coord != (100, 100)):
-            self.logger.log("I am close to a corner")
-            best_move = self.move_toward_visible_end(self.Corner(corner_coord[0], corner_coord[1]))
-            self.update_position(best_move)
-            return best_move
+            print("I am close to a corner")
 
-        moves = [constants.LEFT, constants.TOP, constants.RIGHT, constants.BOTTOM]
+            # corner = self.Corner(corner_coord[0], corner_coord[1])
+
+            # best_move = self.move_toward_visible_end()
+
+            # self.update_position(best_move)
+            # return best_move
+        # print("After condition corner check")
+
+        moves = [constants.LEFT, constants.UP, constants.RIGHT, constants.DOWN]
 
         available_moves = []
         for i in range(4):
@@ -323,14 +396,14 @@ class Player:
 
                 changed_dim = self.cur_pos[x_or_y] + (self.radius * neg_or_pos)
                 # Check if we have found a boundary and whether or not our vision is beyond it
-                if self.boundary[i] != 100 and abs(changed_dim) >= abs(self.boundary[move]):
+                if self.boundary[i] != 100 and abs(changed_dim) >= abs(self.boundary[i]):
                     continue
 
                 available_moves.append(i)
 
         if not available_moves:
             return constants.WAIT
-
+        # print("Before Epsilon Greedy")
         #Epsilon-Greedy 
         exploit = random.choices([True, False], weights = [(1 - self.epsilon), self.epsilon], k = 1)
         best_move = constants.WAIT
@@ -344,14 +417,14 @@ class Player:
                 x_or_y = 0 if move % 2 == 0 else 1
                 neg_or_pos = -1 if move <= 1 else 1
                 changed_dim = self.cur_pos[x_or_y] + (self.radius * neg_or_pos)
-                if self.boundary[i] != 100 and abs(changed_dim) >= abs(self.boundary[move]):
+                if self.boundary[move] != 100 and abs(changed_dim) >= abs(self.boundary[move]):
                     move_regret.append(math.inf)
                     continue
                 target_coord = (changed_dim if x_or_y == 0 else self.cur_pos[0], changed_dim if x_or_y == 1 else self.cur_pos[1]) 
                 # print("Boundary: ", self.boundary)
                 # print("Boundary Check: ", self.boundary[move])
                 # print("Shifted dim: ", changed_dim)
-                
+                # print("Before Regret")
                 regret = 0
 
                 for i in range(-1, 2, 1):
@@ -360,19 +433,24 @@ class Player:
                         if cur_coord in self.values:
                             val = self.values[cur_coord]
                             regret += val 
+                # print("After heuritics calculations")
                 move_regret.append(regret)
             
-            sorted_move_regret = sorted(range(len(move_regret)), key=lambda k : move_regret[k])
-            self.sorted_moves[self.cur_pos] = sorted_move_regret
+            # print("I am out of checking moves")
+            self.move_regrets[tuple(self.cur_pos)] = move_regret
 
+            sorted_move_regret = sorted(range(len(move_regret)), key=lambda k : move_regret[k])
+            # print("After sorting")
             for move in sorted_move_regret:
                 if move in available_moves:
                     best_move = move
                     break
+            # print("After Regret")
             
-            # TODO: Find a good heuristic for waiting
             # If we are backtracking, then figure out why.
-            if (opposite(self.past_moves[-1]) == best_move):
+            if self.past_moves and (opposite(self.past_moves[-1]) == best_move):
+                print("I AM NOW STUCK")
+                print("Move Regret: ", move_regret)
                 best_move = self.find_best_out()
         else:
             best_move = random.choice(moves)
@@ -380,7 +458,8 @@ class Player:
         # print("Chosen Move:", best_move)
         # print("Available moves:", moves)
         # print("Reward list:", move_rewards)
-        self.update_position(best_move)
+        if best_move != constants.WAIT:
+            self.update_position(best_move)
 
         return best_move
     
