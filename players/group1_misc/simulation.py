@@ -11,10 +11,13 @@ import sys
 sys.setrecursionlimit(10000)
 
 
-def run_simulation(max_door_frequencies, radii, num_maps_per_config):
+def run_simulation(max_door_frequencies, radii, num_maps_per_config, wait_penalty):
     results = defaultdict(list)
     summary = []
 
+    #### Tom (9/23):
+    # for wait_penalty in wait_penalties: ??? 
+    ################
     for max_door_frequency in max_door_frequencies:
         for radius in radii:
             for seed in range(num_maps_per_config):
@@ -29,6 +32,9 @@ def run_simulation(max_door_frequencies, radii, num_maps_per_config):
                     disable_logging=False,
                     disable_timeout=True,
                     player="1",
+                    ############# Tom (9/23):
+                    wait_penalty=wait_penalty,
+                    #########################
                 )
 
                 root = tk.Tk()
