@@ -204,13 +204,15 @@ class Player:
         # Tuned weights
         unseen_weight = 3            # Increased priority on unseen areas
         distance_weight = 1          # Moderate distance penalty
-        time_weight = 2              # More weight on time to reach due to door timings
+        time_weight = 0.5              # More weight on time to reach due to door timings
 
         min_min_dist = np.min(min_dist_array)
         max_min_dist = 1
         no_infs = [i for i in np.reshape(min_dist_array, -1) if i < float("inf")]
         if no_infs:
             max_min_dist = np.max(no_infs)
+
+        # max_min_dist = np.max([i for i in np.reshape(min_dist_array, -1) if i < float("inf")])
 
         for pos in options:
             unseen_cells = options[pos]["num_unseen"]
