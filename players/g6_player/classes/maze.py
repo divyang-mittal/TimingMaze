@@ -70,8 +70,8 @@ class Maze:
 
         if current_percept.is_end_visible:
             self.target_pos = (
-                CENTER_POS - current_percept.end_x,
-                CENTER_POS - current_percept.end_y,
+                CENTER_POS - current_percept.end_x + current_percept.start_x,
+                CENTER_POS - current_percept.end_y + current_percept.start_y,
             )
 
         self.__update_maze_door_freq(current_percept)
