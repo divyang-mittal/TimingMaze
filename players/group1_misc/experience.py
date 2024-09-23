@@ -92,7 +92,12 @@ class Experience:
         # print(f"Number of seen cells: {len(self.seen_cells)}")
         print("\n")
 
-        return move
+        if self.is_valid_move(current_percept, move):
+            self.wait_penalty_multiplier = 1
+            return move
+        else:
+            self.wait()
+            return constants.WAIT
 
     def wait(self):
         """Increment the number of times the player has waited"""
@@ -113,7 +118,7 @@ class Experience:
 
         # Normalize move scores
         for i in range(4):
-            move_scores[i] = move_scores[i] / max(move_scores)
+            move_scores[i] = move_scores[i] / max([1, max(move_scores)])
 
         # Give penalty for waiting
         for i in range(4):
@@ -127,7 +132,6 @@ class Experience:
         move = random.choice(max_indices)
 
         print(f"Move scores: {move_scores}")
-        print(f'Move: {move}')
         return move
 
     def get_move_scores(self):
@@ -139,22 +143,22 @@ class Experience:
         move_scores = [0, 0, 0, 0]
 
         for dx, dy in [
-            (1, 0),
-            (0, -1),
             (-1, 0),
+            (0, -1),
+            (1, 0),
             (0, 1),
         ]:  # LEFT, UP, RIGHT, DOWN
             num_new_cells = self.get_num_new_cells(
                 self.cur_pos[0] + dx, self.cur_pos[1] + dy
             )
-            if dx == 1 and dy == 0:
-                move_scores[constants.RIGHT] = num_new_cells
-            elif dx == 0 and dy == -1:
-                move_scores[constants.DOWN] = num_new_cells
-            elif dx == -1 and dy == 0:
+            if dx == -1 and dy == 0:
                 move_scores[constants.LEFT] = num_new_cells
-            elif dx == 0 and dy == 1:
+            elif dx == 0 and dy == -1:
                 move_scores[constants.UP] = num_new_cells
+            elif dx == 1 and dy == 0:
+                move_scores[constants.RIGHT] = num_new_cells
+            elif dx == 0 and dy == 1:
+                move_scores[constants.DOWN] = num_new_cells
         return move_scores
 
     def get_num_new_cells(self, x, y):
@@ -179,11 +183,15 @@ class Experience:
                         num_new_cells += 1
         return num_new_cells
 
+    # TODO: This function can be sped up by decreasing the number iterations
     def is_valid_move(self, current_percept, move):
         direction = [0, 0, 0, 0]
         for maze_state in current_percept.maze_state:
             if maze_state[0] == 0 and maze_state[1] == 0:
                 direction[maze_state[2]] = maze_state[3]
+
+        if direction[move] != constants.OPEN:
+            return False
 
         if move == constants.LEFT:
             for maze_state in current_percept.maze_state:
@@ -223,5 +231,4 @@ class Experience:
                     return True
 
         return False
-
 ##########################################
