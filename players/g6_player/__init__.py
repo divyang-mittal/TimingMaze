@@ -302,11 +302,13 @@ class G6_Player:
         assert current_state.end_x is not None
         assert current_state.end_y is not None
 
-        result = a_star(self.maze.current_cell(), self.maze.target_cell())
+        result, cost = a_star(self.maze.current_cell(), self.maze.target_cell())
 
         # this shouldn't happen
         if len(result) == 0:
             return Move.WAIT
+
+        print(f"TARGET: {len(result)} moves - {cost} cost")
 
         return result[0]
 

@@ -24,8 +24,7 @@ def a_star(start: Cell, target: Cell) -> list[Move]:
 
         if cell == target:
             # Success
-            print("target found!")
-            return moves
+            return moves, cost
 
         for path, neighbour, move in cell.neighbours():
             if neighbour not in explored and neighbour not in frontier:
@@ -42,9 +41,7 @@ def a_star(start: Cell, target: Cell) -> list[Move]:
 
                 frontier.update(neighbour, n_cost, moves=moves + [move])
 
-    sleep(0.1)
-    print(f"path: {moves}")
-    return moves
+    raise Exception("Target should have been found")
 
 
 def calc_priority(
