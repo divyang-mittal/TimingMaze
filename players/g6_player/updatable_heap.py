@@ -10,7 +10,6 @@ gen = default_rng()
 class UpdatableHeap:
     def __init__(self) -> None:
         self.heap = []
-        self.size = 0
         self.entry_finder: dict = {}
 
     def push(self, item, priority: float, moves: list[Move]) -> None:
