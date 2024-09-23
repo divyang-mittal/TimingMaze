@@ -87,16 +87,18 @@ class Player:
 
         if current_percept.is_end_visible:
             if self.end_visible_timer > 1.5 * self.maximum_door_frequency:
-                self.calculate_rush_in(current_percept)
+                found_dijkstra = self.calculate_rush_in(current_percept)
 
-            if self.is_djikstra_available:
-                move = self.traverse_djikstra(current_percept)
-                return move
-            
-            if self.is_a_star_available:
-                move = self.get_a_star(current_percept)
-                return move
+                # A* is triggered if Dijkstra fails to find the path
+                if not found_dijkstra:
+                    found_a_star = self.calculate_a_star(current_percept)
+                    if found_a_star:
+                        move = self.get_a_star(current_percept)
+                        return move
 
+                if self.is_djikstra_available:
+                    move = self.traverse_djikstra(current_percept)
+                    return move
 
 
             print("Rushing In")
@@ -135,8 +137,8 @@ class Player:
                 if val != -1:
                     return val
                 return constants.WAIT
-        else:
-            return self.move_inside_out(current_percept)
+
+        return self.move_inside_out(current_percept)
 
     def update_door_timers(self, current_percept):
         door_seen = np.full((201, 201, 4), False, dtype=bool)
@@ -289,6 +291,7 @@ class Player:
         pq = []
         distance = np.full((201, 201), np.inf)
         parent_direction = np.full((201, 201), -1)
+        visited = np.full((201, 201), False)
         
         # heuristic function (Manhattan distance)
         def heuristic(x, y):
@@ -301,6 +304,10 @@ class Player:
         # main A* loop
         while pq:
             f_x, x, y, g_x = heapq.heappop(pq)
+
+            if visited[x, y]:
+                continue
+            visited[x, y] = True
             
             # if end is reached
             if x == end_x and y == end_y:
@@ -311,7 +318,7 @@ class Player:
                 new_x = x + self.dRow[i]
                 new_y = y + self.dCol[i]
 
-                if 0 <= new_x < 201 and 0 <= new_y < 201:
+                if 0 <= new_x < 201 and 0 <= new_y < 201 and not visited[new_x, new_y]:
                     # check if doors are passable
                     if self.relative_frequencies[x, y, i] > 0 and self.relative_frequencies[new_x, new_y, self.opposite[i]] > 0:
                         lcm = math.lcm(self.relative_frequencies[x, y, i], self.relative_frequencies[new_x, new_y, self.opposite[i]])
