@@ -330,16 +330,6 @@ class G6_Player:
 
         return result[0]
 
-    def __exploit_a_star(self, current_state: TypedTimingMazeState) -> Move:
-        """
-        [TODO] Use the A* shortest_path to generate moves towards the target.:
-        """
-        start = self.maze.curr_pos
-        target = (self.maze.target_pos[0], self.maze.target_pos[1])
-        shortest_path, path_length = self.maze.graph.astar_shortest_path(start, target)
-
-        return Move.WAIT
-
     def __str__(self) -> str:
         # TODO: how do we get the current position
         return "G6_Player()"

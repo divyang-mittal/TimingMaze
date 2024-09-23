@@ -38,7 +38,6 @@ class Player:
         #     # Dump the objects
         #     with open(precomp_path, 'wb') as f:
         #         pickle.dump([self.obj0, self.obj1, self.obj2], f)
-
         self.rng = rng
         self.logger = logger
         self.maximum_door_frequency = maximum_door_frequency
@@ -52,6 +51,7 @@ class Player:
         self.relative_frequencies = np.full((201, 201, 4), -1, dtype=int)
         self.door_timers = np.full((201, 201, 4), 0, dtype=int)
         self.always_closed = np.full((201, 201, 4), False, dtype=bool)
+        self.global_unvisited_map = np.full((201, 201), True, dtype=bool)
         self.turn_counter = 0
         self.opposite = [constants.RIGHT, constants.DOWN, constants.LEFT, constants.UP]
         self.dRow = [-1, 0, 1, 0]
@@ -64,40 +64,12 @@ class Player:
         self.a_star_path = np.full((201, 201), -1, dtype=int)
         self.is_a_star_available = False
 
+        self.a_star_synthetic_active = False
+        self.synthetic_goal = None
 
-        #assuming it starts from a corner
-        self.outside_in_start_radius = 100-0.8*self.radius
-        self.outside_in_timer = 0
-        self.outside_in_reverse_timer = 0
-        self.rush_in_timer = maximum_door_frequency
-        self.rush_in_reverse_timer = maximum_door_frequency
-        self.x_axis_dist = 0
-        self.global_counter=0
-        self.update_case=0
-        self.outside_in_state = 0
-        
-        self.outside_in_mode =False
-        
-    def get_corner(self, current_percept) -> int:
-        print("Get Corner started")
-        for maze_state in current_percept.maze_state:
-            x_1=maze_state[0]
-            y_1=maze_state[1]
-            if maze_state[3]==constants.BOUNDARY:
-                direction_1 = maze_state[2]
-                for maze_state in current_percept.maze_state:
-                    if x_1==maze_state[0] and y_1==maze_state[1] and maze_state[3]==constants.BOUNDARY:
-                        # x_axis_dist= abs(x_1-x)
-                        if direction_1==constants.RIGHT and maze_state[2]==constants.DOWN:
-                            return 3
-                        elif direction_1==constants.RIGHT and maze_state[2]==constants.UP:
-                            return 2
-                        elif direction_1==constants.LEFT and maze_state[2]==constants.DOWN:
-                            return 4
-                        elif direction_1==constants.LEFT and maze_state[2]==constants.UP:
-                            return 1
-            
-        return 0
+        self.previous_position = None
+        self.stuck_turn_counter = 0
+
 
     def move(self, current_percept) -> int:
         """Function which retrieves the current state of the map and returns a movement
@@ -112,8 +84,23 @@ class Player:
                     RIGHT = 2
                     DOWN = 3
         """
+        current_x = 100 - current_percept.start_x
+        current_y = 100 - current_percept.start_y
+        self.global_unvisited_map[current_x, current_y] = False
+
         self.update_door_timers(current_percept)
         self.update_relative_frequencies(current_percept)
+
+        # # if stuck in inside-out approach, trigger A* towards synthetic goal
+        # print(self.synthetic_goal)
+        # if self.a_star_synthetic_active:
+        #     print("triggering A*")
+        #     move = self.get_a_star(current_percept)
+        #     if self.reached_synthetic_goal(current_percept):
+        #         # pick a new synthetic goal if we reached the current one
+        #         return self.pick_new_synthetic_goal(current_percept)
+        #     else:
+        #         return move
 
         if self.is_djikstra_available:
             move = self.traverse_djikstra(current_percept)
@@ -171,14 +158,8 @@ class Player:
                 if val != -1:
                     return val
                 return constants.WAIT
-        corner= self.get_corner(current_percept)
-        print("The Corner is", corner)
-        if corner!=0:
-            self.outside_in_mode=True
-        if self.outside_in_mode:
-            return self.move_outside_in_3(current_percept)
-        else:
-            return self.move_inside_out(current_percept)
+
+        return self.move_inside_out(current_percept)
 
     def update_door_timers(self, current_percept):
         door_seen = np.full((201, 201, 4), False, dtype=bool)
@@ -211,7 +192,6 @@ class Player:
 
 
     def traverse_djikstra(self, current_percept) -> int:
-        print("Traversing Djikstra")
         abs_x = 100 - current_percept.start_x
         abs_y = 100 - current_percept.start_y
         return self.djikstra_path[abs_x, abs_y].item()
@@ -318,31 +298,93 @@ class Player:
         abs_y = 100 - current_percept.start_y
         return self.a_star_path[abs_x, abs_y].item()
     
-    def calculate_a_star(self, current_percept) -> bool:
-        # calculates A* path to the end and stores it in 'self.a_star_path'
+    def pick_new_synthetic_goal(self, current_percept):
+        """Pick a new synthetic goal from unvisited cells within the given radius."""
         
-        # start_x and start_y are the relative positions of the start position
+        # Global coordinates of player position
+        current_x = 100 + current_percept.start_x
+        current_y = 100 + current_percept.start_y
+
+        # Find unvisited cells within the radius
+        unvisited_cells = np.argwhere(self.global_unvisited_map)
+        cells_in_radius = [(x, y) for (x, y) in unvisited_cells if ((x - current_x) ** 2 + (y - current_y) ** 2) <= self.radius ** 2]
+        print(cells_in_radius)
+
+        if len(cells_in_radius) > 0:
+            random_idx = self.rng.choice(len(cells_in_radius))
+            synthetic_goal_global = cells_in_radius[random_idx]
+            self.synthetic_goal = synthetic_goal_global
+            print(f"Selected synthetic goal: {self.synthetic_goal}")
+
+            # Try Dijkstra towards the synthetic goal
+            success = self.calculate_dijkstra_synthetic(current_percept, goal=self.synthetic_goal)
+
+            if success:
+                move = self.traverse_djikstra(current_percept)
+                return move
+            else:
+                print("Dijkstra failed for synthetic goal.")
+        else:
+            print("No unvisited cells within radius for synthetic goal.")
+        return constants.WAIT
+
+    def reached_synthetic_goal(self, current_percept):
+        """Check if the player has reached the synthetic goal and pick a new one if necessary."""
+        
+        # Get current position of the player
+        current_x = 100 - current_percept.start_x
+        current_y = 100 - current_percept.start_y
+
+        # Check if the player reached the synthetic goal
+        if (current_x, current_y) == tuple(self.synthetic_goal):
+            print(f"Reached synthetic goal at: {self.synthetic_goal}")
+            
+            # If the end is visible, stop picking synthetic goals and pursue the end goal
+            if current_percept.is_end_visible:
+                print("End goal is visible! Stopping synthetic goal selection.")
+                return True
+            
+            # If the end is not visible, pick a new synthetic goal
+            print("End goal not visible. Picking a new synthetic goal.")
+            self.pick_new_synthetic_goal(current_percept)
+            return True
+        
+        return False
+        
+    def calculate_a_star(self, current_percept, goal=None) -> bool:
+        """Calculates A* path to the end and stores it in 'self.a_star_path'"""
+
+        # If no goal is provided, use the real end goal
+        if goal is None:
+            end_x = 100 + current_percept.end_x - current_percept.start_x
+            end_y = 100 + current_percept.end_y - current_percept.start_y
+        else:
+            end_x, end_y = goal  # Use the synthetic goal
+        
+        # Start_x and start_y are the relative positions of the start position
         start_x = 100 - current_percept.start_x
         start_y = 100 - current_percept.start_y
-
-        end_x = 100 + current_percept.end_x - current_percept.start_x
-        end_y = 100 + current_percept.end_y - current_percept.start_y
-
-        # initialize priority queue and arrays
+        
+        # Ensure the coordinates are valid within the grid
+        if not (0 <= end_x < 201 and 0 <= end_y < 201 and 0 <= start_x < 201 and 0 <= start_y < 201):
+            print(f"Invalid coordinates for A*: Start: ({start_x}, {start_y}), Goal: ({end_x}, {end_y})")
+            return False
+        
+        # Initialize priority queue and arrays
         pq = []
         distance = np.full((201, 201), np.inf)
         parent_direction = np.full((201, 201), -1)
         visited = np.full((201, 201), False)
         
-        # heuristic function (Manhattan distance)
+        # Heuristic function (Manhattan distance)
         def heuristic(x, y):
             return abs(x - end_x) + abs(y - end_y)
-
-        # set initial conditions
+        
+        # Set initial conditions
         distance[start_x, start_y] = 0
         heapq.heappush(pq, (heuristic(start_x, start_y), start_x, start_y, 0))  # (f(x), x, y, g(x))
 
-        # main A* loop
+        # Main A* loop
         while pq:
             f_x, x, y, g_x = heapq.heappop(pq)
 
@@ -350,36 +392,38 @@ class Player:
                 continue
             visited[x, y] = True
             
-            # if end is reached
+            # If end is reached
             if x == end_x and y == end_y:
                 break
             
-            # explore all 4 neighbors
+            # Explore all 4 neighbors
             for i in range(4):
                 new_x = x + self.dRow[i]
                 new_y = y + self.dCol[i]
 
                 if 0 <= new_x < 201 and 0 <= new_y < 201 and not visited[new_x, new_y]:
-                    # check if doors are passable
+                    # Check if doors are passable
                     if self.relative_frequencies[x, y, i] > 0 and self.relative_frequencies[new_x, new_y, self.opposite[i]] > 0:
                         lcm = math.lcm(self.relative_frequencies[x, y, i], self.relative_frequencies[new_x, new_y, self.opposite[i]])
                         next_turn = g_x
                         if next_turn % lcm != 0:
                             new_distance = (next_turn // lcm + 1) * lcm
-                        new_distance = next_turn
+                        else:
+                            new_distance = next_turn
                         
-                        # check if new path is shorter
+                        # Check if new path is shorter
                         if distance[new_x, new_y] > new_distance:
                             distance[new_x, new_y] = new_distance
                             parent_direction[new_x, new_y] = self.opposite[i]
                             f_x = new_distance + heuristic(new_x, new_y)
                             heapq.heappush(pq, (f_x, new_x, new_y, new_distance))
 
-        # if end is not reachable, return false
+        # If end is not reachable, return False
         if distance[end_x, end_y] == np.inf:
+            print(f"Goal at ({end_x}, {end_y}) is not reachable from ({start_x}, {start_y})")
             return False
         
-        # path construction
+        # Path construction
         x, y = end_x, end_y
         while x != start_x or y != start_y:
             parent_x, parent_y = x, y
@@ -395,6 +439,7 @@ class Player:
             x, y = parent_x, parent_y
 
         self.is_a_star_available = True
+        print(f"A* path found to goal ({end_x}, {end_y})")
         return True
 
 
@@ -581,186 +626,32 @@ class Player:
                         and direction[constants.LEFT] == constants.OPEN and reverse_direction[constants.LEFT] == constants.OPEN):
                     self.inside_out_rem[0] -= 1
                     return constants.LEFT
-
-        return constants.WAIT
-    def reset_for_outside_in(self):
-        if self.global_counter%4==0 and self.global_counter!=0:
-            print('*****************################')
-            outside_in_rem_dict={1:[self.outside_in_start_radius-self.radius, self.outside_in_start_radius-2*self.radius, self.outside_in_start_radius, self.outside_in_start_radius-self.radius],
-                                2:[self.outside_in_start_radius, self.outside_in_start_radius, self.outside_in_start_radius-2*self.radius, self.outside_in_start_radius],
-                                3:[self.outside_in_start_radius, self.outside_in_start_radius-self.radius, self.outside_in_start_radius-self.radius, self.outside_in_start_radius-2*self.radius],
-                                4:[self.outside_in_start_radius-2*self.radius, self.outside_in_start_radius, self.outside_in_start_radius, self.outside_in_start_radius]}
-            self.outside_in_rem = outside_in_rem_dict[self.update_case]
-            self.outside_in_start_radius = self.outside_in_start_radius- 2*self.radius
-
-    def move_outside_in_3(self,current_percept)->int:
-        print("Outside IN started")
-        direction = [0, 0, 0, 0]
-        reverse_direction = [0, 0, 0, 0]
-        for maze_state in current_percept.maze_state:
-            if maze_state[0] == 0 and maze_state[1] == 0:
-                direction[maze_state[2]] = maze_state[3]
-            if maze_state[0] == 0 and maze_state[1] == 1 and maze_state[2] == constants.UP:
-                reverse_direction[constants.DOWN] = maze_state[3]
-            if maze_state[0] == 0 and maze_state[1] == -1 and maze_state[2] == constants.DOWN:
-                reverse_direction[constants.UP] = maze_state[3]
-            if maze_state[0] == 1 and maze_state[1] == 0 and maze_state[2] == constants.LEFT:
-                reverse_direction[constants.RIGHT] = maze_state[3]
-            if maze_state[0] == -1 and maze_state[1] == 0 and maze_state[2] == constants.RIGHT:
-                reverse_direction[constants.LEFT] = maze_state[3]
-        #check for one side which will be short now
-        abs_x = - current_percept.start_x
-        abs_y = - current_percept.start_y
-     
-        if self.outside_in_state == 0:
-            print("Outside IN started")
-            self.corner_val= self.get_corner(current_percept) 
-            if self.corner_val== 1:
-                    self.outside_in_state = 1
-                    self.update_case =1
-            elif self.corner_val ==2:
-                    self.update_case = 2
-                    self.outside_in_state = 2
-            elif self.corner_val ==3: 
-                    self.outside_in_state = 3
-                    self.update_case = 3
-            elif self.corner_val ==4:
-                    self.outside_in_state = 4 
-                    self.update_case = 4
-            # else: 
-            #     self.outside_in_state = 1
-            # print(self.outside_in_state)
-            # print(self.update_case)
-            # print('******************************')
-            outside_in_rem_dict={1:[self.outside_in_start_radius, self.outside_in_start_radius-self.radius, self.outside_in_start_radius, self.outside_in_start_radius],
-                                2:[self.outside_in_start_radius, self.outside_in_start_radius, self.outside_in_start_radius-self.radius, self.outside_in_start_radius],
-                                3:[self.outside_in_start_radius, self.outside_in_start_radius, self.outside_in_start_radius, self.outside_in_start_radius-self.radius],
-                                4:[self.outside_in_start_radius-self.radius, self.outside_in_start_radius, self.outside_in_start_radius, self.outside_in_start_radius]}
-            
-            self.outside_in_rem = outside_in_rem_dict[self.update_case]
-            self.outside_in_start_radius = self.outside_in_start_radius- self.radius
-            self.outside_in_timer = self.maximum_door_frequency
-            self.outside_in_reverse_timer = self.maximum_door_frequency
-
         
- 
-        if self.outside_in_state == 1:
-            
-            if self.outside_in_rem[2] <= 0:
-                self.outside_in_state = 2
-                self.global_counter+=1
-               
-                self.reset_for_outside_in()
-                print("Global Counter",self.global_counter)
-            else:
-                if self.outside_in_rem[2] > 0:
-                    if direction[constants.RIGHT] == constants.OPEN and reverse_direction[constants.RIGHT] == constants.OPEN:
-                        self.outside_in_rem[2] -= 1
-                        self.outside_in_timer = self.maximum_door_frequency
-                        self.outside_in_reverse_timer = self.maximum_door_frequency
-                        return constants.RIGHT
-                    else:
-                        self.outside_in_timer -= 1
+        print("before if stuck too long")
+                
+        if self.has_been_stuck_too_long(current_percept):
+            return self.pick_new_synthetic_goal(current_percept)
 
-                if (self.outside_in_timer < 0 or self.outside_in_reverse_timer < 0) and direction[constants.DOWN] == constants.OPEN and reverse_direction[constants.DOWN] == constants.OPEN:
-                    self.outside_in_rem[3] -= 1
-                    self.outside_in_timer = self.maximum_door_frequency
-                    self.outside_in_reverse_timer = self.maximum_door_frequency
-                    return constants.DOWN
-
-                if (self.outside_in_timer < -self.maximum_door_frequency or self.outside_in_reverse_timer < -self.maximum_door_frequency) and direction[constants.UP] == constants.OPEN and reverse_direction[constants.UP] == constants.OPEN:
-                    self.outside_in_rem[1] -= 1
-                    self.outside_in_timer = self.maximum_door_frequency
-                    self.outside_in_reverse_timer = self.maximum_door_frequency
-                    return constants.UP
-
-        if self.outside_in_state == 2:
-           
-            if self.outside_in_rem[3] <= 0:
-                self.outside_in_state = 3
-                self.global_counter+=1
-                self.reset_for_outside_in()
-                print("Global Counter",self.global_counter)
-            else:
-                if self.outside_in_rem[3] > 0:
-                    if direction[constants.DOWN] == constants.OPEN and reverse_direction[constants.DOWN] == constants.OPEN:
-                        self.outside_in_rem[3] -= 1
-                        self.outside_in_timer = self.maximum_door_frequency
-                        self.outside_in_reverse_timer = self.maximum_door_frequency
-                        return constants.DOWN
-                    else:
-                        self.outside_in_timer -= 1
-
-                if (self.outside_in_timer < 0 or self.outside_in_reverse_timer < 0) and direction[constants.LEFT] == constants.OPEN and reverse_direction[constants.LEFT] == constants.OPEN:
-                    self.outside_in_rem[0] -= 1
-                    self.outside_in_timer = self.maximum_door_frequency
-                    self.outside_in_reverse_timer = self.maximum_door_frequency
-                    return constants.LEFT
-
-                if (self.outside_in_timer < -self.maximum_door_frequency or self.outside_in_reverse_timer < -self.maximum_door_frequency) and direction[constants.RIGHT] == constants.OPEN and reverse_direction[constants.RIGHT] == constants.OPEN:
-                    self.outside_in_rem[2] -= 1
-                    self.outside_in_timer = self.maximum_door_frequency
-                    self.outside_in_reverse_timer = self.maximum_door_frequency
-                    return constants.RIGHT
-
-        if self.outside_in_state == 3:
-           
-            if self.outside_in_rem[0] <= 0:
-                self.outside_in_state = 4
-                self.global_counter+=1
-                self.reset_for_outside_in()
-                print("Global Counter",self.global_counter)
-            else:
-                if self.outside_in_rem[0] > 0:
-                    if direction[constants.LEFT] == constants.OPEN and reverse_direction[constants.LEFT] == constants.OPEN:
-                        self.outside_in_rem[0] -= 1
-                        self.outside_in_timer = self.maximum_door_frequency
-                        self.outside_in_reverse_timer = self.maximum_door_frequency
-                        return constants.LEFT
-                    else:
-                        self.outside_in_timer -= 1
-
-                if (self.outside_in_timer < 0 or self.outside_in_reverse_timer < 0) and direction[constants.UP] == constants.OPEN and reverse_direction[constants.UP] == constants.OPEN:
-                    self.outside_in_rem[1] -= 1
-                    self.outside_in_timer = self.maximum_door_frequency
-                    self.outside_in_reverse_timer = self.maximum_door_frequency
-                    return constants.UP
-
-                if (self.outside_in_timer < -self.maximum_door_frequency or self.outside_in_reverse_timer < -self.maximum_door_frequency) and direction[constants.DOWN] == constants.OPEN and reverse_direction[constants.DOWN] == constants.OPEN:
-                    self.outside_in_rem[3] -= 1
-                    self.outside_in_timer = self.maximum_door_frequency
-                    self.outside_in_reverse_timer = self.maximum_door_frequency
-                    return constants.DOWN
-
-        if self.outside_in_state == 4:
-           
-            if self.outside_in_rem[1] <= 0:
-                self.outside_in_state = 1
-                self.global_counter+=1
-                self.reset_for_outside_in()
-                print("Global Counter",self.global_counter)
-            else:
-                if self.outside_in_rem[1] > 0:
-                    if direction[constants.UP] == constants.OPEN and reverse_direction[constants.UP] == constants.OPEN:
-                        self.outside_in_rem[1] -= 1
-                        self.outside_in_timer = self.maximum_door_frequency
-                        self.outside_in_reverse_timer = self.maximum_door_frequency
-                        return constants.UP
-                    else:
-                        self.outside_in_timer -= 1
-
-                if (self.outside_in_timer < 0 or self.outside_in_reverse_timer < 0) and direction[constants.RIGHT] == constants.OPEN and reverse_direction[constants.RIGHT] == constants.OPEN:
-                    self.outside_in_timer = self.maximum_door_frequency
-                    self.outside_in_reverse_timer = self.maximum_door_frequency
-                    return constants.RIGHT
-
-                if (self.outside_in_timer < -self.maximum_door_frequency or self.outside_in_reverse_timer < -self.maximum_door_frequency) and direction[constants.LEFT] == constants.OPEN and reverse_direction[constants.LEFT] == constants.OPEN:
-                    self.outside_in_rem[0] -= 1
-                    self.outside_in_timer = self.maximum_door_frequency
-                    self.outside_in_reverse_timer = self.maximum_door_frequency
-                    return constants.LEFT
-     
+        print("test 2")
         return constants.WAIT
+    
+    def has_been_stuck_too_long(self, current_percept) -> bool:        
+        print("start stuck too long function")
+        # Get current position
+        current_position = (100 - current_percept.start_x, 100 - current_percept.start_y)
+
+        # If the player is in the same position as before, increase the stuck counter
+        if self.previous_position == current_position:
+            self.stuck_turn_counter += 1
+            print("stuck counter incremented")
+        else:
+            # If the player moved, reset the stuck counter
+            self.stuck_turn_counter = 0
+            self.previous_position = current_position
+            print("stuck counter reset")
+
+        print("end stuck too long function")
+        return self.stuck_turn_counter > 1.5 * self.maximum_door_frequency
 
     def update_relative_frequencies(self, current_percept):
         self.turn_counter += 1 # assuming that update_relative_frequencies is called every time we make a move or wait
@@ -784,3 +675,79 @@ class Player:
                 pass
             elif state == constants.BOUNDARY:
                 self.relative_frequencies[abs_x, abs_y, direction] = 0
+
+
+    def calculate_dijkstra_synthetic(self, current_percept, goal=None) -> bool:
+        """modified Dijkstra's algorithm to find a path towards a synthetic goal"""
+        
+        if goal is None:
+            print("No synthetic goal provided")
+            return False
+        
+        end_x, end_y = goal
+
+        if not (0 <= end_x < 201 and 0 <= end_y < 201):
+            print(f"Invalid coordinates for Dijkstra: Goal: ({end_x}, {end_y})")
+            return False
+
+        start_x = 100 - current_percept.start_x
+        start_y = 100 - current_percept.start_y
+
+        distance = np.full((201, 201), np.inf)
+        visited = np.full((201, 201), False)
+        parent_direction = np.full((201, 201), -1)
+        
+        q = queue()
+        q.append((start_x, start_y, self.turn_counter))
+        distance[start_x, start_y] = 0
+
+        while len(q) > 0:
+            x, y, turn = q.popleft()
+
+            if visited[x, y]:
+                continue
+            visited[x, y] = True
+
+            if x == end_x and y == end_y:
+                break
+
+            for i in range(4):
+                new_x = x + self.dRow[i]
+                new_y = y + self.dCol[i]
+
+                if 0 <= new_x < 201 and 0 <= new_y < 201 and not visited[new_x, new_y]:
+                    if self.relative_frequencies[x, y, i] > 0 and self.relative_frequencies[new_x, new_y, self.opposite[i]] > 0:
+                        lcm = math.lcm(self.relative_frequencies[x, y, i], self.relative_frequencies[new_x, new_y, self.opposite[i]])
+                        next_turn = turn
+                        if lcm % turn != 0:
+                            next_turn = (turn // lcm + 1) * lcm
+                        new_distance = next_turn - turn
+
+                        if distance[new_x, new_y] > new_distance:
+                            distance[new_x, new_y] = new_distance
+                            parent_direction[new_x, new_y] = self.opposite[i]
+                            q.append((new_x, new_y, turn + new_distance))
+
+        if not visited[end_x, end_y]:
+            print(f"Goal at ({end_x}, {end_y}) is not reachable from ({start_x}, {start_y})")
+            return False
+
+        x, y = end_x, end_y
+        while x != start_x or y != start_y:
+            parent_x = x
+            parent_y = y
+            if parent_direction[x, y] == constants.RIGHT:
+                parent_x += 1
+            elif parent_direction[x, y] == constants.LEFT:
+                parent_x -= 1
+            elif parent_direction[x, y] == constants.DOWN:
+                parent_y += 1
+            elif parent_direction[x, y] == constants.UP:
+                parent_y -= 1
+
+            self.djikstra_path[parent_x, parent_y] = self.opposite[parent_direction[x, y]]
+            x, y = parent_x, parent_y
+
+        self.is_djikstra_available = True
+        print(f"Dijkstra path found to synthetic goal ({end_x}, {end_y})")
+        return True
