@@ -11,7 +11,7 @@ from utils import *
 # from players.default_player import Player as DefaultPlayer
 # from players.group5.player import G5_Player as G5_Player
 # from players.G6_Player import G6_Player
-from players.g2_player_upgraded import Player as DefaultPlayer
+from players.g2_player import Player as DefaultPlayer
 from collections import deque as queue
 import tkinter as tk
 
@@ -181,7 +181,7 @@ class TimingMazeGame:
                 self.cur_pos = np.array([50, 50])
                 self.start_pos = self.cur_pos.copy()
                 while 1:
-                    self.end_pos = np.array([25, 70])
+                    self.end_pos = np.array([55, 65])
                     if self.end_pos[0] != self.cur_pos[0] and self.end_pos[1] != self.cur_pos[1]:
                         break
 
