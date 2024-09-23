@@ -65,6 +65,13 @@ class Player:
         self.frequency={}
         self.cur_percept={}
 
+        ###################################################### Tom (9/21) (ADA*):
+        self.epsilon = 2.5  # Initial ε value for suboptimality (can be adjusted)
+        self.incons = []  # Inconsistency list for nodes
+        self.g_values = {}
+        self.rhs_values = {}       
+        #########################################################################
+    
     ####### Adithi:
     def update_door_frequencies(self, current_percept):
         for x, y, direction, state in current_percept.maze_state:
@@ -184,102 +191,102 @@ class Player:
             traceback.print_exc()
         ############################################ Comment this chunk to go back to default player
 
-        # default_player:
-        # The condition of the four doors at the current cell
-        direction = [0, 0, 0, 0] # [left, up, right, down]; 1 is closed, 2 is open, 3 is boundary
-        for maze_state in current_percept.maze_state: # looping through all the cells visible by the drone
-            if maze_state[0] == 0 and maze_state[1] == 0: # (0,0) is the current loc; -> Looking to see the conditions of the four doors at the current location.
-                direction[maze_state[2]] = maze_state[3] # import that information into direction
+        # # default_player:
+        # # The condition of the four doors at the current cell
+        # direction = [0, 0, 0, 0] # [left, up, right, down]; 1 is closed, 2 is open, 3 is boundary
+        # for maze_state in current_percept.maze_state: # looping through all the cells visible by the drone
+        #     if maze_state[0] == 0 and maze_state[1] == 0: # (0,0) is the current loc; -> Looking to see the conditions of the four doors at the current location.
+        #         direction[maze_state[2]] = maze_state[3] # import that information into direction
 
-        if current_percept.is_end_visible:
-            if abs(current_percept.end_x) >= abs(current_percept.end_y): # huhh???
-                if (current_percept.end_x > 0 # if goal is on the right side
-                    and direction[constants.RIGHT] == constants.OPEN # if the door on the right is open
-                    ):
-                    for maze_state in current_percept.maze_state: # looping through all the cells visible by the drone
-                        if (maze_state[0] == 1 and maze_state[1] == 0 # (1,0) is the cell on the right; -> Looking to see the conditions of the four doors at the cell on the right.
-                            and maze_state[2] == constants.LEFT and maze_state[3] == constants.OPEN # if the left door of the cell on the right (the adjacent door to the current cell) is open
-                            ):
-                            return constants.RIGHT # goes right -> returning 2
+        # if current_percept.is_end_visible:
+        #     if abs(current_percept.end_x) >= abs(current_percept.end_y): # huhh???
+        #         if (current_percept.end_x > 0 # if goal is on the right side
+        #             and direction[constants.RIGHT] == constants.OPEN # if the door on the right is open
+        #             ):
+        #             for maze_state in current_percept.maze_state: # looping through all the cells visible by the drone
+        #                 if (maze_state[0] == 1 and maze_state[1] == 0 # (1,0) is the cell on the right; -> Looking to see the conditions of the four doors at the cell on the right.
+        #                     and maze_state[2] == constants.LEFT and maze_state[3] == constants.OPEN # if the left door of the cell on the right (the adjacent door to the current cell) is open
+        #                     ):
+        #                     return constants.RIGHT # goes right -> returning 2
                         
-                if (current_percept.end_x < 0 # if goal is on the left side
-                    and direction[constants.LEFT] == constants.OPEN # if the door on the left is open
-                    ):
-                    for maze_state in current_percept.maze_state: # looping through all the cells visible by the drone
-                        if (maze_state[0] == -1 and maze_state[1] == 0 # (-1,0) is the cell on the left; -> Looking to see the conditions of the four doors at the cell on the left.
-                            and maze_state[2] == constants.RIGHT and maze_state[3] == constants.OPEN # if the right door of the cell on the left (the adjacent door to the current cell) is open
-                            ):
-                            return constants.LEFT # goes left -> returning 0
+        #         if (current_percept.end_x < 0 # if goal is on the left side
+        #             and direction[constants.LEFT] == constants.OPEN # if the door on the left is open
+        #             ):
+        #             for maze_state in current_percept.maze_state: # looping through all the cells visible by the drone
+        #                 if (maze_state[0] == -1 and maze_state[1] == 0 # (-1,0) is the cell on the left; -> Looking to see the conditions of the four doors at the cell on the left.
+        #                     and maze_state[2] == constants.RIGHT and maze_state[3] == constants.OPEN # if the right door of the cell on the left (the adjacent door to the current cell) is open
+        #                     ):
+        #                     return constants.LEFT # goes left -> returning 0
                         
-                if (current_percept.end_y < 0 # if goal is above
-                    and direction[constants.UP] == constants.OPEN # if the door above is open
-                    ):
-                    for maze_state in current_percept.maze_state: # looping through all the cells visible by the drone
-                        if (maze_state[0] == 0 and maze_state[1] == -1 # (0,-1) is the cell above; -> Looking to see the conditions of the four doors at the cell above.
-                            and maze_state[2] == constants.DOWN and maze_state[3] == constants.OPEN # if the down door of the cell above (the adjacent door to the current cell) is open
-                            ):
-                            return constants.UP # goes up -> returning 1
+        #         if (current_percept.end_y < 0 # if goal is above
+        #             and direction[constants.UP] == constants.OPEN # if the door above is open
+        #             ):
+        #             for maze_state in current_percept.maze_state: # looping through all the cells visible by the drone
+        #                 if (maze_state[0] == 0 and maze_state[1] == -1 # (0,-1) is the cell above; -> Looking to see the conditions of the four doors at the cell above.
+        #                     and maze_state[2] == constants.DOWN and maze_state[3] == constants.OPEN # if the down door of the cell above (the adjacent door to the current cell) is open
+        #                     ):
+        #                     return constants.UP # goes up -> returning 1
                         
-                if (current_percept.end_y > 0 # if goal is below
-                    and direction[constants.DOWN] == constants.OPEN # if the door below is open
-                    ):
-                    for maze_state in current_percept.maze_state: # looping through all the cells visible by the drone
-                        if (maze_state[0] == 0 and maze_state[1] == 1 # (0,1) is the cell below; -> Looking to see the conditions of the four doors at the cell below.
-                            and maze_state[2] == constants.UP and maze_state[3] == constants.OPEN # if the above door of the cell below (the adjacent door to the current cell) is open
-                            ): 
-                            return constants.DOWN # goes down -> returning 3
+        #         if (current_percept.end_y > 0 # if goal is below
+        #             and direction[constants.DOWN] == constants.OPEN # if the door below is open
+        #             ):
+        #             for maze_state in current_percept.maze_state: # looping through all the cells visible by the drone
+        #                 if (maze_state[0] == 0 and maze_state[1] == 1 # (0,1) is the cell below; -> Looking to see the conditions of the four doors at the cell below.
+        #                     and maze_state[2] == constants.UP and maze_state[3] == constants.OPEN # if the above door of the cell below (the adjacent door to the current cell) is open
+        #                     ): 
+        #                     return constants.DOWN # goes down -> returning 3
                         
-                return constants.WAIT # return -1
+        #         return constants.WAIT # return -1
             
-            else:
-                if (current_percept.end_y < 0 # if goal is above
-                    and direction[constants.UP] == constants.OPEN # if the door above is open
-                    ):
-                    for maze_state in current_percept.maze_state: # looping through all the cells visible by the drone
-                        if (maze_state[0] == 0 and maze_state[1] == -1 # (0,-1) is the cell above; -> Looking to see the conditions of the four doors at the cell above.
-                            and maze_state[2] == constants.DOWN and maze_state[3] == constants.OPEN # if the down door of the cell above (the adjacent door to the current cell) is open
-                            ):
-                            return constants.UP # return 1
+        #     else:
+        #         if (current_percept.end_y < 0 # if goal is above
+        #             and direction[constants.UP] == constants.OPEN # if the door above is open
+        #             ):
+        #             for maze_state in current_percept.maze_state: # looping through all the cells visible by the drone
+        #                 if (maze_state[0] == 0 and maze_state[1] == -1 # (0,-1) is the cell above; -> Looking to see the conditions of the four doors at the cell above.
+        #                     and maze_state[2] == constants.DOWN and maze_state[3] == constants.OPEN # if the down door of the cell above (the adjacent door to the current cell) is open
+        #                     ):
+        #                     return constants.UP # return 1
                         
-                if (current_percept.end_y > 0 # if goal is below
-                    and direction[constants.DOWN] == constants.OPEN # if the door below is open
-                    ):
-                    for maze_state in current_percept.maze_state: # looping through all the cells visible by the drone
-                        if (maze_state[0] == 0 and maze_state[1] == 1 # (0,1) is the cell below; -> Looking to see the conditions of the four doors at the cell below.
-                            and maze_state[2] == constants.UP and maze_state[3] == constants.OPEN # if the above door of the cell below (the adjacent door to the current cell) is open
-                            ):
-                            return constants.DOWN # return 3
+        #         if (current_percept.end_y > 0 # if goal is below
+        #             and direction[constants.DOWN] == constants.OPEN # if the door below is open
+        #             ):
+        #             for maze_state in current_percept.maze_state: # looping through all the cells visible by the drone
+        #                 if (maze_state[0] == 0 and maze_state[1] == 1 # (0,1) is the cell below; -> Looking to see the conditions of the four doors at the cell below.
+        #                     and maze_state[2] == constants.UP and maze_state[3] == constants.OPEN # if the above door of the cell below (the adjacent door to the current cell) is open
+        #                     ):
+        #                     return constants.DOWN # return 3
                         
-                if (current_percept.end_x > 0 # if goal is on the right side
-                    and direction[constants.RIGHT] == constants.OPEN # if the door on the right is open
-                    ):
-                    for maze_state in current_percept.maze_state: # looping through all the cells visible by the drone
-                        if (maze_state[0] == 1 and maze_state[1] == 0 # (1,0) is the cell on the right; -> Looking to see the conditions of the four doors at the cell on the right.
-                            and maze_state[2] == constants.LEFT and maze_state[3] == constants.OPEN # if the left door of the cell on the right (the adjacent door to the current cell) is open
-                            ):
-                            return constants.RIGHT # return 2
+        #         if (current_percept.end_x > 0 # if goal is on the right side
+        #             and direction[constants.RIGHT] == constants.OPEN # if the door on the right is open
+        #             ):
+        #             for maze_state in current_percept.maze_state: # looping through all the cells visible by the drone
+        #                 if (maze_state[0] == 1 and maze_state[1] == 0 # (1,0) is the cell on the right; -> Looking to see the conditions of the four doors at the cell on the right.
+        #                     and maze_state[2] == constants.LEFT and maze_state[3] == constants.OPEN # if the left door of the cell on the right (the adjacent door to the current cell) is open
+        #                     ):
+        #                     return constants.RIGHT # return 2
                         
-                if (current_percept.end_x < 0 # if goal is on the left side
-                    and direction[constants.LEFT] == constants.OPEN # if the door on the left is open
-                    ):
-                    for maze_state in current_percept.maze_state: # looping through all the cells visible by the drone
-                        if (maze_state[0] == -1 and maze_state[1] == 0 # (-1,0) is the cell on the left; -> Looking to see the conditions of the four doors at the cell on the left.
-                            and maze_state[2] == constants.RIGHT and maze_state[3] == constants.OPEN # if the right door of the cell on the left (the adjacent door to the current cell) is open
-                            ):
-                            return constants.LEFT #return 0
+        #         if (current_percept.end_x < 0 # if goal is on the left side
+        #             and direction[constants.LEFT] == constants.OPEN # if the door on the left is open
+        #             ):
+        #             for maze_state in current_percept.maze_state: # looping through all the cells visible by the drone
+        #                 if (maze_state[0] == -1 and maze_state[1] == 0 # (-1,0) is the cell on the left; -> Looking to see the conditions of the four doors at the cell on the left.
+        #                     and maze_state[2] == constants.RIGHT and maze_state[3] == constants.OPEN # if the right door of the cell on the left (the adjacent door to the current cell) is open
+        #                     ):
+        #                     return constants.LEFT #return 0
                         
-                return constants.WAIT # return -1
+        #         return constants.WAIT # return -1
             
-        else: # If End is not visible
+        # else: # If End is not visible
 
-            ########## Frank (9/16):
-            move = self.experience.move(current_percept)
+        #     ########## Frank (9/16):
+        #     move = self.experience.move(current_percept)
 
-            if self.experience.is_valid_move(current_percept, move):
-                return move
+        #     if self.experience.is_valid_move(current_percept, move):
+        #         return move
 
-            self.experience.wait()
-            return constants.WAIT
+        #     self.experience.wait()
+        #     return constants.WAIT
             ###########################
     
 
@@ -288,6 +295,11 @@ class Player:
         # Reset frontier and explored set
         self.frontier = []
         self.explored = set()
+        self.incons = [] # Reset the inconsistency list.
+        self.g_values = {start: float('inf')}  # Initialize g-value of the start node to infinity (not yet discovered).
+        self.rhs_values = {start: 0}  # Set the rhs-value of the start node to 0 (starting point).
+        self.goal = goal  # Store the goal node for use in heuristic calculations.
+        heapq.heappush(self.frontier, (self.calculate_key(start), start))
 
         # # Start position and goal position
         # start = (0, 0)  # (x, y) relative position
@@ -341,6 +353,90 @@ class Player:
         
         return None  # No path found
     
+    def calculate_key(self, state):
+        # Calculate the priority key of a given state based on g and rhs values
+        
+        g_rhs_min = min(self.g_values.get(state, float('inf')), self.rhs_values.get(state, float('inf')))
+        # Return the priority tuple (key) consisting of an estimate and the minimum of g-value and rhs-value
+        return (g_rhs_min + self.epsilon * self.heuristic(state, self.goal, None), g_rhs_min)
+    
+    def update_vertex(self, state):
+        # Update the vertex information for a given state
+        
+        if state != self.goal:
+            # Update the rhs-value of the state based on its neighbors' costs
+            self.rhs_values[state] = min(
+                self.g_values.get(neighbor, float('inf')) + self.cost(state, neighbor)
+                for neighbor in self.get_neighbours(state)
+            )
+        
+        # Remove the state from the priority queue if it exists
+        self.frontier = [(k, s) for (k, s) in self.frontier if s != state]
+        heapq.heapify(self.frontier)  # Rebuild the heap to maintain heap properties
+        
+        if self.g_values.get(state, float('inf')) != self.rhs_values.get(state, float('inf')):
+            if state not in self.explored:
+                # If the state is not yet explored, add it to the priority queue
+                heapq.heappush(self.frontier, (self.calculate_key(state), state))
+            else:
+                # Otherwise, add it to the inconsistency list
+                self.incons.append(state)
+
+    def cost(self, state1, state2):
+        # Return the cost of moving from state1 to state2, assuming uniform cost
+        return 1  # Modify this if costs vary between nodes
+
+    def compute_path(self):
+        # Main loop that performs the Anytime Dynamic A* search
+        
+        # While there are nodes in the priority queue, and the priority queue's top key is less than the goal's key
+        while self.frontier and (self.frontier[0][0] < self.calculate_key(self.goal) or self.rhs_values.get(self.goal, float('inf')) != self.g_values.get(self.goal, float('inf'))):
+            _, current = heapq.heappop(self.frontier)  # Pop the node with the highest priority from the queue
+            
+            if self.g_values.get(current, float('inf')) > self.rhs_values.get(current, float('inf')):
+                # If g-value is greater than rhs-value, update g-value
+                self.g_values[current] = self.rhs_values[current]
+                # Update all neighbors of the current state
+                for neighbor in self.get_neighbours(current):
+                    self.update_vertex(neighbor)
+            else:
+                # Otherwise, set g-value to infinity (remove the state)
+                self.g_values[current] = float('inf')
+                # Update the state itself and its neighbors
+                for neighbor in self.get_neighbours(current) + [current]:
+                    self.update_vertex(neighbor)
+    
+    def update_graph(self, state_changes):
+        # Update the graph based on changes (e.g., obstacles appearing or disappearing)
+        for state in state_changes:
+            self.update_vertex(state)  # Update each changed state
+
+    def improve_solution(self):
+        # Gradually improve the solution by reducing epsilon
+        
+        self.epsilon -= 0.5  # Reduce epsilon to gradually make the solution more optimal
+        if self.epsilon < 1:
+            self.epsilon = 1  # Ensure epsilon never goes below 1 (fully optimal)
+        
+        # Add all nodes from INCONS to the priority queue
+        for state in self.incons:
+            heapq.heappush(self.frontier, (self.calculate_key(state), state))
+        
+        self.incons.clear()  # Clear the inconsistency list since nodes are now back in the priority queue
+        heapq.heapify(self.frontier)  # Rebuild the heap structure
+        self.compute_path()  # Recompute the path with the updated ε value
+
+    def reconstruct_path(self, came_from, start, goal):
+        """Reconstruct the path from start to goal."""
+        path = []
+        current = goal
+        while current != start:
+            current, direction = came_from[current]
+            path.append(direction)
+        path.reverse()
+        print("path is:")
+        print(path)
+        return path
 
     # Manhattan distance heuristic for A*
     # def heuristic(self, current, goal):
@@ -403,17 +499,4 @@ class Player:
 
     #     # Finally return the neighbors that we can possibly move to.
     #     return neighbors
-
-
-    def reconstruct_path(self, came_from, start, goal):
-        """Reconstruct the path from start to goal."""
-        path = []
-        current = goal
-        while current != start:
-            current, direction = came_from[current]
-            path.append(direction)
-        path.reverse()
-        print("path is:")
-        print(path)
-        return path
     ##########################################
