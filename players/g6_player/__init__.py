@@ -122,12 +122,18 @@ class G6_Player:
         if not self.found_down_boundary:
             self.found_down_boundary = self.__is_boundary_in_sight(DOWN)
 
-        if not self.found_right_boundary and not self.found_down_boundary:
-            return self.__greedy_move(directions=[RIGHT, DOWN])
-        elif not self.found_right_boundary:
-            return self.__greedy_move(directions=[RIGHT])
-        elif not self.found_down_boundary:
-            return self.__greedy_move(directions=[DOWN])
+        if not self.found_right_boundary or not self.found_down_boundary:
+            self.maze.target_pos = (self.maze.east_end, self.maze.south_end)
+            result, cost = a_star(self.maze.current_cell(), self.maze.target_cell())
+            print(f"TARGET: {len(result)} moves - {cost} cost")
+            return result[0]
+
+        # if not self.found_right_boundary and not self.found_down_boundary:
+        #     return self.__greedy_move(directions=[RIGHT, DOWN])
+        # elif not self.found_right_boundary:
+        #     return self.__greedy_move(directions=[RIGHT])
+        # elif not self.found_down_boundary:
+        #     return self.__greedy_move(directions=[DOWN])
 
         return self.__inward_spiral()
 
@@ -168,7 +174,8 @@ class G6_Player:
         # Set initial search target so that radius touches southeast corner
         if self.layer == 0 and self.phase == 4:
             offset = int(np.floor(self.radius / np.sqrt(2)))
-            self.search_target = (
+            # self.search_target = (
+            self.maze.target_pos = (
                 self.maze.east_end - offset,
                 self.maze.south_end - offset,
             )
@@ -176,12 +183,18 @@ class G6_Player:
         # Set inward spiral phase and layer and update search target
         # [TODO] In case we are stuck getting to the exact target, we could consider
         # setting a max distance from target before we move on to the next phase
-        if self.maze.curr_pos == self.search_target:
+        # if self.maze.curr_pos == self.search_target:
+        if self.maze.curr_pos == self.maze.target_pos:
             self.__adjust_phase_and_target()
 
         # print(f'Phase: {self.phase}, Layer: {self.layer}, Target: {self.search_target}, curr_pos: {self.maze.curr_pos}')
 
-        return self.__greedy_move(target=self.search_target)
+        # A* search to target
+        result, cost = a_star(self.maze.current_cell(), self.maze.target_cell())
+        print(f"TARGET: {len(result)} moves - {cost} cost")
+        return result[0]
+
+        # return self.__greedy_move(target=self.search_target)
 
     def __adjust_phase_and_target(self):
         """
@@ -196,28 +209,32 @@ class G6_Player:
 
         # Set search target so that radius touches southeast corner of previous layer
         if self.phase == 4:
-            self.search_target = (
+            # self.search_target = (
+            self.maze.target_pos = (
                 self.maze.east_end - cum_offset,
                 self.maze.south_end - cum_offset,
             )
 
         # Set search target so that radius touches southwest corner of previous layer
         elif self.phase == LEFT:
-            self.search_target = (
+            # self.search_target = (
+            self.maze.target_pos = (
                 self.maze.west_end + cum_offset,
                 self.maze.south_end - cum_offset,
             )
 
         # Set search target so that radius touches northwest corner of previous layer
         elif self.phase == UP:
-            self.search_target = (
+            # self.search_target = (
+            self.maze.target_pos = (
                 self.maze.west_end + cum_offset,
                 self.maze.north_end + cum_offset,
             )
 
         # Set search target so that radius touches northeast corner of previous layer
         elif self.phase == RIGHT:
-            self.search_target = (
+            # self.search_target = (
+            self.maze.target_pos = (
                 self.maze.east_end - cum_offset,
                 self.maze.north_end + cum_offset,
             )
@@ -225,7 +242,8 @@ class G6_Player:
         # Set search target so that radius touches southeast corner of previous layer
         # Extra offset from south border to avoid overlapping with previous layer
         elif self.phase == DOWN:
-            self.search_target = (
+            # self.search_target = (
+            self.maze.target_pos = (
                 self.maze.east_end - cum_offset,
                 self.maze.south_end - cum_offset - offset,
             )
