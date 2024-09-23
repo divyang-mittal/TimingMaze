@@ -125,7 +125,7 @@ class Player:
         if self.current_intermediate_target == self.memory.pos: # we have reached this intermediate target
             self.current_intermediate_target = None
         
-        how_long_to_follow_intermediate_target = 10
+        how_long_to_follow_intermediate_target = 5
         if self.current_intermediate_target and self.current_intermediate_target_age < how_long_to_follow_intermediate_target:
             self.current_intermediate_target_age += 1 # increment the age
         else: # update the intermediate target
@@ -183,10 +183,10 @@ class Player:
         for pos in options:
             final_score = (
                 # Normalizing each factor
-                unseen_weight * np.floor((options[pos]["num_unseen"] - 0) / (3 * self.radius**2)) + 
+                unseen_weight * (options[pos]["num_unseen"] - 0) / (3 * self.radius**2) + 
                 # The more times we visited the current square - the less we encourage going far
-                distance_weight * np.floor((options[pos]["euclidean_dist"] - 0) / (self.radius)) / (1 + self.memory.memory[self.memory.pos[0]][self.memory.pos[1]].visited) +
-                1 / (1 + time_weight * np.floor((options[pos]["dist"] - min_min_dist) / (max_min_dist)))
+                distance_weight * (options[pos]["euclidean_dist"] - 0) / (self.radius) / (1 + self.memory.memory[self.memory.pos[0]][self.memory.pos[1]].visited) -
+                (time_weight * (options[pos]["dist"] - min_min_dist) / (max_min_dist))
             )
             options[pos]["final_score"] = final_score
             if final_score > best_score:
@@ -211,7 +211,7 @@ class Player:
 
         if squares:
             for y in range(len(squares)):
-                for x in range(len(squares[0])):
+                for x in range(len(squares[y])):
                     square = squares[y][x]
                     if not square.seen:  # Add only unseen squares within boundaries
                         not_seen_squares.append((y, x))
