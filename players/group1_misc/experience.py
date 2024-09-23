@@ -229,24 +229,64 @@ class Experience:
         """
         move_scores = [0, 0, 0, 0]
 
-        for dx, dy in [
-            (-1, 0),
-            (0, -1),
-            (1, 0),
-            (0, 1),
-        ]:  # LEFT, UP, RIGHT, DOWN
-            num_new_cells = self.get_num_new_cells(
-                self.cur_pos[0] + dx, self.cur_pos[1] + dy
-            )
-            if dx == -1 and dy == 0:
-                move_scores[constants.LEFT] = num_new_cells
-            elif dx == 0 and dy == -1:
-                move_scores[constants.UP] = num_new_cells
-            elif dx == 1 and dy == 0:
-                move_scores[constants.RIGHT] = num_new_cells
-            elif dx == 0 and dy == 1:
-                move_scores[constants.DOWN] = num_new_cells
+        # Define the corners based on walls
+        corners = [
+            (self.walls[2], self.walls[3]),  # Bottom-left corner
+            (self.walls[2], self.walls[1]),  # Top-left corner
+            (self.walls[0], self.walls[3]),  # Bottom-right corner
+            (self.walls[0], self.walls[1]),  # Top-right corner
+        ]
+
+        for dx, dy, direction in [
+            (-1, 0, constants.LEFT),
+            (0, -1, constants.UP),
+            (1, 0, constants.RIGHT),
+            (0, 1, constants.DOWN),
+        ]:
+            new_x = self.cur_pos[0] + dx
+            new_y = self.cur_pos[1] + dy
+            num_new_cells = self.get_num_new_cells(new_x, new_y)
+
+            # Score for the number of new cells seen
+            move_scores[direction] = num_new_cells
+
+            # Check if corners are visible within the radius and unvisited
+            for corner in corners:
+                corner_x, corner_y = corner
+                if abs(corner_x - new_x) <= self.r and abs(corner_y - new_y) <= self.r:
+                    if corner not in self.seen_cells:
+                        move_scores[direction] += 5  # Extra score for visible unvisited corners
+
+            # Adjust for distance to walls and hugging behavior
+            distance_to_wall = -1
+            if direction == constants.LEFT and self.walls[2] != float('inf'):
+                distance_to_wall = abs(self.walls[2] - new_x)
+            elif direction == constants.UP and self.walls[1] != float('inf'):
+                distance_to_wall = abs(self.walls[1] - new_y)
+            elif direction == constants.RIGHT and self.walls[0] != float('inf'):
+                distance_to_wall = abs(self.walls[0] - new_x)
+            elif direction == constants.DOWN and self.walls[3] != float('inf'):
+                distance_to_wall = abs(self.walls[3] - new_y)
+
+            # Score for hugging walls
+            if distance_to_wall != -1:
+                move_scores[direction] += (1 / (distance_to_wall + 1)) * 10
+                if distance_to_wall < self.r:
+                    move_scores[direction] += 1
+
+        # Adjust scores if close to walls for hugging behavior
+        if ((self.walls[0] != float('inf') and self.walls[0] <= self.cur_pos[0] + self.r) or
+            (self.walls[2] != float('inf') and self.walls[2] >= self.cur_pos[0] + self.r)):
+            move_scores[constants.DOWN] += 1
+            move_scores[constants.UP] += 1
+        elif ((self.walls[1] != float('inf') and self.walls[1] <= self.cur_pos[1] + self.r) or
+            (self.walls[3] != float('inf') and self.walls[3] >= self.cur_pos[1] + self.r)):
+            move_scores[constants.RIGHT] += 1
+            move_scores[constants.LEFT] += 1
+
         return move_scores
+
+
 
     def get_num_new_cells(self, x, y):
         """Get the number of new cells seen at a new position
