@@ -125,7 +125,8 @@ class Player:
         if self.current_intermediate_target == self.memory.pos: # we have reached this intermediate target
             self.current_intermediate_target = None
         
-        how_long_to_follow_intermediate_target = 5
+        how_long_to_follow_intermediate_target = 150
+        how_long_to_follow_intermediate_target = max(self.memory.memory[self.memory.pos[0]][self.memory.pos[1]].visited * 2, 5)
         if self.current_intermediate_target and self.current_intermediate_target_age < how_long_to_follow_intermediate_target:
             self.current_intermediate_target_age += 1 # increment the age
         else: # update the intermediate target
@@ -179,7 +180,7 @@ class Player:
         distance_weight = 1
         time_weight = 1
         min_min_dist = np.min(min_dist_array)
-        max_min_dist = np.max(min_dist_array)
+        max_min_dist = np.max([i for i in np.reshape(min_dist_array, -1) if i < float("inf")])
         for pos in options:
             final_score = (
                 # Normalizing each factor
@@ -192,6 +193,8 @@ class Player:
             if final_score > best_score:
                 best_score = final_score
                 best_pos = pos
+
+        print("best pos: ", best_pos)
         return best_pos
 
     
