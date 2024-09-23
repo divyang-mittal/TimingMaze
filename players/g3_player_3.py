@@ -53,6 +53,7 @@ class Player:
         self.rush_in_reverse_timer = maximum_door_frequency
         self.x_axis_dist = 0
         self.global_counter=0
+        self.update_case=0
         
         
     def get_corner(self, current_percept) -> int:
@@ -468,12 +469,19 @@ class Player:
         return constants.WAIT
     #***********************   *****8
 
+    def reset_for_outside_in(self):
+        if self.global_counter%4==0 and self.global_counter!=0:
+            print('*****************################')
+            outside_in_rem_dict={1:[self.outside_in_start_radius-self.radius, self.outside_in_start_radius-2*self.radius, self.outside_in_start_radius, self.outside_in_start_radius-self.radius],
+                                2:[self.outside_in_start_radius, self.outside_in_start_radius, self.outside_in_start_radius-2*self.radius, self.outside_in_start_radius],
+                                3:[self.outside_in_start_radius, self.outside_in_start_radius-self.radius, self.outside_in_start_radius-self.radius, self.outside_in_start_radius-2*self.radius],
+                                4:[self.outside_in_start_radius-2*self.radius, self.outside_in_start_radius, self.outside_in_start_radius, self.outside_in_start_radius]}
+            self.outside_in_rem = outside_in_rem_dict[self.update_case]
+            self.outside_in_start_radius = self.outside_in_start_radius- 2*self.radius
+
     def move_outside_in_3(self,current_percept)->int:
         direction = [0, 0, 0, 0]
         reverse_direction = [0, 0, 0, 0]
-        self.corner_val= self.get_corner(current_percept)
-        
-        
         for maze_state in current_percept.maze_state:
             if maze_state[0] == 0 and maze_state[1] == 0:
                 direction[maze_state[2]] = maze_state[3]
@@ -488,28 +496,47 @@ class Player:
         #check for one side which will be short now
         abs_x = - current_percept.start_x
         abs_y = - current_percept.start_y
-        # corner_val = self.get_corner(current_percept)
+     
         if self.outside_in_state == 0:
+       
+            self.corner_val= self.get_corner(current_percept) 
+            if self.corner_val== 1:
+                    self.outside_in_state = 1
+                    self.update_case =1
+            elif self.corner_val ==2:
+                    self.update_case = 2
+                    self.outside_in_state = 2
+            elif self.corner_val ==3: 
+                    self.outside_in_state = 3
+                    self.update_case = 3
+            elif self.corner_val ==4:
+                    self.outside_in_state = 4 
+                    self.update_case = 4
+            # else: 
+            #     self.outside_in_state = 1
+            # print(self.outside_in_state)
+            # print(self.update_case)
+            # print('******************************')
+            outside_in_rem_dict={1:[self.outside_in_start_radius, self.outside_in_start_radius-self.radius, self.outside_in_start_radius, self.outside_in_start_radius],
+                                2:[self.outside_in_start_radius, self.outside_in_start_radius, self.outside_in_start_radius-self.radius, self.outside_in_start_radius],
+                                3:[self.outside_in_start_radius, self.outside_in_start_radius, self.outside_in_start_radius, self.outside_in_start_radius-self.radius],
+                                4:[self.outside_in_start_radius-self.radius, self.outside_in_start_radius, self.outside_in_start_radius, self.outside_in_start_radius]}
             
-            self.outside_in_rem = [self.outside_in_start_radius, self.outside_in_start_radius, self.outside_in_start_radius, self.outside_in_start_radius]
+            self.outside_in_rem = outside_in_rem_dict[self.update_case]
             self.outside_in_start_radius = self.outside_in_start_radius- self.radius
-            self.outside_in_state = 1
             self.outside_in_timer = self.maximum_door_frequency
             self.outside_in_reverse_timer = self.maximum_door_frequency
-        
-        if self.corner_val== 1:
-            self.outside_in_state = 1
-        elif self.corner_val ==2:
-            self.outside_in_state = 2
-        elif self.corner_val ==3: 
-            self.outside_in_state = 3
-        elif self.corner_val ==4:
-            self.outside_in_state = 4
 
+        
+ 
         if self.outside_in_state == 1:
-           
+            
             if self.outside_in_rem[2] <= 0:
                 self.outside_in_state = 2
+                self.global_counter+=1
+               
+                self.reset_for_outside_in()
+                print("Global Counter",self.global_counter)
             else:
                 if self.outside_in_rem[2] > 0:
                     if direction[constants.RIGHT] == constants.OPEN and reverse_direction[constants.RIGHT] == constants.OPEN:
@@ -533,8 +560,12 @@ class Player:
                     return constants.UP
 
         if self.outside_in_state == 2:
+           
             if self.outside_in_rem[3] <= 0:
                 self.outside_in_state = 3
+                self.global_counter+=1
+                self.reset_for_outside_in()
+                print("Global Counter",self.global_counter)
             else:
                 if self.outside_in_rem[3] > 0:
                     if direction[constants.DOWN] == constants.OPEN and reverse_direction[constants.DOWN] == constants.OPEN:
@@ -558,8 +589,12 @@ class Player:
                     return constants.RIGHT
 
         if self.outside_in_state == 3:
+           
             if self.outside_in_rem[0] <= 0:
                 self.outside_in_state = 4
+                self.global_counter+=1
+                self.reset_for_outside_in()
+                print("Global Counter",self.global_counter)
             else:
                 if self.outside_in_rem[0] > 0:
                     if direction[constants.LEFT] == constants.OPEN and reverse_direction[constants.LEFT] == constants.OPEN:
@@ -583,8 +618,12 @@ class Player:
                     return constants.DOWN
 
         if self.outside_in_state == 4:
+           
             if self.outside_in_rem[1] <= 0:
-                self.outside_in_state = 0
+                self.outside_in_state = 1
+                self.global_counter+=1
+                self.reset_for_outside_in()
+                print("Global Counter",self.global_counter)
             else:
                 if self.outside_in_rem[1] > 0:
                     if direction[constants.UP] == constants.OPEN and reverse_direction[constants.UP] == constants.OPEN:
@@ -605,134 +644,134 @@ class Player:
                     self.outside_in_timer = self.maximum_door_frequency
                     self.outside_in_reverse_timer = self.maximum_door_frequency
                     return constants.LEFT
-
+     
         return constants.WAIT
 
-    def move_outside_in_2(self, current_percept) -> int:
-        # Move towards the boundary but not more than the radius away from the inner boundary
-        # if the boundary is less than the radius away, change direction
-        direction = [0, 0, 0, 0]
-        reverse_direction = [0, 0, 0, 0]
-        for maze_state in current_percept.maze_state:
-            if maze_state[0] == 0 and maze_state[1] == 0:
-                direction[maze_state[2]] = maze_state[3]
-            if maze_state[0] == 0 and maze_state[1] == 1 and maze_state[2] == constants.UP:
-                reverse_direction[constants.DOWN] = maze_state[3]
-            if maze_state[0] == 0 and maze_state[1] == -1 and maze_state[2] == constants.DOWN:
-                reverse_direction[constants.UP] = maze_state[3]
-            if maze_state[0] == 1 and maze_state[1] == 0 and maze_state[2] == constants.LEFT:
-                reverse_direction[constants.RIGHT] = maze_state[3]
-            if maze_state[0] == -1 and maze_state[1] == 0 and maze_state[2] == constants.RIGHT:
-                reverse_direction[constants.LEFT] = maze_state[3]
+    # def move_outside_in_2(self, current_percept) -> int:
+    #     # Move towards the boundary but not more than the radius away from the inner boundary
+    #     # if the boundary is less than the radius away, change direction
+    #     direction = [0, 0, 0, 0]
+    #     reverse_direction = [0, 0, 0, 0]
+    #     for maze_state in current_percept.maze_state:
+    #         if maze_state[0] == 0 and maze_state[1] == 0:
+    #             direction[maze_state[2]] = maze_state[3]
+    #         if maze_state[0] == 0 and maze_state[1] == 1 and maze_state[2] == constants.UP:
+    #             reverse_direction[constants.DOWN] = maze_state[3]
+    #         if maze_state[0] == 0 and maze_state[1] == -1 and maze_state[2] == constants.DOWN:
+    #             reverse_direction[constants.UP] = maze_state[3]
+    #         if maze_state[0] == 1 and maze_state[1] == 0 and maze_state[2] == constants.LEFT:
+    #             reverse_direction[constants.RIGHT] = maze_state[3]
+    #         if maze_state[0] == -1 and maze_state[1] == 0 and maze_state[2] == constants.RIGHT:
+    #             reverse_direction[constants.LEFT] = maze_state[3]
         
-        abs_x = - current_percept.start_x
-        abs_y = - current_percept.start_y
-        corner_val = self.get_corner(abs_x, abs_y,current_percept)
+    #     abs_x = - current_percept.start_x
+    #     abs_y = - current_percept.start_y
+    #     corner_val = self.get_corner(abs_x, abs_y,current_percept)
 
-        if self.outside_in_state == 0:
-           print("IN STATE 0")
-           self.global_counter+=1   
-           if self.global_counter%4==0:
-                print('*****************************************')
-                self.outside_in_start_radius = self.outside_in_start_radius- self.radius
-           self.outside_in_rem = [self.outside_in_start_radius, self.outside_in_start_radius, self.outside_in_start_radius, self.outside_in_start_radius]
-           if self.global_counter%4==0:
-                self.outside_in_start_radius = self.outside_in_start_radius- self.radius
+    #     if self.outside_in_state == 0:
+    #        print("IN STATE 0")
+    #        self.global_counter+=1   
+    #        if self.global_counter%4==0:
+    #             print('*****************************************')
+    #             self.outside_in_start_radius = self.outside_in_start_radius- self.radius
+    #        self.outside_in_rem = [self.outside_in_start_radius, self.outside_in_start_radius, self.outside_in_start_radius, self.outside_in_start_radius]
+    #        if self.global_counter%4==0:
+    #             self.outside_in_start_radius = self.outside_in_start_radius- self.radius
 
-           self.outside_in_state = 1
+    #        self.outside_in_state = 1
         
-        if corner_val== 1:
-            self.outside_in_state = 1
-        elif corner_val ==2:
-            self.outside_in_state = 2
-        elif corner_val ==3: 
-            self.outside_in_state = 3
-        elif corner_val ==4:
-            self.outside_in_state = 4
+    #     if corner_val== 1:
+    #         self.outside_in_state = 1
+    #     elif corner_val ==2:
+    #         self.outside_in_state = 2
+    #     elif corner_val ==3: 
+    #         self.outside_in_state = 3
+    #     elif corner_val ==4:
+    #         self.outside_in_state = 4
         
-        if self.outside_in_state == 1:
-            if self.outside_in_rem[2] <= 0:
-                self.outside_in_state = 2
-            else:
-                if self.outside_in_rem[2] > 0:
-                    if direction[constants.RIGHT] == constants.OPEN and reverse_direction[constants.RIGHT] == constants.OPEN:
-                        self.outside_in_rem[2] -= 1
-                        return constants.RIGHT
+    #     if self.outside_in_state == 1:
+    #         if self.outside_in_rem[2] <= 0:
+    #             self.outside_in_state = 2
+    #         else:
+    #             if self.outside_in_rem[2] > 0:
+    #                 if direction[constants.RIGHT] == constants.OPEN and reverse_direction[constants.RIGHT] == constants.OPEN:
+    #                     self.outside_in_rem[2] -= 1
+    #                     return constants.RIGHT
 
-                if ((self.always_closed[abs_x][abs_y][constants.RIGHT] or self.always_closed[abs_x+1][abs_y][constants.LEFT])
-                        and direction[constants.DOWN] == constants.OPEN and reverse_direction[constants.DOWN] == constants.OPEN):
-                    self.outside_in_rem[3] -= 1
-                    return constants.DOWN
+    #             if ((self.always_closed[abs_x][abs_y][constants.RIGHT] or self.always_closed[abs_x+1][abs_y][constants.LEFT])
+    #                     and direction[constants.DOWN] == constants.OPEN and reverse_direction[constants.DOWN] == constants.OPEN):
+    #                 self.outside_in_rem[3] -= 1
+    #                 return constants.DOWN
 
-                if ((self.always_closed[abs_x][abs_y][constants.RIGHT] or self.always_closed[abs_x+1][abs_y][constants.LEFT])
-                        and (self.always_closed[abs_x][abs_y][constants.DOWN] or self.always_closed[abs_x][abs_y+1][constants.UP])
-                        and direction[constants.UP] == constants.OPEN and reverse_direction[constants.UP] == constants.OPEN):
-                    self.outside_in_rem[1] -= 1
-                    return constants.UP
+    #             if ((self.always_closed[abs_x][abs_y][constants.RIGHT] or self.always_closed[abs_x+1][abs_y][constants.LEFT])
+    #                     and (self.always_closed[abs_x][abs_y][constants.DOWN] or self.always_closed[abs_x][abs_y+1][constants.UP])
+    #                     and direction[constants.UP] == constants.OPEN and reverse_direction[constants.UP] == constants.OPEN):
+    #                 self.outside_in_rem[1] -= 1
+    #                 return constants.UP
 
-        if self.outside_in_state == 2:
-            if self.outside_in_rem[3] <= 0:
-                self.outside_in_state = 3
-            else:
-                if self.outside_in_rem[3] > 0:
-                    if direction[constants.DOWN] == constants.OPEN and reverse_direction[constants.DOWN] == constants.OPEN:
-                        self.outside_in_rem[3] -= 1
-                        return constants.DOWN
+    #     if self.outside_in_state == 2:
+    #         if self.outside_in_rem[3] <= 0:
+    #             self.outside_in_state = 3
+    #         else:
+    #             if self.outside_in_rem[3] > 0:
+    #                 if direction[constants.DOWN] == constants.OPEN and reverse_direction[constants.DOWN] == constants.OPEN:
+    #                     self.outside_in_rem[3] -= 1
+    #                     return constants.DOWN
 
-                if ((self.always_closed[abs_x][abs_y][constants.DOWN] or self.always_closed[abs_x][abs_y+1][constants.UP])
-                        and direction[constants.LEFT] == constants.OPEN and reverse_direction[constants.LEFT] == constants.OPEN):
-                    self.outside_in_rem[0] -= 1
-                    return constants.LEFT
+    #             if ((self.always_closed[abs_x][abs_y][constants.DOWN] or self.always_closed[abs_x][abs_y+1][constants.UP])
+    #                     and direction[constants.LEFT] == constants.OPEN and reverse_direction[constants.LEFT] == constants.OPEN):
+    #                 self.outside_in_rem[0] -= 1
+    #                 return constants.LEFT
 
-                if ((self.always_closed[abs_x][abs_y][constants.DOWN] or self.always_closed[abs_x][abs_y+1][constants.UP])
-                        and (self.always_closed[abs_x][abs_y][constants.LEFT] or self.always_closed[abs_x-1][abs_y][constants.RIGHT])
-                        and direction[constants.RIGHT] == constants.OPEN and reverse_direction[constants.RIGHT] == constants.OPEN):
-                    self.outside_in_rem[2] -= 1
-                    return constants.RIGHT
+    #             if ((self.always_closed[abs_x][abs_y][constants.DOWN] or self.always_closed[abs_x][abs_y+1][constants.UP])
+    #                     and (self.always_closed[abs_x][abs_y][constants.LEFT] or self.always_closed[abs_x-1][abs_y][constants.RIGHT])
+    #                     and direction[constants.RIGHT] == constants.OPEN and reverse_direction[constants.RIGHT] == constants.OPEN):
+    #                 self.outside_in_rem[2] -= 1
+    #                 return constants.RIGHT
 
-        if self.outside_in_state == 3:
-            if self.outside_in_rem[0] <= 0:
-                self.outside_in_state = 4
-            else:
-                if self.outside_in_rem[0] > 0:
-                    if direction[constants.LEFT] == constants.OPEN and reverse_direction[constants.LEFT] == constants.OPEN:
-                        self.outside_in_rem[0] -= 1
-                        return constants.LEFT
+    #     if self.outside_in_state == 3:
+    #         if self.outside_in_rem[0] <= 0:
+    #             self.outside_in_state = 4
+    #         else:
+    #             if self.outside_in_rem[0] > 0:
+    #                 if direction[constants.LEFT] == constants.OPEN and reverse_direction[constants.LEFT] == constants.OPEN:
+    #                     self.outside_in_rem[0] -= 1
+    #                     return constants.LEFT
 
-                if ((self.always_closed[abs_x][abs_y][constants.LEFT] or self.always_closed[abs_x-1][abs_y][constants.RIGHT])
-                        and direction[constants.UP] == constants.OPEN and reverse_direction[constants.UP] == constants.OPEN):
-                    self.outside_in_rem[1] -= 1
-                    return constants.UP
+    #             if ((self.always_closed[abs_x][abs_y][constants.LEFT] or self.always_closed[abs_x-1][abs_y][constants.RIGHT])
+    #                     and direction[constants.UP] == constants.OPEN and reverse_direction[constants.UP] == constants.OPEN):
+    #                 self.outside_in_rem[1] -= 1
+    #                 return constants.UP
 
-                if ((self.always_closed[abs_x][abs_y][constants.LEFT] or self.always_closed[abs_x-1][abs_y][constants.RIGHT])
-                        and (self.always_closed[abs_x][abs_y][constants.UP] or self.always_closed[abs_x][abs_y-1][constants.DOWN])
-                        and direction[constants.DOWN] == constants.OPEN and reverse_direction[constants.DOWN] == constants.OPEN):
-                    self.outside_in_rem[3] -= 1
-                    return constants.DOWN
+    #             if ((self.always_closed[abs_x][abs_y][constants.LEFT] or self.always_closed[abs_x-1][abs_y][constants.RIGHT])
+    #                     and (self.always_closed[abs_x][abs_y][constants.UP] or self.always_closed[abs_x][abs_y-1][constants.DOWN])
+    #                     and direction[constants.DOWN] == constants.OPEN and reverse_direction[constants.DOWN] == constants.OPEN):
+    #                 self.outside_in_rem[3] -= 1
+    #                 return constants.DOWN
 
-        if self.outside_in_state == 4:
+    #     if self.outside_in_state == 4:
             
-            if self.outside_in_rem[1] <= 0:
-                self.outside_in_state = 0
-                print("GOING to State 0")
-            else:
-                if self.outside_in_rem[1] > 0:
-                    if direction[constants.UP] == constants.OPEN and reverse_direction[constants.UP] == constants.OPEN:
-                        self.outside_in_rem[1] -= 1
-                        return constants.UP
+    #         if self.outside_in_rem[1] <= 0:
+    #             self.outside_in_state = 0
+    #             print("GOING to State 0")
+    #         else:
+    #             if self.outside_in_rem[1] > 0:
+    #                 if direction[constants.UP] == constants.OPEN and reverse_direction[constants.UP] == constants.OPEN:
+    #                     self.outside_in_rem[1] -= 1
+    #                     return constants.UP
 
-                if ((self.always_closed[abs_x][abs_y][constants.UP] or self.always_closed[abs_x][abs_y-1][constants.DOWN])
-                        and direction[constants.RIGHT] == constants.OPEN and reverse_direction[constants.RIGHT] == constants.OPEN):
-                    self.outside_in_rem[2] -= 1
-                    return constants.RIGHT
+    #             if ((self.always_closed[abs_x][abs_y][constants.UP] or self.always_closed[abs_x][abs_y-1][constants.DOWN])
+    #                     and direction[constants.RIGHT] == constants.OPEN and reverse_direction[constants.RIGHT] == constants.OPEN):
+    #                 self.outside_in_rem[2] -= 1
+    #                 return constants.RIGHT
 
-                if ((self.always_closed[abs_x][abs_y][constants.UP] or self.always_closed[abs_x][abs_y-1][constants.DOWN])
-                        and (self.always_closed[abs_x][abs_y][constants.RIGHT] or self.always_closed[abs_x+1][abs_y][constants.LEFT])
-                        and direction[constants.LEFT] == constants.OPEN and reverse_direction[constants.LEFT] == constants.OPEN):
-                    self.outside_in_rem[0] -= 1
-                    return constants.LEFT
+    #             if ((self.always_closed[abs_x][abs_y][constants.UP] or self.always_closed[abs_x][abs_y-1][constants.DOWN])
+    #                     and (self.always_closed[abs_x][abs_y][constants.RIGHT] or self.always_closed[abs_x+1][abs_y][constants.LEFT])
+    #                     and direction[constants.LEFT] == constants.OPEN and reverse_direction[constants.LEFT] == constants.OPEN):
+    #                 self.outside_in_rem[0] -= 1
+    #                 return constants.LEFT
 
-        return constants.WAIT
+    #     return constants.WAIT
          #***********************   *****8
 
 
