@@ -62,12 +62,13 @@ class Player:
         self.up_wall_pos = None
         self.down_wall_pos = None
         self.corner_found = False
-        self.threshold = 3
+
         self.stuck_for_rounds_count = 0
         self.stuck_threshold = 10
         self.previous_position = None
+
         self.recently_seen_positions_list = []
-        self.recently_seen_positions_list_size = 20
+        self.recently_seen_positions_list_size = 25
         self.stuck_seeing_same_positions_threshold = 4
 
         self.random_movements_started = False
@@ -78,6 +79,7 @@ class Player:
 
         self.corners_to_visit = None
         self.which_corner_to_visit = 0
+        self.seen_in_random_walk = set()
         
 
 
@@ -154,7 +156,7 @@ class Player:
         if self.have_seen_target:
             return (self.target_x, self.target_y)
         
-        if not self.horizontal_search_is_complete or not self.vertical_search_is_complete:
+        """        if not self.horizontal_search_is_complete or not self.vertical_search_is_complete:
             if self.stuck_for_rounds_count >= self.stuck_threshold:
                 if not self.horizontal_search_is_complete:
                     print("Stuck for too long, switching random horizontal exploration direction")
@@ -168,7 +170,7 @@ class Player:
                 print("Stuck for too long in same cells, switching random exploration directions")
                 self.random_horizontal_exploration_direction = self.switch_random_exploration_direction(self.random_horizontal_exploration_direction)
                 self.random_vertical_exploration_direction = self.switch_random_exploration_direction(self.random_vertical_exploration_direction)
-        
+        """
         if not self.horizontal_search_is_complete:
             if self.random_horizontal_exploration_direction == constants.LEFT:
                 return (-self.radius, 0)
@@ -238,7 +240,7 @@ class Player:
                     return self.corners_to_visit[self.which_corner_to_visit]
                 return self.corners_to_visit[self.which_corner_to_visit]
             
-    def move_random_open_direction(self, direction) -> int:
+    def move_random_open_direction(self, direction, current_percept) -> int:
         """Move in a random direction that is open with a fresh random generator each time.
 
         Args:
@@ -250,26 +252,38 @@ class Player:
         """
         # Create a fresh random number generator instance for this function call
         fresh_rng = np.random.default_rng()
+        curr_x, curr_y = -current_percept.start_x, -current_percept.start_y
+        self.seen_in_random_walk.add((curr_x, curr_y))
 
-        open_directions = []
+        open_directions = [constants.WAIT]
+        open_unseen_directions = []
 
         if direction[constants.LEFT] == constants.OPEN:
             open_directions.append(constants.LEFT)
+            if (curr_x - 1, curr_y) not in self.seen_in_random_walk:
+                open_unseen_directions.append(constants.LEFT)
         if direction[constants.RIGHT] == constants.OPEN:
             open_directions.append(constants.RIGHT)
+            if (curr_x + 1, curr_y) not in self.seen_in_random_walk:
+                open_unseen_directions.append(constants.RIGHT)
         if direction[constants.UP] == constants.OPEN:
             open_directions.append(constants.UP)
+            if (curr_x, curr_y - 1) not in self.seen_in_random_walk:
+                open_unseen_directions.append(constants.UP)
         if direction[constants.DOWN] == constants.OPEN:
             open_directions.append(constants.DOWN)
+            if (curr_x, curr_y + 1) not in self.seen_in_random_walk:
+                open_unseen_directions.append(constants.DOWN)
 
-        if open_directions:
+        if open_unseen_directions:
+            random_direction = fresh_rng.choice(open_unseen_directions)  # Randomly select an open unseen direction with fresh randomness
+            print("Random Unseen Direction: " + str(random_direction))
+            return int(random_direction)
+        elif open_directions:
             print(open_directions)
             random_direction = fresh_rng.choice(open_directions)  # Randomly select an open direction with fresh randomness
             print("Random Direction: " + str(random_direction))
             return int(random_direction)
-        else:
-            print("CANNOT GO RANDOMLY AND WAIT BECAUSE THERE ARE NO OPEN DIRECTIONS")
-            return constants.WAIT
 
 
     def switch_random_exploration_direction(self, random_direction) -> int:
@@ -282,7 +296,6 @@ class Player:
         elif random_direction == constants.DOWN:
             return constants.UP
     
-
     def move_random_vertically_or_wait(self, current_percept, direction) -> int:
         random_vertical_exploration_direction = self.rng.choice([constants.UP, constants.DOWN])
         if random_vertical_exploration_direction == constants.DOWN:
@@ -341,7 +354,6 @@ class Player:
         print("TRYING RANDOM VERTICAL")
         return self.move_random_vertically_or_wait(current_percept, direction)
 
-    
     def move(self, current_percept) -> int:
         """Function which retrieves the current state of the amoeba map and returns an amoeba movement
 
@@ -433,22 +445,20 @@ class Player:
                 return constants.WAIT
         # If we have not seen the target yet, we will explore the maze, starting from horizontal search
         else:
-            if self.horizontal_search_is_complete and self.vertical_search_is_complete:
-                print("Works 1")
-                if self.random_movements_started == False and len(set(self.recently_seen_positions_list)) <= self.stuck_seeing_same_positions_threshold and len(self.recently_seen_positions_list) == self.recently_seen_positions_list_size:
-                    print("Stuck for too long in same cells, moving randomly for " + str(self.number_of_random_moves_threshold) + " moves")
+            if self.random_movements_started == False and len(set(self.recently_seen_positions_list)) <= self.stuck_seeing_same_positions_threshold and len(self.recently_seen_positions_list) == self.recently_seen_positions_list_size:
+                print("Stuck for too long in same cells, moving randomly for " + str(self.number_of_random_moves_threshold) + " moves")
+                self.number_of_random_moves = self.number_of_random_moves_threshold
+                self.random_movements_started = True
+            
+            if self.random_movements_started:
+                if self.number_of_random_moves == 0:
+                    self.random_movements_started = False
                     self.number_of_random_moves = self.number_of_random_moves_threshold
-                    self.random_movements_started = True
-                print("Works 2")
-                if self.random_movements_started:
-                    if self.number_of_random_moves == 0:
-                        self.random_movements_started = False
-                        self.number_of_random_moves = self.number_of_random_moves_threshold
-                        print("RANDOM MOVEMENTS COMPLETE")
-                    else:
-                        self.number_of_random_moves -= 1
-                        return self.move_random_open_direction(direction)
-                print("Works 3")
+                    print("RANDOM MOVEMENTS COMPLETE")
+                    self.seen_in_random_walk = set()
+                else:
+                    self.number_of_random_moves -= 1
+                    return self.move_random_open_direction(direction, current_percept)
                 
             set_target = self.set_target(current_percept, direction)
             if set_target is None:
@@ -485,7 +495,7 @@ class Player:
         """
         print("Target X: " + str(target_x))
         print("Target Y: " + str(target_y))
-        print("Entered")
+        print("Entered here")
         if target_x < 0 and target_y < 0:
             if self.rng.choice([constants.UP, constants.LEFT]) == constants.LEFT:  # Randomly choose between the two
                 if direction[constants.LEFT] == constants.OPEN:
