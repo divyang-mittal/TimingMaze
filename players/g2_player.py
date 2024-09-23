@@ -60,6 +60,15 @@ class Player:
         self.turn_path_changed = 0
         
     def determine_destination(self):
+        """
+        Determines the next destination based on the least discovered cells and heuristic score.
+
+        Inputs:
+            None (relies on class attributes: self.times_discovered, self.curr_x, self.curr_y)
+
+        Outputs:
+            destination (tuple): The cell with the lowest score based on times discovered and heuristic.
+        """
         min_score = float('inf')
         destination = None
         for cell in self.times_discovered:
@@ -70,6 +79,15 @@ class Player:
         return destination
     
     def update_door_frequencies(self, maze_state):
+        """
+        Updates the frequency estimation for each door in the visible portion of the maze.
+
+        Inputs:
+            maze_state (list): List of door states in the maze within the current view (each entry contains coordinates and door state).
+            
+        Outputs:
+            None (modifies class attributes: self.door_frequencies, self.times_discovered).
+        """
         for cell_door in maze_state:
             # Convert cell coordinates to global coordinates
             cell_x = cell_door[0] + self.curr_x
@@ -120,6 +138,16 @@ class Player:
                     current_door['frequency'] = sum(current_door['possibilities']) // len(current_door['possibilities'])
 
     def a_star_search(self, start, target):
+        """
+        Performs A* search to find the optimal path from the start position to the target position.
+
+        Inputs:
+            start (tuple): The starting coordinates of the search (x, y).
+            target (tuple): The target coordinates to reach (x, y).
+
+        Outputs:
+            list: A list representing the path from start to target, or None if no path is found.
+        """
         # Open set represented as a priority queue with (f_score, node)
         open_set = []
         heapq.heappush(open_set, (0, start, self.turn_number))
@@ -168,6 +196,16 @@ class Player:
         return None
     
     def reconstruct_path(self, came_from, current):
+        """
+        Reconstructs the path from the start to the target node.
+
+        Inputs:
+            came_from (dict): A mapping of each node to its parent node (i.e., where it came from).
+            current (tuple): The current node (usually the target) to start backtracking from.
+
+        Outputs:
+            path (list): A list representing the path from start to target, in order.
+        """
         path = [current]
         while current in came_from:
             current = came_from[current]
@@ -176,14 +214,44 @@ class Player:
         return path
     
     def calculate_LCM(self, freq_1, freq_2):
+        """
+        Calculates the least common multiple (LCM) of two frequencies, handling infinity as a special case.
+
+        Inputs:
+            freq_1 (int or float): The frequency of the first door.
+            freq_2 (int or float): The frequency of the second door.
+
+        Outputs:
+            int: The LCM of the two frequencies, or infinity if either frequency is infinite.
+        """
         if freq_1 == float('inf') or freq_2 == float('inf'):
             return float('inf')
         return abs(freq_1 * freq_2) // math.gcd(freq_1, freq_2)
     
     def heuristic(self, start, end):
+        """
+        Calculates the Manhattan distance (heuristic) between two points.
+
+        Inputs:
+            start (tuple): The starting coordinates (x, y).
+            end (tuple): The target coordinates (x, y).
+
+        Outputs:
+            int: The Manhattan distance between the start and end points.
+        """
         return abs(start[0] - end[0]) + abs(start[1] - end[1])
     
     def coordinates_to_moves(self, path):
+        """
+        Converts a sequence of coordinates into a sequence of movement directions.
+
+        Inputs:
+            path (list): A list of tuples representing the path, where each tuple is a (x, y) coordinate.
+
+        Outputs:
+            moves (deque): A deque containing the movement directions (constants.LEFT, constants.RIGHT, constants.UP, constants.DOWN)
+                corresponding to the changes in coordinates along the path.
+        """
         moves = deque()
         for i in range(1, len(path)):
             dx, dy = path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]
@@ -201,7 +269,7 @@ class Player:
         """Function which retrieves the current state of the amoeba map and returns an amoeba movement
 
             Args:
-                current_percept(TimingMazeState): contains current state information
+                current_percept (TimingMazeState): contains current state information
             Returns:
                 int: This function returns the next move of the user:
                     WAIT = -1
