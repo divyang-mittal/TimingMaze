@@ -9,6 +9,9 @@ class Move(Enum):
     RIGHT = 2
     DOWN = 3
 
+    def __lt__(self, other) -> bool:
+        return True
+
 
 def move_to_str(move: Move) -> str:
     match move:

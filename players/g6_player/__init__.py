@@ -11,6 +11,8 @@ from players.g6_player.data import Move
 from timing_maze_state import TimingMazeState
 from players.g6_player.classes.maze import Maze
 
+from players.g6_player.data import move_to_str
+
 
 class G6_Player:
     def __init__(
@@ -63,6 +65,7 @@ class G6_Player:
         self.__update_history()
         player_move = self.__move(current_percept)
 
+        print(f"MOVE: {move_to_str(player_move)}")
         return player_move.value
 
     def __update_history(self):
@@ -301,7 +304,11 @@ class G6_Player:
 
         result = a_star(self.maze.current_cell(), self.maze.target_cell())
 
-        return Move.WAIT
+        # this shouldn't happen
+        if len(result) == 0:
+            return Move.WAIT
+
+        return result[0]
 
     def __exploit_a_star(self, current_state: TypedTimingMazeState) -> Move:
         """
