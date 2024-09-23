@@ -6,11 +6,12 @@ import os
 import pickle
 import numpy as np
 import logging
+import math
 
 import constants
 from timing_maze_state import TimingMazeState
-from players.g4_player.gridworld import GridWorld
-from players.g4_player.mcts import MCTS
+from players.g4.gridworld import GridWorld
+from players.g4.mcts import MCTS
 
 # from gridworld import GridWorld
 # from qtable import QTable
@@ -247,19 +248,83 @@ class Player:
         self.frequencies_per_cell = defaultdict(
             lambda: set(range(maximum_door_frequency + 1))
         )
+        self.lcm_cache = {}
         self.turn = 0
         self.start = (0,0)
         self.goal = None
-        # self.gridworld = GridWorld()
-        # self.qfunction = QTable()
 
     def set_goal(self, maze_state, curr_x, curr_y):
+        ### improve
+        # if the target is not visible, create an arbitrary goal
         coords = maze_state.keys()
+
+        # goal should be farther than half a radius away
         far_coords = [coord for coord in coords if abs(coord[0] - curr_x) + abs(coord[1] - curr_y) > (self.radius // 2) + 1]
         goal = self.rng.choice(far_coords)
 
         return goal
 
+    def update_door_frequencies(self, curr_x, curr_y, curr_maze_state):
+        maze_state = {}
+        coords = (float('-inf'), float('-inf'))
+        factors = set(divisors(self.turn))
+        for dX, dY, door, state in curr_maze_state:
+            # update frequency dictionary
+            if state == constants.CLOSED:
+                self.frequencies_per_cell[(curr_x + dX, curr_y + dY, door)] -= factors
+            elif state == constants.OPEN:
+                self.frequencies_per_cell[(curr_x + dX, curr_y + dY, door)] &= factors
+            elif (curr_x + dX, curr_y + dY, door) not in self.frequencies_per_cell.keys() and state == constants.BOUNDARY:
+                self.frequencies_per_cell[(curr_x + dX, curr_y + dY, door)] = {0}
+
+            # update maze state dictionary that reflects our coordinate system and has better accessibility
+            coords = (curr_x + dX, curr_y + dY)
+
+            if coords not in maze_state.keys():
+                maze_state[coords] = [(dX, dY, door, state)]
+            else:
+                maze_state[coords].append((dX, dY, door, state))
+
+        return maze_state
+    
+    def lcm(self, a, b):
+        # Return 0 if one of the values is 0 (door never opens)
+        if a == 0 or b == 0:
+            return 0
+        
+        # Sort the pair to ensure symmetry (e.g., lcm(4, 5) == lcm(5, 4))
+        key = tuple(sorted((a, b)))
+    
+        # Check if the LCM is already computed and stored in the cache
+        if key in self.lcm_cache:
+            return self.lcm_cache[key]
+    
+        # Compute the LCM and store it in the cache
+        result = abs(a * b) // math.gcd(a, b)
+        self.lcm_cache[key] = result
+        
+        return result
+    
+    '''Function which returns an approximation of the number of turns from the current turn needed to
+        wait before adjacent doors are open at the same time'''
+    def avg_time_for_both_doors_to_open(self, door1_freq_set, door2_freq_set, curr_turn):
+        lcm_values = []
+    
+        # Loop through all possible frequency pairs from set1 and set2
+        for f1 in door1_freq_set:
+            for f2 in door2_freq_set:
+                if f1 != 0 and f2 != 0:  # Skip cases where one of the doors never opens
+                    next_open_time = self.lcm(f1, f2)
+                
+                    # Check when the doors will next be open after the current turn
+                    if next_open_time != 0:
+                        # Calculate how far ahead from current turn both doors will be open
+                        next_open_turn = (next_open_time - curr_turn % next_open_time) % next_open_time
+                        lcm_values.append(next_open_turn)
+
+        # Compute the average of all next open times
+        return sum(lcm_values) / len(lcm_values) if lcm_values else float('inf')
+    
     def move(self, current_percept) -> int:
         """Function which retrieves the current state of the amoeba map and returns an amoeba movement
 
@@ -276,65 +341,52 @@ class Player:
 
         curr_x, curr_y = -current_percept.start_x, -current_percept.start_y
         self.turn += 1
-        maze_state = {}
-        coords = (float('-inf'), float('-inf'))
-        factors = set(divisors(self.turn))
-        for dX, dY, door, state in current_percept.maze_state:
-            if state == constants.CLOSED:
-                self.frequencies_per_cell[(curr_x + dX, curr_y + dY, door)] -= factors
-            elif state == constants.OPEN:
-                self.frequencies_per_cell[(curr_x + dX, curr_y + dY, door)] &= factors
-            elif (curr_x + dX, curr_y + dY, door) not in self.frequencies_per_cell.keys() and state == constants.BOUNDARY:
-                self.frequencies_per_cell[(curr_x + dX, curr_y + dY, door)] = {0}
+        
+        maze_state = self.update_door_frequencies(curr_x, curr_y, current_percept.maze_state)
 
-            coords = (curr_x + dX, curr_y + dY)
-
-            if coords not in maze_state.keys():
-                maze_state[coords] = [(dX, dY, door, state)]
-            else:
-                maze_state[coords].append((dX, dY, door, state))
-
+        # Set a goal
         if current_percept.is_end_visible:
-            self.goal = (current_percept.end_x + curr_x, current_percept.end_y + curr_y)
-        elif self.goal is not None or self.goal == (curr_x, curr_y):
-            self.goal = self.set_goal(maze_state, curr_x, curr_y)
+            self.goal = (current_percept.end_x, current_percept.end_y)
+        # else call the set_goal method
 
+
+        # initialize gridworld and MCTS
         env = GridWorld((curr_x, curr_y), maze_state, self.goal, current_percept.is_end_visible)
-        actions = [constants.LEFT, constants.UP, constants.RIGHT, constants.DOWN, constants.WAIT]
+        actions = [LEFT, UP, RIGHT, DOWN, WAIT]
         mcts = MCTS(env, actions, self.frequencies_per_cell, self.turn, self.maximum_door_frequency, maze_state)
         best_node = mcts.mcts((curr_x, curr_y), timeout=0.03)
         best_node_actions = list(best_node.parent.children.keys())
+        print(best_node_actions)
         
+        # make sure the action is valid
         cur_cell = sorted(maze_state[(curr_x, curr_y)], key = lambda x : x[2])
         for action in best_node_actions:
-            if action == constants.LEFT:
+            if action == LEFT:
                 adj_cell = sorted(maze_state[(curr_x - 1, curr_y)], key = lambda x : x[2])
-                adj_action = constants.RIGHT
+                adj_action = RIGHT
                 if cur_cell[action][-1] == constants.OPEN and adj_cell[adj_action][-1] == constants.OPEN:
                     best_action = action
                     break
-            elif action == constants.UP:
+            elif action == UP:
                 adj_cell = sorted(maze_state[(curr_x, curr_y - 1)], key = lambda x : x[2])
-                adj_action = constants.DOWN
+                adj_action = DOWN
                 if cur_cell[action][-1] == constants.OPEN and adj_cell[adj_action][-1] == constants.OPEN:
                     best_action = action
                     break
-            elif action == constants.RIGHT:
+            elif action == RIGHT:
                 adj_cell = sorted(maze_state[(curr_x + 1, curr_y)], key = lambda x : x[2])
-                adj_action = constants.LEFT
+                adj_action = LEFT
                 if cur_cell[action][-1] == constants.OPEN and adj_cell[adj_action][-1] == constants.OPEN:
                     best_action = action
                     break
-            elif action == constants.DOWN:
+            elif action == DOWN:
                 adj_cell = sorted(maze_state[(curr_x, curr_y + 1)], key = lambda x : x[2])
-                adj_action = constants.UP
+                adj_action = UP
                 if cur_cell[action][-1] == constants.OPEN and adj_cell[adj_action][-1] == constants.OPEN:
                     best_action = action
                     break
-            elif action == constants.WAIT:
+            elif action == WAIT:
                 best_action = action
                 break
-        
-        # best_action = list(best_node.parent.children.keys())[0]
 
         return best_action
