@@ -94,7 +94,7 @@ class TimingMazeGame:
         self.map_state = np.zeros((constants.map_dim, constants.map_dim, 4), dtype=int)
         self.map_frequencies = np.zeros((constants.map_dim, constants.map_dim, 4), dtype=int)
 
-        ################# Tom (9/23):
+        ################# Lingyi & Tom (9/23):
         self.wait_penalty = args.wait_penalty
         ##########################
         self.add_player(args.player)
