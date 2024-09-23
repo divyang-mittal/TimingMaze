@@ -8,7 +8,7 @@ class Experience:
     def __init__(self, L, r):
         # Hyper-parameters
         self.wait_penalty = 0.2  # penalty for waiting
-        self.revisit_penalty = 0.3  # penalty for revisiting a cell
+        self.revisit_penalty = 0.1  # penalty for revisiting a cell
         self.revisit_max_penalty = 1  # maximum penalty for revisiting a cell
         self.direction_vector_max_weight = 2  # maximum weight of the direction vector
         self.direction_vector_multiplier = 0.01  # multiplier for the direction vector
@@ -146,11 +146,13 @@ class Experience:
                         direction_vector[1] += 1 / direction[1]
 
         # Normalize and add weight to direction vector
-        direction_vector = (
-            np.array(direction_vector)
-            / np.linalg.norm(direction_vector)
-            * self.direction_vector_weight
-        )
+        norm = np.linalg.norm(direction_vector)
+        if np.isfinite(norm) and norm > 0:
+            direction_vector = (
+                np.array(direction_vector) / norm * self.direction_vector_weight
+            )
+        else:
+            direction_vector = np.zeros_like(direction_vector)
 
         return direction_vector
 
@@ -316,5 +318,6 @@ class Experience:
                     return True
 
         return False
+
 
 ##########################################
