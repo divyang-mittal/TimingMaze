@@ -183,10 +183,12 @@ class TimingMazeGame:
             # Generate a frequency for each cell between 0 and max_door_frequency using the rng
             # self.logger.info("Generating random maze using seed {}".format(self.rng.bit_generator.seed))
             while 1:
-                self.cur_pos = np.array([50, 50])
+                self.cur_pos = np.array([self.rng.integers(0, constants.map_dim),
+                                         self.rng.integers(0, constants.map_dim)])
                 self.start_pos = self.cur_pos.copy()
                 while 1:
-                    self.end_pos = np.array([55, 65])
+                    self.end_pos = np.array([self.rng.integers(0, constants.map_dim),
+                                             self.rng.integers(0, constants.map_dim)])
                     if self.end_pos[0] != self.cur_pos[0] and self.end_pos[1] != self.cur_pos[1]:
                         break
 
@@ -376,8 +378,8 @@ class TimingMazeGame:
                 returned_action = self.player.move(
                     current_percept=before_state
                 )
-            except Exception as e:
-                print("Exception in player code:", e)
+            except Exception:
+                print("Exception in player code")
                 returned_action = None
 
             player_time_taken = time.time() - player_start
@@ -728,4 +730,3 @@ class TimingMazeGame:
             cx, cy = self.x_offset + x * constants.CELL_SIZE + constants.CELL_SIZE/2, self.y_offset + y * constants.CELL_SIZE + constants.CELL_SIZE/2
             r = self.radius*constants.CELL_SIZE
             self.canvas.create_oval(cx - r, cy - r, cx + r, cy + r, fill="", outline="blue", width=1)
-            
