@@ -5,9 +5,9 @@ import numpy as np
 
 
 class Experience:
-    def __init__(self, L, r):
+    def __init__(self, L, r, wait_penalty):
         # Hyper-parameters
-        self.wait_penalty = 0.2  # penalty for waiting
+        self.wait_penalty = wait_penalty  # penalty for waiting
         self.revisit_penalty = 0.1  # penalty for revisiting a cell
         self.revisit_max_penalty = 1  # maximum penalty for revisiting a cell
         self.direction_vector_max_weight = 2  # maximum weight of the direction vector
