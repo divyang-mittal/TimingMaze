@@ -171,30 +171,67 @@ class Player:
 
         return best_new_pos
     
+    # def generate_best_option(self, options, min_dist_array):
+    #     # This function is the "brain" of exploring
+    #     # The weights are arbitrary at the moment
+    #     best_score = 0
+    #     best_pos = self.memory.pos
+    #     unseen_weight = 2
+    #     distance_weight = 1
+    #     time_weight = 1
+    #     min_min_dist = np.min(min_dist_array)
+    #     max_min_dist = np.max([i for i in np.reshape(min_dist_array, -1) if i < float("inf")])
+    #     for pos in options:
+    #         final_score = (
+    #             # Normalizing each factor
+    #             unseen_weight * (options[pos]["num_unseen"] - 0) / (3 * self.radius**2) + 
+    #             # The more times we visited the current square - the less we encourage going far
+    #             distance_weight * (options[pos]["euclidean_dist"] - 0) / (self.radius) / (1 + self.memory.memory[self.memory.pos[0]][self.memory.pos[1]].visited) -
+    #             (time_weight * (options[pos]["dist"] - min_min_dist) / (max_min_dist))
+    #         )
+    #         options[pos]["final_score"] = final_score
+    #         if final_score > best_score:
+    #             best_score = final_score
+    #             best_pos = pos
+
+    #     print("best pos: ", best_pos)
+    #     return best_pos
+
     def generate_best_option(self, options, min_dist_array):
-        # This function is the "brain" of exploring
-        # The weights are arbitrary at the moment
-        best_score = 0
-        best_pos = self.memory.pos
-        unseen_weight = 2
-        distance_weight = 1
-        time_weight = 1
+        best_score = float('-inf')  # Start with a very low score
+        best_pos = self.memory.pos   # Default to the current position
+
+        # Tuned weights
+        unseen_weight = 3            # Increased priority on unseen areas
+        distance_weight = 1          # Moderate distance penalty
+        time_weight = 2              # More weight on time to reach due to door timings
+
         min_min_dist = np.min(min_dist_array)
-        max_min_dist = np.max([i for i in np.reshape(min_dist_array, -1) if i < float("inf")])
+        max_min_dist = 1
+        no_infs = [i for i in np.reshape(min_dist_array, -1) if i < float("inf")]
+        if no_infs:
+            max_min_dist = np.max(no_infs)
+
         for pos in options:
-            final_score = (
-                # Normalizing each factor
-                unseen_weight * (options[pos]["num_unseen"] - 0) / (3 * self.radius**2) + 
-                # The more times we visited the current square - the less we encourage going far
-                distance_weight * (options[pos]["euclidean_dist"] - 0) / (self.radius) / (1 + self.memory.memory[self.memory.pos[0]][self.memory.pos[1]].visited) -
-                (time_weight * (options[pos]["dist"] - min_min_dist) / (max_min_dist))
-            )
+            unseen_cells = options[pos]["num_unseen"]
+            euclidean_dist = options[pos]["euclidean_dist"]
+            time_to_reach = options[pos]["dist"]
+
+            # Calculate normalized factors
+            unseen_factor = unseen_weight * (unseen_cells / (3 * self.radius**2))
+            distance_factor = distance_weight * (euclidean_dist / (self.radius)) / (1 + self.memory.memory[pos[0]][pos[1]].visited)
+            time_factor = time_weight * (time_to_reach - min_min_dist) / (max_min_dist - min_min_dist if max_min_dist != min_min_dist else 1)
+
+            # Adjust score to favor unexplored areas, penalize far away and high-time positions
+            final_score = unseen_factor - distance_factor - time_factor
             options[pos]["final_score"] = final_score
+
             if final_score > best_score:
                 best_score = final_score
                 best_pos = pos
 
-        print("best pos: ", best_pos)
+        print("Best position chosen: ", best_pos)
+
         return best_pos
 
     
