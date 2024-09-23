@@ -65,6 +65,40 @@ class Player:
         self.is_a_star_available = False
 
 
+        #assuming it starts from a corner
+        self.outside_in_start_radius = 100-0.8*self.radius
+        self.outside_in_timer = 0
+        self.outside_in_reverse_timer = 0
+        self.rush_in_timer = maximum_door_frequency
+        self.rush_in_reverse_timer = maximum_door_frequency
+        self.x_axis_dist = 0
+        self.global_counter=0
+        self.update_case=0
+        self.outside_in_state = 0
+        
+        self.outside_in_mode =False
+        
+    def get_corner(self, current_percept) -> int:
+        print("Get Corner started")
+        for maze_state in current_percept.maze_state:
+            x_1=maze_state[0]
+            y_1=maze_state[1]
+            if maze_state[3]==constants.BOUNDARY:
+                direction_1 = maze_state[2]
+                for maze_state in current_percept.maze_state:
+                    if x_1==maze_state[0] and y_1==maze_state[1] and maze_state[3]==constants.BOUNDARY:
+                        # x_axis_dist= abs(x_1-x)
+                        if direction_1==constants.RIGHT and maze_state[2]==constants.DOWN:
+                            return 3
+                        elif direction_1==constants.RIGHT and maze_state[2]==constants.UP:
+                            return 2
+                        elif direction_1==constants.LEFT and maze_state[2]==constants.DOWN:
+                            return 4
+                        elif direction_1==constants.LEFT and maze_state[2]==constants.UP:
+                            return 1
+            
+        return 0
+
     def move(self, current_percept) -> int:
         """Function which retrieves the current state of the map and returns a movement
 
@@ -137,8 +171,14 @@ class Player:
                 if val != -1:
                     return val
                 return constants.WAIT
-
-        return self.move_inside_out(current_percept)
+        corner= self.get_corner(current_percept)
+        print("The Corner is", corner)
+        if corner!=0:
+            self.outside_in_mode=True
+        if self.outside_in_mode:
+            return self.move_outside_in_3(current_percept)
+        else:
+            return self.move_inside_out(current_percept)
 
     def update_door_timers(self, current_percept):
         door_seen = np.full((201, 201, 4), False, dtype=bool)
@@ -171,6 +211,7 @@ class Player:
 
 
     def traverse_djikstra(self, current_percept) -> int:
+        print("Traversing Djikstra")
         abs_x = 100 - current_percept.start_x
         abs_y = 100 - current_percept.start_y
         return self.djikstra_path[abs_x, abs_y].item()
@@ -541,6 +582,184 @@ class Player:
                     self.inside_out_rem[0] -= 1
                     return constants.LEFT
 
+        return constants.WAIT
+    def reset_for_outside_in(self):
+        if self.global_counter%4==0 and self.global_counter!=0:
+            print('*****************################')
+            outside_in_rem_dict={1:[self.outside_in_start_radius-self.radius, self.outside_in_start_radius-2*self.radius, self.outside_in_start_radius, self.outside_in_start_radius-self.radius],
+                                2:[self.outside_in_start_radius, self.outside_in_start_radius, self.outside_in_start_radius-2*self.radius, self.outside_in_start_radius],
+                                3:[self.outside_in_start_radius, self.outside_in_start_radius-self.radius, self.outside_in_start_radius-self.radius, self.outside_in_start_radius-2*self.radius],
+                                4:[self.outside_in_start_radius-2*self.radius, self.outside_in_start_radius, self.outside_in_start_radius, self.outside_in_start_radius]}
+            self.outside_in_rem = outside_in_rem_dict[self.update_case]
+            self.outside_in_start_radius = self.outside_in_start_radius- 2*self.radius
+
+    def move_outside_in_3(self,current_percept)->int:
+        print("Outside IN started")
+        direction = [0, 0, 0, 0]
+        reverse_direction = [0, 0, 0, 0]
+        for maze_state in current_percept.maze_state:
+            if maze_state[0] == 0 and maze_state[1] == 0:
+                direction[maze_state[2]] = maze_state[3]
+            if maze_state[0] == 0 and maze_state[1] == 1 and maze_state[2] == constants.UP:
+                reverse_direction[constants.DOWN] = maze_state[3]
+            if maze_state[0] == 0 and maze_state[1] == -1 and maze_state[2] == constants.DOWN:
+                reverse_direction[constants.UP] = maze_state[3]
+            if maze_state[0] == 1 and maze_state[1] == 0 and maze_state[2] == constants.LEFT:
+                reverse_direction[constants.RIGHT] = maze_state[3]
+            if maze_state[0] == -1 and maze_state[1] == 0 and maze_state[2] == constants.RIGHT:
+                reverse_direction[constants.LEFT] = maze_state[3]
+        #check for one side which will be short now
+        abs_x = - current_percept.start_x
+        abs_y = - current_percept.start_y
+     
+        if self.outside_in_state == 0:
+            print("Outside IN started")
+            self.corner_val= self.get_corner(current_percept) 
+            if self.corner_val== 1:
+                    self.outside_in_state = 1
+                    self.update_case =1
+            elif self.corner_val ==2:
+                    self.update_case = 2
+                    self.outside_in_state = 2
+            elif self.corner_val ==3: 
+                    self.outside_in_state = 3
+                    self.update_case = 3
+            elif self.corner_val ==4:
+                    self.outside_in_state = 4 
+                    self.update_case = 4
+            # else: 
+            #     self.outside_in_state = 1
+            # print(self.outside_in_state)
+            # print(self.update_case)
+            # print('******************************')
+            outside_in_rem_dict={1:[self.outside_in_start_radius, self.outside_in_start_radius-self.radius, self.outside_in_start_radius, self.outside_in_start_radius],
+                                2:[self.outside_in_start_radius, self.outside_in_start_radius, self.outside_in_start_radius-self.radius, self.outside_in_start_radius],
+                                3:[self.outside_in_start_radius, self.outside_in_start_radius, self.outside_in_start_radius, self.outside_in_start_radius-self.radius],
+                                4:[self.outside_in_start_radius-self.radius, self.outside_in_start_radius, self.outside_in_start_radius, self.outside_in_start_radius]}
+            
+            self.outside_in_rem = outside_in_rem_dict[self.update_case]
+            self.outside_in_start_radius = self.outside_in_start_radius- self.radius
+            self.outside_in_timer = self.maximum_door_frequency
+            self.outside_in_reverse_timer = self.maximum_door_frequency
+
+        
+ 
+        if self.outside_in_state == 1:
+            
+            if self.outside_in_rem[2] <= 0:
+                self.outside_in_state = 2
+                self.global_counter+=1
+               
+                self.reset_for_outside_in()
+                print("Global Counter",self.global_counter)
+            else:
+                if self.outside_in_rem[2] > 0:
+                    if direction[constants.RIGHT] == constants.OPEN and reverse_direction[constants.RIGHT] == constants.OPEN:
+                        self.outside_in_rem[2] -= 1
+                        self.outside_in_timer = self.maximum_door_frequency
+                        self.outside_in_reverse_timer = self.maximum_door_frequency
+                        return constants.RIGHT
+                    else:
+                        self.outside_in_timer -= 1
+
+                if (self.outside_in_timer < 0 or self.outside_in_reverse_timer < 0) and direction[constants.DOWN] == constants.OPEN and reverse_direction[constants.DOWN] == constants.OPEN:
+                    self.outside_in_rem[3] -= 1
+                    self.outside_in_timer = self.maximum_door_frequency
+                    self.outside_in_reverse_timer = self.maximum_door_frequency
+                    return constants.DOWN
+
+                if (self.outside_in_timer < -self.maximum_door_frequency or self.outside_in_reverse_timer < -self.maximum_door_frequency) and direction[constants.UP] == constants.OPEN and reverse_direction[constants.UP] == constants.OPEN:
+                    self.outside_in_rem[1] -= 1
+                    self.outside_in_timer = self.maximum_door_frequency
+                    self.outside_in_reverse_timer = self.maximum_door_frequency
+                    return constants.UP
+
+        if self.outside_in_state == 2:
+           
+            if self.outside_in_rem[3] <= 0:
+                self.outside_in_state = 3
+                self.global_counter+=1
+                self.reset_for_outside_in()
+                print("Global Counter",self.global_counter)
+            else:
+                if self.outside_in_rem[3] > 0:
+                    if direction[constants.DOWN] == constants.OPEN and reverse_direction[constants.DOWN] == constants.OPEN:
+                        self.outside_in_rem[3] -= 1
+                        self.outside_in_timer = self.maximum_door_frequency
+                        self.outside_in_reverse_timer = self.maximum_door_frequency
+                        return constants.DOWN
+                    else:
+                        self.outside_in_timer -= 1
+
+                if (self.outside_in_timer < 0 or self.outside_in_reverse_timer < 0) and direction[constants.LEFT] == constants.OPEN and reverse_direction[constants.LEFT] == constants.OPEN:
+                    self.outside_in_rem[0] -= 1
+                    self.outside_in_timer = self.maximum_door_frequency
+                    self.outside_in_reverse_timer = self.maximum_door_frequency
+                    return constants.LEFT
+
+                if (self.outside_in_timer < -self.maximum_door_frequency or self.outside_in_reverse_timer < -self.maximum_door_frequency) and direction[constants.RIGHT] == constants.OPEN and reverse_direction[constants.RIGHT] == constants.OPEN:
+                    self.outside_in_rem[2] -= 1
+                    self.outside_in_timer = self.maximum_door_frequency
+                    self.outside_in_reverse_timer = self.maximum_door_frequency
+                    return constants.RIGHT
+
+        if self.outside_in_state == 3:
+           
+            if self.outside_in_rem[0] <= 0:
+                self.outside_in_state = 4
+                self.global_counter+=1
+                self.reset_for_outside_in()
+                print("Global Counter",self.global_counter)
+            else:
+                if self.outside_in_rem[0] > 0:
+                    if direction[constants.LEFT] == constants.OPEN and reverse_direction[constants.LEFT] == constants.OPEN:
+                        self.outside_in_rem[0] -= 1
+                        self.outside_in_timer = self.maximum_door_frequency
+                        self.outside_in_reverse_timer = self.maximum_door_frequency
+                        return constants.LEFT
+                    else:
+                        self.outside_in_timer -= 1
+
+                if (self.outside_in_timer < 0 or self.outside_in_reverse_timer < 0) and direction[constants.UP] == constants.OPEN and reverse_direction[constants.UP] == constants.OPEN:
+                    self.outside_in_rem[1] -= 1
+                    self.outside_in_timer = self.maximum_door_frequency
+                    self.outside_in_reverse_timer = self.maximum_door_frequency
+                    return constants.UP
+
+                if (self.outside_in_timer < -self.maximum_door_frequency or self.outside_in_reverse_timer < -self.maximum_door_frequency) and direction[constants.DOWN] == constants.OPEN and reverse_direction[constants.DOWN] == constants.OPEN:
+                    self.outside_in_rem[3] -= 1
+                    self.outside_in_timer = self.maximum_door_frequency
+                    self.outside_in_reverse_timer = self.maximum_door_frequency
+                    return constants.DOWN
+
+        if self.outside_in_state == 4:
+           
+            if self.outside_in_rem[1] <= 0:
+                self.outside_in_state = 1
+                self.global_counter+=1
+                self.reset_for_outside_in()
+                print("Global Counter",self.global_counter)
+            else:
+                if self.outside_in_rem[1] > 0:
+                    if direction[constants.UP] == constants.OPEN and reverse_direction[constants.UP] == constants.OPEN:
+                        self.outside_in_rem[1] -= 1
+                        self.outside_in_timer = self.maximum_door_frequency
+                        self.outside_in_reverse_timer = self.maximum_door_frequency
+                        return constants.UP
+                    else:
+                        self.outside_in_timer -= 1
+
+                if (self.outside_in_timer < 0 or self.outside_in_reverse_timer < 0) and direction[constants.RIGHT] == constants.OPEN and reverse_direction[constants.RIGHT] == constants.OPEN:
+                    self.outside_in_timer = self.maximum_door_frequency
+                    self.outside_in_reverse_timer = self.maximum_door_frequency
+                    return constants.RIGHT
+
+                if (self.outside_in_timer < -self.maximum_door_frequency or self.outside_in_reverse_timer < -self.maximum_door_frequency) and direction[constants.LEFT] == constants.OPEN and reverse_direction[constants.LEFT] == constants.OPEN:
+                    self.outside_in_rem[0] -= 1
+                    self.outside_in_timer = self.maximum_door_frequency
+                    self.outside_in_reverse_timer = self.maximum_door_frequency
+                    return constants.LEFT
+     
         return constants.WAIT
 
     def update_relative_frequencies(self, current_percept):
