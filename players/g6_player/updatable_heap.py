@@ -46,9 +46,3 @@ class UpdatableHeap:
 
     def __contains__(self, item) -> bool:
         return item in self.entry_finder
-
-        # for _, _, cell, _ in self.heap:
-        #     if item == cell:
-        #         return True
-
-        # return False
