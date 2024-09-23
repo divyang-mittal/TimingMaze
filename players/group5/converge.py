@@ -23,6 +23,7 @@ class ConvergeStrategy:
 
 
 def dyjkstra(current_pos : list, goal : list[list[int]], turn : int, player_map: PlayerMapInterface,  max_door_frequency) -> list:
+	turn = turn - 1
 
 	# Create a priority queue
 	queue = []

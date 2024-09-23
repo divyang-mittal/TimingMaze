@@ -292,7 +292,7 @@ class SearchStrategy:
         if not current_corridor.reached_start_indices:
             path = dyjkstra(cur_pos, current_corridor.start_indices, turn, corridor_map, self.max_door_frequency)
             if not path:
-                self.logger.debug(f"AHA 여기구나 {cur_pos} {current_corridor.start_indices}")
+                self.logger.debug(f"No path from {cur_pos} to {current_corridor.start_indices}")
             return path[0] if path else None
 
         # self.logger.debug(f"Traversing endings {current_corridor.end_indices}; cur_pos: {cur_pos}")
