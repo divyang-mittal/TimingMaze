@@ -2,6 +2,7 @@ import numpy as np
 import logging
 
 from constants import UP, DOWN, LEFT, RIGHT, WAIT, BOUNDARY
+from players.g6_player.a_star import a_star
 from players.g6_player.classes.typed_timing_maze_state import (
     TypedTimingMazeState,
     convert,
@@ -9,6 +10,8 @@ from players.g6_player.classes.typed_timing_maze_state import (
 from players.g6_player.data import Move
 from timing_maze_state import TimingMazeState
 from players.g6_player.classes.maze import Maze
+
+from players.g6_player.data import move_to_str
 
 
 class G6_Player:
@@ -62,6 +65,7 @@ class G6_Player:
         self.__update_history()
         player_move = self.__move(current_percept)
 
+        print(f"MOVE: {move_to_str(player_move)}")
         return player_move.value
 
     def __update_history(self):
@@ -294,25 +298,19 @@ class G6_Player:
         b) when we are not getting closer to the target after a certain number of turns
         c) 10% random chance for any given turn
         """
+
         assert current_state.end_x is not None
         assert current_state.end_y is not None
 
-        if self.rng.random() < 0.1:
-            return self.rng.choice([move.value for move in Move])
+        result, cost = a_star(self.maze.current_cell(), self.maze.target_cell())
 
-        if 0 > current_state.end_x:
-            return Move.LEFT
+        # this shouldn't happen
+        if len(result) == 0:
+            return Move.WAIT
 
-        if 0 < current_state.end_x:
-            return Move.RIGHT
+        print(f"TARGET: {len(result)} moves - {cost} cost")
 
-        if 0 > current_state.end_y:
-            return Move.UP
-
-        if 0 < current_state.end_y:
-            return Move.DOWN
-
-        return Move.WAIT
+        return result[0]
 
     def __exploit_a_star(self, current_state: TypedTimingMazeState) -> Move:
         """
