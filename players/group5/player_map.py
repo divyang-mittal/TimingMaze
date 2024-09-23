@@ -7,6 +7,7 @@ from typing import List, Optional, Set, Tuple
 
 import constants
 from players.group5.door import DoorIdentifier, get_updated_frequency_candidates
+from players.group5.util import setup_file_logger
 from timing_maze_state import TimingMazeState
 
 
@@ -110,15 +111,8 @@ class StartPosCentricPlayerMap(PlayerMapInterface):
         self.cur_pos = self._START_POS  # (x, y) start pos centric
 
     def _setup_logger(self, logger):
+        logger = setup_file_logger(logger, self.__class__.__name__, "./log")
         self.logger = logger
-        self.logger.setLevel(logging.DEBUG)
-        self.log_dir = "./log"
-        if self.log_dir:
-            os.makedirs(self.log_dir, exist_ok=True)
-        fh = logging.FileHandler(os.path.join(self.log_dir, f"{self.__class__.__name__}.log"), mode="w")
-        fh.setLevel(logging.DEBUG)
-        fh.setFormatter(logging.Formatter('%(message)s'))
-        self.logger.addHandler(fh)
 
     def _get_map_coordinates(self, player_centric_coordinates: List[int]) -> List[int]:
         return [

@@ -1,14 +1,12 @@
-import os
-import random
 from typing import List
 import numpy as np
 import logging
 
 import constants
-from players.group5.door import DoorIdentifier
 from players.group5.player_map import PlayerMapInterface, StartPosCentricPlayerMap
+from players.group5.util import setup_file_logger
 from timing_maze_state import TimingMazeState
-from players.group5.converge import converge
+from players.group5.converge import ConvergeStrategy
 from players.group5.simple_search import simple_search
 
 
@@ -29,24 +27,12 @@ class G5_Player:
         self.radius = radius
         self.player_map: PlayerMapInterface = StartPosCentricPlayerMap(maximum_door_frequency, logger)
         self.turns = 0
-        self.mode = 0
 
-        self.last_move = constants.WAIT
+        self.search_strategy = None
         
-        # TODO REMOVE THIS FEATURE ONCE VALID MOVES BUG IS FIXED
-        self.last_pos = self.player_map.get_cur_pos()
-        self.stuck_counter = 0
-
     def _setup_logger(self, logger):
+        logger = setup_file_logger(logger, self.__class__.__name__, "./log")
         self.logger = logger
-        self.logger.setLevel(logging.DEBUG)
-        self.log_dir = "./log"
-        if self.log_dir:
-            os.makedirs(self.log_dir, exist_ok=True)
-        fh = logging.FileHandler(os.path.join(self.log_dir, 'Player 5.log'), mode="w")
-        fh.setLevel(logging.DEBUG)
-        fh.setFormatter(logging.Formatter('%(message)s'))
-        self.logger.addHandler(fh)
 
     def move(self, current_percept: TimingMazeState) -> int:
         """Function which retrieves the current state of the amoeba map and returns an amoeba movement
@@ -64,20 +50,16 @@ class G5_Player:
         try:
             self.turns += 1
             self.player_map.update_map(self.turns, current_percept)
-            cur_pos = self.player_map.get_cur_pos()
             
             valid_moves = self.player_map.get_valid_moves(self.turns)
             self.logger.debug(f"Valid moves: {valid_moves}")
 
-            # example_freq_set = self.player_map.get_wall_freq_candidates(door_id=DoorIdentifier(absolute_coord=cur_pos, door_type=0))
-            # self.logger.debug(f"Example freq set for coordinate {cur_pos}: {example_freq_set}")
-
             exists, end_pos = self.player_map.get_end_pos_if_known()
             if not exists:
-                move = self.simple_search()
-                return move if move in valid_moves else constants.WAIT  # TODO: this is if-statement is to demonstrate valid_moves is correct (@eylam, replace with actual logic)
-            move = converge(self.player_map.get_cur_pos(), [end_pos], self.turns, self.player_map, self.maximum_door_frequency)
-            return move
+                if self.search_strategy is None:
+                    self.search_strategy = SearchStrategy(self.player_map, self.turns)
+                return self.search_strategy.move(current_percept)
+            return ConvergeStrategy(self.player_map.get_cur_pos(), [end_pos], self.turns, self.player_map, self.maximum_door_frequency).move()
         except Exception as e:
             self.logger.debug(e, e.with_traceback)
             return constants.WAIT
@@ -101,8 +83,7 @@ class SearchStrategy:
         # self.current_corridor = None TODO: might not need if corridor[0] is the current corridor
 
     def move(self, current_percept: TimingMazeState) -> int:
-        pass
-
+        return 1
 
 class G5_Player_Refactored:
     def __init__(self, rng: np.random.Generator, logger: logging.Logger, precomp_dir: str, maximum_door_frequency: int, radius: int, boundaries: List[int]) -> None:
