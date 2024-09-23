@@ -4,9 +4,10 @@ import logging
 
 import constants
 from players.group5.player_map import PlayerMapInterface, StartPosCentricPlayerMap
+from players.group5.search import SearchStrategy
 from players.group5.util import setup_file_logger
 from timing_maze_state import TimingMazeState
-from players.group5.converge import ConvergeStrategy
+from players.group5.converge import ConvergeStrategy, dyjkstra
 from players.group5.simple_search import simple_search
 
 
@@ -57,41 +58,9 @@ class G5_Player:
             exists, end_pos = self.player_map.get_end_pos_if_known()
             if not exists:
                 if self.search_strategy is None:
-                    self.search_strategy = SearchStrategy(self.player_map, self.turns)
-                return self.search_strategy.move(current_percept)
+                    self.search_strategy = SearchStrategy(self.player_map, self.radius, self.maximum_door_frequency, self.logger)  # check if change in player_map is recorded or seen
+                return self.search_strategy.move(current_percept, self.turns)
             return ConvergeStrategy(self.player_map.get_cur_pos(), [end_pos], self.turns, self.player_map, self.maximum_door_frequency).move()
         except Exception as e:
             self.logger.debug(e, e.with_traceback)
             return constants.WAIT
-
-    def simple_search(self):
-        return simple_search(self.player_map, self.radius)
-
-
-# ENUM representing player state
-class PlayerState:
-    SEARCH = 0
-    CONVERGE = 1
-
-
-# SEARCH SPECIFIC FIELDS
-class SearchStrategy:
-    def __init__(self, player_map: PlayerMapInterface, turns: int) -> None:
-        self.player_map = player_map
-        self.start_turn = turns
-        self.corridors = []
-        # self.current_corridor = None TODO: might not need if corridor[0] is the current corridor
-
-    def move(self, current_percept: TimingMazeState) -> int:
-        return 1
-
-class G5_Player_Refactored:
-    def __init__(self, rng: np.random.Generator, logger: logging.Logger, precomp_dir: str, maximum_door_frequency: int, radius: int, boundaries: List[int]) -> None:
-        self.player_state = PlayerState.SEARCH
-        self.corridors = []
-        self.global_boundaries = boundaries
-
-        pass
-
-    def move(self, current_percept: TimingMazeState) -> int:
-        pass

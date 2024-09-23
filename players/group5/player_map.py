@@ -81,6 +81,24 @@ class PlayerMapInterface(ABC):
         """
         pass
 
+    @abstractmethod
+    def get_boundaries(self) -> List[int]:
+        """Function which returns the boundaries of the map
+
+            Returns:
+                List[int]: List containing the boundaries of the map (left, up, right, down)
+        """
+        pass
+
+    @abstractmethod
+    def set_boundaries(self, boundaries: List[int]):
+        """Function which sets the boundaries of the map
+
+            Args:
+                boundaries (List[int]): List containing the boundaries of the map (left, up, right, down)
+        """
+        pass
+
 # TODO: check this
 def default_freq_candidates(max_door_frequency: int):
     # generate a set of door frequencies from 0 to max_door_frequency
@@ -134,10 +152,19 @@ class StartPosCentricPlayerMap(PlayerMapInterface):
     def get_cur_pos(self) -> List[int]:
         return self.cur_pos
     
+    def get_boundaries(self) -> List[int]:
+        return self._boundaries
+    
+    def set_boundaries(self, boundaries: List[int]):
+        self._boundaries = boundaries
+    
     def _door_dictkey(self, map_coords, door_type) -> List[int]:
         return f"({map_coords[0]},{map_coords[1]})_{door_type}"
 
     def _get_freq_candidates_usecase(self, coord, door_type) -> Set[int]:
+        if self._is_out_of_bound(coord):
+            return {0}
+
         key = self._door_dictkey(map_coords=coord, door_type=door_type)
         return self._door_freqs[key]
 
@@ -196,8 +223,10 @@ class StartPosCentricPlayerMap(PlayerMapInterface):
             coord = self._get_map_coordinates(player_relative_coordinates)
 
             # update boundaries if newly found
+            self.logger.debug(f"boundary found!!!") if door_state == constants.BOUNDARY and door_type == constants.UP else None
             if door_state == constants.BOUNDARY and not self._is_boundary_found(door_type):
                 self._update_boundaries(door_type, coord)
+                self.logger.debug(f"Boundaries updated: {self._boundaries}")
 
             # update frequencies (TODO: refactor for readability)
             cur_freq_candidates = self._get_freq_candidates_usecase(coord, door_type)  # TODO: consider refactoring how doorID is used

@@ -89,13 +89,13 @@ def dyjkstra(current_pos : list, goal : list[list[int]], turn : int, player_map:
 			# TODO make a special function that calculates based on observations of wall intervals
 			# weight, new_expected_turn = add_weight(current_pos, neighbor, player_map.get_wall_freq_candidates(door), expected_turn)
 
-			print("current_pos: ", current_pos)
-			print("neighbor: ", neighbor)
-			print("door: ", door)
+			# print("current_pos: ", current_pos)
+			# print("neighbor: ", neighbor)
+			# print("door: ", door)
 
 			weight, new_expected_turn = calculate_weighted_average(expected_turn, player_map.get_wall_freq_candidates(door), max_door_frequency)
 
-			print ("weight: ", weight)
+			# print ("weight: ", weight)
 
 			if weight == 1e20:
 				# print("SKIPPED MOVE: ", move)
@@ -136,7 +136,7 @@ def calculate_weighted_average(current_turn, candidates, max_door_frequency):
     - expected_turn (int): The next expected turn when the door will open.
     """
 
-    print(candidates)
+    # print(candidates)
 
     if all(candidate == 0 for candidate in candidates):
         return 1e20, current_turn + 1e20
