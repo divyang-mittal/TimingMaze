@@ -51,17 +51,17 @@ class Cell:
         neighbours = [
             c
             for c in [
-                (self.n_path, self.n_cell, Move.UP),
-                (self.w_path, self.w_cell, Move.LEFT),
-                (self.e_path, self.e_cell, Move.RIGHT),
-                (self.s_path, self.s_cell, Move.DOWN),
+                (self.n_path, self.n_cell, Move.DOWN),
+                (self.w_path, self.w_cell, Move.RIGHT),
+                (self.e_path, self.e_cell, Move.LEFT),
+                (self.s_path, self.s_cell, Move.UP),
             ]
         ]
 
         # filter out None neighbours
         filtered: list[tuple[int, "Cell"]] = [
-            (path, cell)
-            for path, cell in neighbours
+            (path, cell, move)
+            for path, cell, move in neighbours
             if path is not None and cell is not None
         ]
 

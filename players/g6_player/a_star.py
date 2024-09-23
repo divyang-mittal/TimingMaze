@@ -2,6 +2,8 @@ from players.g6_player.classes.cell import Cell
 from players.g6_player.data import Move
 from players.g6_player.updatable_heap import UpdatableHeap
 
+from time import sleep
+
 
 def a_star(start: Cell, target: Cell) -> list[Move]:
     """
@@ -10,43 +12,52 @@ def a_star(start: Cell, target: Cell) -> list[Move]:
     """
     frontier = UpdatableHeap()
     explored = set()
+    moves = []
 
     # heapq.heappush(frontier, (heuristic(start, target), start))
-    frontier.push(start, priority=heuristic(start, target), path=[])
+    frontier.push(start, priority=heuristic(start, target), moves=[])
 
     while len(frontier) > 0:
         # state = heapq.heappop(frontier)
-        (cost, cell, path) = frontier.pop()
+        (cost, cell, moves) = frontier.pop()
         explored.add(cell)
-
-        print(f"item: {cell}")
 
         if cell == target:
             # Success
-            return []
+            print("target found!")
+            return moves
 
         for path, neighbour, move in cell.neighbours():
-            if neighbour not in explored or neighbour not in frontier:
+            if neighbour not in explored and neighbour not in frontier:
+                priority = calc_priority(cost, path, cell, neighbour, target)
 
                 frontier.push(
                     neighbour,
-                    priority=(
-                        cost - heuristic(cell, target)
-                    )  # get only the real cost (g) of the current cell
-                    + path
-                    or float(
-                        "inf"
-                    )  # set path cost as infinity if path is closed (path == 0)
-                    + heuristic(neighbour, target),
-                    path=[*path, move],
+                    priority=priority,
+                    moves=moves + [move],
                 )
 
             elif neighbour in frontier:
                 n_cost = cost + path + heuristic(neighbour, target)
 
-                frontier.update(neighbour, n_cost)
+                frontier.update(neighbour, n_cost, moves=moves + [move])
 
-    return [Move.WAIT]
+    sleep(0.1)
+    print(f"path: {moves}")
+    return moves
+
+
+def calc_priority(
+    cost: float, path: int, curr: Cell, neighbour: Cell, target: Cell
+) -> float:
+    # get only the real cost (g) of the current cell
+    org_h = heuristic(curr, target)
+    new_h = heuristic(neighbour, target)
+
+    # set path cost as infinity if path is closed (path == 0)
+    path_freq = path or float("inf")
+
+    return cost - org_h + path_freq + new_h
 
 
 def heuristic(start: Cell, target: Cell) -> float:
