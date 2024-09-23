@@ -125,7 +125,7 @@ class Player:
         if self.current_intermediate_target == self.memory.pos: # we have reached this intermediate target
             self.current_intermediate_target = None
         
-        how_long_to_follow_intermediate_target = 5
+        how_long_to_follow_intermediate_target = 150
         if self.current_intermediate_target and self.current_intermediate_target_age < how_long_to_follow_intermediate_target:
             self.current_intermediate_target_age += 1 # increment the age
         else: # update the intermediate target
@@ -192,6 +192,8 @@ class Player:
             if final_score > best_score:
                 best_score = final_score
                 best_pos = pos
+
+        print("best pos: ", best_pos)
         return best_pos
 
     
