@@ -12,11 +12,11 @@ def a_star(start: Cell, target: Cell) -> list[Move]:
     explored = set()
 
     # heapq.heappush(frontier, (heuristic(start, target), start))
-    frontier.push(start, priority=heuristic(start, target))
+    frontier.push(start, priority=heuristic(start, target), path=[])
 
     while len(frontier) > 0:
         # state = heapq.heappop(frontier)
-        (cost, cell) = frontier.pop()
+        (cost, cell, path) = frontier.pop()
         explored.add(cell)
 
         print(f"item: {cell}")
@@ -25,7 +25,7 @@ def a_star(start: Cell, target: Cell) -> list[Move]:
             # Success
             return []
 
-        for path, neighbour in cell.neighbours():
+        for path, neighbour, move in cell.neighbours():
             if neighbour not in explored or neighbour not in frontier:
 
                 frontier.push(
@@ -38,6 +38,7 @@ def a_star(start: Cell, target: Cell) -> list[Move]:
                         "inf"
                     )  # set path cost as infinity if path is closed (path == 0)
                     + heuristic(neighbour, target),
+                    path=[*path, move],
                 )
 
             elif neighbour in frontier:

@@ -1,22 +1,26 @@
 import heapq
 
+from players.g6_player.data import Move
+
 
 class UpdatableHeap:
     def __init__(self) -> None:
         self.heap = []
         self.entry_finder = {}
 
-    def push(self, item, priority: float) -> None:
-        heapq.heappush(self.heap, (priority, item))
+    def push(self, item, priority: float, path: list[Move]) -> None:
+        heapq.heappush(self.heap, (priority, item, path))
         self.entry_finder[item] = priority
 
     def pop(self) -> tuple:
-        priority, item = heapq.heappop(self.heap)
+        priority, item, path = heapq.heappop(self.heap)
 
         while self.entry_finder[item] != priority:
-            priority, item = heapq.heappop(self.heap)
+            priority, item, path = heapq.heappop(self.heap)
 
-        return (priority, item)
+        del self.entry_finder[item]
+
+        return (priority, item, path)
 
     def update(self, item, priority: float) -> None:
         # do not update if the new priority is higher
@@ -36,7 +40,7 @@ class UpdatableHeap:
         return str(self)
 
     def __contains__(self, item) -> bool:
-        for priority, cell in self.heap:
+        for _, cell, _ in self.heap:
             if item == cell:
                 return True
 

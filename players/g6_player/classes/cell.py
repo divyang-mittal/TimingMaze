@@ -51,10 +51,10 @@ class Cell:
         neighbours = [
             c
             for c in [
-                (self.n_path, self.n_cell),
-                (self.w_path, self.w_cell),
-                (self.e_path, self.e_cell),
-                (self.s_path, self.s_cell),
+                (self.n_path, self.n_cell, Move.UP),
+                (self.w_path, self.w_cell, Move.LEFT),
+                (self.e_path, self.e_cell, Move.RIGHT),
+                (self.s_path, self.s_cell, Move.DOWN),
             ]
         ]
 
