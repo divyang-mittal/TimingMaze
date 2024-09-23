@@ -92,13 +92,10 @@ class SearchStrategy:
                 return move
         
         if self.stage == SearchStage.TRAVERSE_CORRIDORS:
-            self.logger.debug(f"Traversed corridors START: {self.traversed_corridors}")
-            # if not self.first_corridor_traversed and self.corridors == []:
-                # self.corridors.append(self.get_first_corridor())
             move = self.traverse_corridors(turn)
             self.logger.debug(f"Traversed corridors move: {move}")
             if move == -100:
-                if len(self.traversed_corridors) == 1:
+                if len(self.traversed_corridors) == 1 and len(self.corridors) == 0:
                     self.corridors = self.create_corridors()  # TODO: rename
                     self.logger.debug(f"Corridors MADE: {self.corridors}")
             return move
@@ -264,13 +261,15 @@ class SearchStrategy:
     
     def traverse_corridors(self, turn: int) -> int:
         cur_pos = self.player_map.get_cur_pos()
+
+        # self.logger.debug(f"지금 제일 위에 있는 건: {self.corridors[0].boundaries}, {self.corridors[0].direction=}, {self.corridors[0].start_indices=}, {self.corridors[0].end_indices=}") if self.corridors else None
         
         if not self.first_corridor_traversed:
             if self.corridors == []:
                 fst_corridor = self.get_first_corridor()
                 self.corridors.append(fst_corridor)
 
-            self.logger.debug(f"map's boundaries: {self.player_map.get_boundaries()}")
+            # self.logger.debug(f"map's boundaries: {self.player_map.get_boundaries()}")
             self.corridors[0].update_with_boundaries([
                 max(self.player_map.get_boundaries()[constants.LEFT], self.corridors[0].boundaries[constants.LEFT]),
                 max(self.player_map.get_boundaries()[constants.UP], self.corridors[0].boundaries[constants.UP]),
@@ -292,22 +291,29 @@ class SearchStrategy:
 
         if not current_corridor.reached_start_indices:
             path = dyjkstra(cur_pos, current_corridor.start_indices, turn, corridor_map, self.max_door_frequency)
+            if not path:
+                self.logger.debug(f"AHA 여기구나 {cur_pos} {current_corridor.start_indices}")
             return path[0] if path else None
 
-        self.logger.debug(f"Traversing endings {current_corridor.end_indices}; cur_pos: {cur_pos}")
+        # self.logger.debug(f"Traversing endings {current_corridor.end_indices}; cur_pos: {cur_pos}")
         if cur_pos in current_corridor.end_indices:
-            self.logger.debug(f"We reached the end! {current_corridor.end_indices}")
+            self.first_corridor_traversed = True
+            self.logger.debug(f"We finished a corridor {current_corridor.end_indices} because we reached {cur_pos}")
             self.traversed_corridors.append(self.corridors.pop(0))
-            self.logger.debug(f"curr_ corridors : {self.corridors}")
+            # self.logger.debug(f"curr_ corridors : {self.corridors}")
             if self.corridors == []:
                 return -100  # TODO: signal done
             return -1  # TODO: currently wasting a turn. make it iterative above to avoid this
 
         path = dyjkstra(cur_pos, current_corridor.end_indices, turn, corridor_map, self.max_door_frequency)
+        # if not path:
+            # self.logger.debug(f"AHA 여기구2 {cur_pos} {current_corridor.start_indices}")
         return path[0] if path else None
 
     def create_corridors(self) -> List[Corridor]:
         boundaries = self.player_map.get_boundaries()
+        self.logger.debug(f"====boundaries: {boundaries}")
+
         prev_corridor = self.traversed_corridors[-1]
         prev_dir = prev_corridor.direction
         # while distance from boundary edge to edge is more than 2*radius
@@ -354,18 +360,19 @@ class SearchStrategy:
                 nxt_dir = next_direction(self.rotation_direction == RotationDirection.CLOCKWISE, prev_dir)
                 self.corridors.append(additional_corridors[nxt_dir])
                 prev_dir = nxt_dir
-                
+            
+            # break
             boundaries = [
                 boundaries[constants.LEFT] + self.radius,
                 boundaries[constants.UP] + self.radius,
                 boundaries[constants.RIGHT] - self.radius,
                 boundaries[constants.DOWN] - self.radius,
             ]
-            self.logger.debug(f"boundaries: {boundaries}")
+            # self.logger.debug(f"boundaries: {boundaries}")
         
         self.logger.debug(f"Corridors: {self.corridors}; {len(self.corridors)}")
         for corridor in self.corridors:
-            self.logger.debug(f"Corridor: {corridor.boundaries}; {corridor.direction} ->")
+            self.logger.debug(f"Corridor: {corridor.boundaries}; {corridor.direction} {corridor.start_indices=} {corridor.end_indices}->")
 
         return self.corridors
         

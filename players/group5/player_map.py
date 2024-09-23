@@ -200,33 +200,33 @@ class StartPosCentricPlayerMap(PlayerMapInterface):
         self.cur_pos[0] -= (new_start_ref[0] - self._prev_start_ref[0])
         self.cur_pos[1] -= (new_start_ref[1] - self._prev_start_ref[1])
 
-        self.logger.debug(f"Updating cur pos: {self.cur_pos}")
+        # self.logger.debug(f"Updating cur pos: {self.cur_pos}")
         self._prev_start_ref = new_start_ref
 
     def update_door_status(self, coord: List[int], door_type: int, door_state: int):
         key = self._door_dictkey(map_coords=coord, door_type=door_type)
 
-        self.logger.debug(f"Updating door status for {key} to {door_state}") if coord[0] == 90 and coord[1] == 99 else None
+        # self.logger.debug(f"Updating door status for {key} to {door_state}") if coord[0] == 90 and coord[1] == 99 else None
         self._door_status[key] = door_state
 
     def update_map(self, turn_num: int, percept: TimingMazeState):
         self.turn_num = turn_num
         self._update_cur_pos([percept.start_x, percept.start_y])
 
-        self.logger.debug(f"!!!!Updating map for turn {turn_num}")
+        # self.logger.debug(f"!!!!Updating map for turn {turn_num}")
         for door in percept.maze_state:
             player_relative_coordinates, door_type, door_state = door[:2], door[2], door[3]
-            self.logger.debug(f">percept_coords: {player_relative_coordinates}, {door_type}, {door_state} ; cur_pos {self.cur_pos}") if door_state == constants.CLOSED else None
+            # self.logger.debug(f">percept_coords: {player_relative_coordinates}, {door_type}, {door_state} ; cur_pos {self.cur_pos}") if door_state == constants.CLOSED else None
 
-            self.logger.debug(f"Door seen in percept: {player_relative_coordinates}, {door_type}, {door_state}") if player_relative_coordinates[0] == 90 and player_relative_coordinates[1] == 99 else None
+            # self.logger.debug(f"Door seen in percept: {player_relative_coordinates}, {door_type}, {door_state}") if player_relative_coordinates[0] == 90 and player_relative_coordinates[1] == 99 else None
 
             coord = self._get_map_coordinates(player_relative_coordinates)
 
             # update boundaries if newly found
-            self.logger.debug(f"boundary found!!!") if door_state == constants.BOUNDARY and door_type == constants.UP else None
+            # self.logger.debug(f"boundary found!!!") if door_state == constants.BOUNDARY and door_type == constants.UP else None
             if door_state == constants.BOUNDARY and not self._is_boundary_found(door_type):
                 self._update_boundaries(door_type, coord)
-                self.logger.debug(f"Boundaries updated: {self._boundaries}")
+                # self.logger.debug(f"Boundaries updated: {self._boundaries}")
 
             # update frequencies (TODO: refactor for readability)
             cur_freq_candidates = self._get_freq_candidates_usecase(coord, door_type)  # TODO: consider refactoring how doorID is used
@@ -252,7 +252,7 @@ class StartPosCentricPlayerMap(PlayerMapInterface):
         if turn_num != self.turn_num:
             raise ValueError("Turn number does not match map's current turn number")
 
-        self.logger.debug(f"Getting valid moves for turn {turn_num}")
+        # self.logger.debug(f"Getting valid moves for turn {turn_num}")
         cur_pos = self.cur_pos
         valid_moves_dependent_doors = {
             constants.LEFT: [
@@ -275,7 +275,7 @@ class StartPosCentricPlayerMap(PlayerMapInterface):
 
         valid_moves = []
         for move, door_keys in valid_moves_dependent_doors.items():
-            self.logger.debug(f"Door {door_keys[0]} status: {self._door_status[door_keys[0]]}, {door_keys[1]} {self._door_status[door_keys[1]]}")
+            # self.logger.debug(f"Door {door_keys[0]} status: {self._door_status[door_keys[0]]}, {door_keys[1]} {self._door_status[door_keys[1]]}")
 
             if all([self._door_status[key] == constants.OPEN for key in door_keys]):
                 valid_moves.append(move)

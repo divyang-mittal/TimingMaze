@@ -53,7 +53,7 @@ class G5_Player:
             self.player_map.update_map(self.turns, current_percept)
             
             valid_moves = self.player_map.get_valid_moves(self.turns)
-            self.logger.debug(f"Valid moves: {valid_moves}")
+            # self.logger.debug(f"Valid moves: {valid_moves}")
 
             exists, end_pos = self.player_map.get_end_pos_if_known()
             if not exists:
