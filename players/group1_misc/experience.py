@@ -113,7 +113,7 @@ class Experience:
         # )
         # print(f"Walls: {self.walls}")
         # print(f"Number of seen cells: {len(self.seen_cells)}")
-        print("\n")
+        # print("\n")
 
         if self.is_valid_move(current_percept, move):
             return move
@@ -214,9 +214,9 @@ class Experience:
         max_indices = [i for i, score in enumerate(move_scores) if score == max_score]
         move = random.choice(max_indices)
 
-        print(f"Direction vector: {direction_vector}")
-        print(f"Direction vector weight: {self.direction_vector_weight}")
-        print(f"Move scores: {move_scores}")
+        # print(f"Direction vector: {direction_vector}")
+        # print(f"Direction vector weight: {self.direction_vector_weight}")
+        # print(f"Move scores: {move_scores}")
         return move
 
     def get_move_scores(self):
