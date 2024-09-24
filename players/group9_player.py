@@ -82,25 +82,23 @@ class Player:
         self.step = 0
         self.cur_pos = [0, 0]
         self.epsilon = 0.0
-        self.door_states = {} # Door frequencies of each cell
+        self.door_states = {}
         self.values = {}
         self.best_path_found = {}
-        self.boundary = [100, 100, 100, 100] # Left, Top, Right, Bottom
+        self.boundary = [100, 100, 100, 100]
         self.corners = [[100, 100], [100, 100], [100, 100], [100, 100]] # (Left, Bottom), (Left, Top), (Right, Top), (Right, Bottom), 
-        self.past_moves = [] # Keeps track of all past moves
-        self.past_coords = [] # Keeps track of all past coordinates
-        self.move_regrets = {} # Keeps track of move regrets of a coordinate
-        self.waited = 0 # Turn waited
-        self.escaping = False # Set to true when player is stuck so we go in to emergency mode
-        self.escape_route = deque([]) # The escape route
+        self.past_moves = []
+        self.past_coords = [] 
+        self.move_regrets = {}
+        self.waited = 0
+        self.escaping = False
+        self.escape_route = deque([])
 
-    # Dummy class to try and activate Hanita's Djikstras (currently failing)
     class Corner:
         def __init__(self, end_x, end_y) -> None:
             self.end_x = end_x
             self.end_y = end_y
 
-    # Runs update cell value and state
     def update_graph_information(self, current_percept):
         """
             Now that the percept has updated & another step has been taken, update our 
@@ -113,7 +111,6 @@ class Player:
             self.update_cell_state(cell_coordinates, cell[2], cell[3])
             self.update_cell_value(cell_coordinates, cell[3])
 
-    # Updates self.door_states and self.boundary and self.corners
     def update_cell_state(self, coordinates, direction, state):
         """
             Update the known frequencies of the doors in the given cell
@@ -142,7 +139,6 @@ class Player:
             # print(self.boundary)
             # print(self.corners)
 
-    # Updates our heursitics: self.values
     def update_cell_value(self, coordinates, door_type):
         """
             Update greedy-epsilon values
@@ -159,7 +155,6 @@ class Player:
             if self.values[coordinates] != -1:
                 self.values[coordinates] += 1
 
-    # Returns the corner coordinate if we are close, else (100, 100)
     def close_to_corner(self) -> tuple:
         for i in range(len(self.corners)):
             coords_valid = True
@@ -174,8 +169,7 @@ class Player:
                 return tuple(self.corners[i])
 
         return (100, 100)
-
-    # Evauates the cost (turns it takes for player to move) of a certain coordinate and added_steps into the future
+    
     def cost_of_directions(self, coord, added_steps) -> list:
         current_turn = self.step + added_steps
         costs = []
@@ -218,7 +212,7 @@ class Player:
         costs = self.cost_of_directions(tuple(self.cur_pos), added_steps)
         print("Cost of moving in current position: ", costs)
 
-        fastest_moves = sorted(range(len(costs)), key=lambda k : (costs[k], self.move_regrets[tuple(self.cur_pos)][k])) # Sorts moves based on regret
+        fastest_moves = sorted(range(len(costs)), key=lambda k : (costs[k], self.move_regrets[tuple(self.cur_pos)][k]))
 
         print("After finding fastest moves")
 
@@ -319,7 +313,7 @@ class Player:
             
             added_steps += 1 + costs[opposite(prev_move)]
 
-        
+
             if coord not in memo or coord not in memo_move:
                 print("No valid moves found at", coord)
                 cost = costs[opposite(prev_move)]
@@ -391,8 +385,7 @@ class Player:
             # self.update_position(best_move)
             # return best_move
         # print("After condition corner check")
-        
-        
+
         moves = [constants.LEFT, constants.UP, constants.RIGHT, constants.DOWN]
 
         available_moves = []
@@ -457,7 +450,7 @@ class Player:
             # If we are backtracking, then figure out why.
             if self.past_moves and (opposite(self.past_moves[-1]) == best_move):
                 print("I AM NOW STUCK")
-                # print("Move Regret: ", move_regret)
+                print("Move Regret: ", move_regret)
                 best_move = self.find_best_out()
         else:
             best_move = random.choice(moves)
@@ -487,7 +480,9 @@ class Player:
         curr_cell = tuple(self.cur_pos)
         # Look for the best path to current position if one hasn't been found yet
         if len(self.best_path_found) == 0 or curr_cell not in self.best_path_found:
-            self.find_path(current_percept.end_x, current_percept.end_y)
+            result = self.find_path(current_percept.end_x, current_percept.end_y)
+            if result != -2:
+                return result
         
         if curr_cell not in self.best_path_found:
             return constants.WAIT
@@ -518,8 +513,9 @@ class Player:
 
     def find_path(self, goal_x, goal_y):
         """
-            Given the current graph/board state and the end coordinates, use Dijkstra's 
-            algorithm to find a path from every available cell to the end position.
+            Given the current graph/board state and the end coordinates, use a dynamic
+            Dijkstra's algorithm to find a path from every available cell to the end position,
+            while minimizing the number of weighted steps (steps_in_dijkstras).
         """
         relative_x = int(goal_x + self.cur_pos[0])
         relative_y = int(goal_y + self.cur_pos[1])
@@ -527,43 +523,56 @@ class Player:
 
         if goal_coordinates not in self.door_states:
             return
-        
-        dist = {cell: (self.maximum_door_frequency * 100) for cell in self.door_states}
-        dist[goal_coordinates] = 0
+
+        # Initialize steps_in_dijkstras for each cell
+        steps_in_dijkstras = {cell: float('inf') for cell in self.door_states}
+        steps_in_dijkstras[goal_coordinates] = 0
         self.best_path_found[goal_coordinates] = -1
 
-        queue = [(0, goal_coordinates)]
+        # Priority queue for Dijkstra's, based on steps_in_dijkstras
+        queue = [(0, goal_coordinates)]  # (steps_in_dijkstras, cell)
         heapq.heapify(queue)
         visited = set()
 
         while len(queue) > 0:
-            curr_dist, curr_cell = heapq.heappop(queue) # node with min dist
+            print("Queue Length: ", len(queue))
+            print(queue)
+
+            curr_steps, curr_cell = heapq.heappop(queue)  # node with min weighted steps
             if curr_cell == self.cur_pos:
                 return
-            
+
             if curr_cell in visited:
                 continue
             visited.add(curr_cell)
 
+            # Get neighbors
             neighbors = get_neighbors(curr_cell)
             for direction in range(4):
                 neighbor = neighbors[direction]
                 if (neighbor in visited) or (neighbor not in self.door_states):
                     continue
 
-                # how often are we able to go pn this direction?
-                # lowest common multiple
+                # Get door states to calculate dynamic weight
                 this_door = self.door_states[curr_cell][direction]
                 neighbor_door = self.door_states[neighbor][opposite(direction)]
                 if (this_door == 0) or (neighbor_door == 0):
                     continue
 
                 max_wait = LCM(this_door, neighbor_door)
-                dist_from_here = curr_dist + max_wait + 1 + manhattan_dist(self.cur_pos, neighbor)
-                if dist_from_here < dist[neighbor]:
-                    # best way to get to neighbor (so far) is from here. 
-                    # meaning if player is at neighbor, it should go to curr_cell to reach goal
-                    dist[neighbor] = dist_from_here
+                
+                # Calculate the dynamic weight based on steps_in_dijkstras
+                dynamic_weight = (max_wait - ((curr_steps) % max_wait)) % max_wait
+                
+                # Calculate the number of weighted steps for the neighbor
+                new_steps_in_dijkstras = curr_steps + dynamic_weight + 1
+
+                # If we find a path with fewer weighted steps, update the path
+                if new_steps_in_dijkstras < steps_in_dijkstras[neighbor]:
+                    steps_in_dijkstras[neighbor] = new_steps_in_dijkstras
                     self.best_path_found[neighbor] = opposite(direction)
 
-                    heapq.heappush(queue, (dist_from_here, neighbor))
+                    # Push the neighbor into the priority queue with the new steps_in_dijkstras
+                    heapq.heappush(queue, (new_steps_in_dijkstras, neighbor))
+
+        return
