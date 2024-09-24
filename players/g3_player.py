@@ -5,7 +5,7 @@ from lib2to3.fixer_util import parenthesize
 import numpy as np
 import logging
 
-# from scipy.optimize import direct
+from scipy.optimize import direct
 
 import constants
 from timing_maze_state import TimingMazeState
@@ -83,6 +83,7 @@ class Player:
         self.previous_position = None
         self.stuck_turn_counter = 0
         self.unstuck_counter = 0
+        self.stale_counter = 0
 
         self.outside_in_mode =False
         
@@ -145,8 +146,11 @@ class Player:
             self.previous_position = current_position
             # print("stuck counter reset")
 
+        print("Stale counter", self.stale_counter)
+
         # print("end stuck too long function")
-        return self.stuck_turn_counter > (self.maximum_door_frequency-1)*self.maximum_door_frequency
+        return (self.stuck_turn_counter > min((self.maximum_door_frequency-1)*self.maximum_door_frequency, 50)
+            or self.stale_counter > min((self.maximum_door_frequency-1)*self.maximum_door_frequency, 100))
 
     def pick_new_synthetic_goal(self, current_percept):
         """Pick a new synthetic goal from unvisited cells within the given radius."""
@@ -209,6 +213,10 @@ class Player:
         """
         current_x = constants.map_dim - current_percept.start_x
         current_y = constants.map_dim - current_percept.start_y
+        if self.global_unvisited_map[current_x, current_y] == 1:
+            self.stale_counter += 1
+        else:
+            self.stale_counter = 0
         if self.synthetic_goal is not None and self.global_unvisited_map[current_x, current_y] != 1:
             self.unstuck_counter += 1
         self.global_unvisited_map[current_x, current_y] = 1
@@ -590,6 +598,19 @@ class Player:
                 self.rush_in_reverse_timer -= 1
         return -1
 
+    def update_inside_out_rem(self, current_percept):
+        # Detect the edge and reduce inside out traversal
+        for maze_state in current_percept.maze_state:
+            if maze_state[3] == constants.BOUNDARY:
+                if maze_state[2] == constants.RIGHT and maze_state[1] == 0 and maze_state[0] < self.radius / 2:
+                    self.inside_out_rem[constants.RIGHT] = 0
+                elif maze_state[2] == constants.LEFT and maze_state[1] == 0 and maze_state[0] > -self.radius / 2:
+                    self.inside_out_rem[constants.LEFT] = 0
+                elif maze_state[2] == constants.DOWN and maze_state[0] == 0 and maze_state[1] < self.radius / 2:
+                    self.inside_out_rem[constants.DOWN] = 0
+                elif maze_state[2] == constants.UP and maze_state[0] == 0 and maze_state[1] > -self.radius / 2:
+                    self.inside_out_rem[constants.UP] = 0
+
     def move_inside_out(self, current_percept) -> int:
         # Move towards the boundary but not more than the radius away from the inner boundary
         # if the boundary is less than the radius away, change direction
@@ -613,6 +634,8 @@ class Player:
             self.inside_out_rem = [self.inside_out_start_radius+self.radius, self.inside_out_start_radius+self.radius, self.inside_out_start_radius, self.inside_out_start_radius]
             self.inside_out_start_radius = self.inside_out_start_radius + 2*self.radius
             self.inside_out_state = 1
+
+        self.update_inside_out_rem(current_percept)
 
         if self.inside_out_state == 1:
             if self.inside_out_rem[2] <= 0:
@@ -726,7 +749,7 @@ class Player:
      
         if self.outside_in_state == 0:
             print("Outside IN started")
-            self.corner_val= self.get_corner2(abs_x,abs_y, current_percept)
+            self.corner_val= self.get_corner2(-current_percept.start_x, -current_percept.start_y, current_percept)
             if self.corner_val== 1:
                     self.outside_in_state = 1
                     self.update_case =1
