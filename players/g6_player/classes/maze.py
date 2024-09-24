@@ -1,5 +1,4 @@
 from players.g6_player.classes.cell import Cell
-from players.g6_player.classes.maze_graph import MazeGraph
 
 from constants import UP, DOWN, RIGHT, LEFT, map_dim
 from players.g6_player.classes.typed_timing_maze_state import TypedTimingMazeState
@@ -13,7 +12,6 @@ CENTER_POS = map_dim - 1
 class Maze:
     def __init__(self) -> None:
         self.grid = [[Cell(x=x, y=y) for y in range(GRID_DIM)] for x in range(GRID_DIM)]
-        self.graph = MazeGraph()
         self.turn = 0
         self.target_pos = None
         self.curr_pos = (CENTER_POS, CENTER_POS)  # relative to 199x199 grid
@@ -76,7 +74,6 @@ class Maze:
 
         self.__update_maze_door_freq(current_percept)
         self.__update_maze_path_freq(current_percept)
-        self.__update_maze_graph(current_percept)
 
     def __update_maze_door_freq(self, current_percept: TypedTimingMazeState):
         """
@@ -103,21 +100,6 @@ class Maze:
             x = self.curr_pos[0] + cell.row
             y = self.curr_pos[1] + cell.col
             self.grid[x][y].update_paths()
-
-    def __update_maze_graph(self, current_percept: TypedTimingMazeState):
-        for cell in current_percept.maze_state:
-            x = self.curr_pos[0] + cell.row
-            y = self.curr_pos[1] + cell.col
-            if not self.grid[x][y].seen:
-                self.grid[x][y].seen = True
-
-            # Update edges that exist between cell and neighbors
-            self.graph.add_edge((x, y), (x + 1, y), weight=self.grid[x][y].e_path)
-            self.graph.add_edge((x, y), (x - 1, y), weight=self.grid[x][y].w_path)
-            self.graph.add_edge((x, y), (x, y + 1), weight=self.grid[x][y].n_path)
-            self.graph.add_edge((x, y), (x, y - 1), weight=self.grid[x][y].s_path)
-
-            # self.graph.display_graph()
 
     def update_boundary(self, curr_cell: Cell, direction: int):
         """
