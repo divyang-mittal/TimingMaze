@@ -37,10 +37,6 @@ class G6_Player:
         self.maximum_door_frequency = maximum_door_frequency
         self.radius = radius
 
-        # Variables to facilitate knowing where the player has been and if they are trapped
-        self.move_history = []
-        self.prev_move = None
-
         # Initialize Maze object to hold information about cells and doors perceived by the drone
         self.maze = Maze()
 
@@ -166,7 +162,80 @@ class G6_Player:
         self.maze.target_pos = self.__set_target_on_radius()
         result, cost = a_star(self.maze.current_cell(), self.maze.target_cell())
         print(f"TARGET: {len(result)} moves - {cost} cost")
+
+        # Move in least obstructed direction towards target
+        target_directions = self.__get_target_directions()     
+        door1_freq = self.__get_door_freq(target_directions[0])
+        door2_freq = self.__get_door_freq(target_directions[1])
+        door3_freq = self.__get_door_freq(target_directions[2])
+        door4_freq = self.__get_door_freq(target_directions[3])
+
+        # [TODO] Can experiment with different cost and freq thresholds
+        if cost == float("inf"):
+            if door1_freq != 0:
+                return Move.target_directions[0]
+            elif door2_freq != 0:
+                return Move.target_directions[1]
+            elif door3_freq != 0:
+                return Move.target_directions[2]
+            elif door4_freq != 0:
+                return Move.target_directions[3]
+
         return result[0]
+
+    def __get_target_directions(self) -> list:
+        """
+        Get directions to target based on current and target positions
+        """
+        # Rank directions based on distance to target
+        left_dist = max(self.maze.curr_pos[0] - self.maze.target_pos[0], 0)
+        up_dist = max(self.maze.curr_pos[1] - self.maze.target_pos[1], 0)
+        right_dist = max(self.maze.target_pos[0] - self.maze.curr_pos[0], 0)
+        down_dist = max(self.maze.target_pos[1] - self.maze.curr_pos[1], 0)
+        dist_arr = [left_dist, up_dist, right_dist, down_dist]
+
+        # Sort in descending order
+        rank = np.argsort(-dist_arr)
+
+        # Rank bottom two directions based on distance from border
+        dist1 = 0
+        dist2 = 0
+        if rank[2] == LEFT:
+            dist1 = self.maze.curr_pos[0] - self.maze.west_end
+        elif rank[2] == UP:
+            dist1 = self.maze.curr_pos[1] - self.maze.north_end
+        elif rank[2] == RIGHT:
+            dist1 = self.maze.east_end - self.maze.curr_pos[0]
+        elif rank[2] == DOWN:
+            dist1 = self.maze.south_end - self.maze.curr_pos[1]
+        
+        if rank[3] == LEFT:
+            dist2 = self.maze.curr_pos[0] - self.maze.west_end
+        elif rank[3] == UP:
+            dist2 = self.maze.curr_pos[1] - self.maze.north_end
+        elif rank[3] == RIGHT:
+            dist2 = self.maze.east_end - self.maze.curr_pos[0]
+        elif rank[3] == DOWN:
+            dist2 = self.maze.south_end - self.maze.curr_pos[1]
+        
+        if dist1 < dist2:
+            rank[2], rank[3] = rank[3], rank[2]
+
+        return rank
+
+    def __get_door_freq(self, direction: int) -> int:
+        """
+        Get the frequency of the door in a given direction
+        """
+        curr_cell = self.maze.current_cell()
+        if direction == UP:
+            return curr_cell.n_door.freq
+        elif direction == RIGHT:
+            return curr_cell.e_door.freq
+        elif direction == DOWN:
+            return curr_cell.s_door.freq
+        elif direction == LEFT:
+            return curr_cell.w_door.freq
 
     def __adjust_phase_and_target(self):
         """
@@ -230,6 +299,8 @@ class G6_Player:
             return Move.WAIT
 
         print(f"TARGET: {len(result)} moves - {cost} cost")
+
+        # [TODO] IMPLEMENT SAME TACTICAL MOVE AS IN EXPLORE
 
         return result[0]
 
