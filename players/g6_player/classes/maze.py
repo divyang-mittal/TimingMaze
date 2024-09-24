@@ -108,6 +108,8 @@ class Maze:
         for cell in current_percept.maze_state:
             x = self.curr_pos[0] + cell.row
             y = self.curr_pos[1] + cell.col
+            if not self.grid[x][y].seen:
+                self.grid[x][y].seen = True
 
             # Update edges that exist between cell and neighbors
             self.graph.add_edge((x, y), (x + 1, y), weight=self.grid[x][y].e_path)

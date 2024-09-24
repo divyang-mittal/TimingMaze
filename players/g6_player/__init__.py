@@ -61,36 +61,10 @@ class G6_Player:
         current_percept: TypedTimingMazeState = convert(current_percept)
 
         self.maze.update(current_percept)
-        # self.__update_history()
         player_move = self.__move(current_percept)
 
         print(f"MOVE: {move_to_str(player_move)}")
         return player_move.value
-
-    # def __update_history(self):
-    #     """
-    #     This function adjusts the move_history ordered list of coordinates that the player has already visited.
-    #     """
-    #     if len(self.move_history) == 0:
-    #         return self.move_history.append(self.maze.curr_pos)
-    #     else:
-    #         self.prev_move = self.__get_prev_move()
-    #         self.move_history.append(self.maze.curr_pos)
-
-    # def __get_prev_move(self):
-    #     delta = (
-    #         self.maze.curr_pos[0] - self.move_history[-1][0],
-    #         self.maze.curr_pos[1] - self.move_history[-1][1],
-    #     )
-
-    #     if delta == (-1, 0):
-    #         return LEFT
-    #     elif delta == (1, 0):
-    #         return RIGHT
-    #     elif delta == (0, -1):
-    #         return DOWN
-    #     else:
-    #         return UP
 
     def __move(self, current_percept: TypedTimingMazeState) -> Move:
         """
@@ -124,7 +98,6 @@ class G6_Player:
             self.search_target = (self.maze.curr_pos[0], self.maze.south_end)
 
         self.maze.target_pos = self.__set_target_on_radius()
-        print(f"search_target: {self.search_target}, target_pos: {self.maze.target_pos}")
         result, cost = a_star(self.maze.current_cell(), self.maze.target_cell())
         print(f"TARGET: {len(result)} moves - {cost} cost")
         return result[0]
@@ -163,7 +136,6 @@ class G6_Player:
         """
         Set target position on drone radius towards search target
         """
-        print(f'CURR: {self.maze.curr_pos}, SEARCH: {self.search_target}')
         vec_x = self.search_target[0] - self.maze.curr_pos[0]
         vec_y = self.search_target[1] - self.maze.curr_pos[1]
         norm = np.sqrt(vec_x**2 + vec_y**2)
@@ -172,7 +144,6 @@ class G6_Player:
             y = int(np.floor(vec_y / norm * self.radius)) + self.maze.curr_pos[1]
         else:
             x, y = self.search_target
-        print(f'VEC: {vec_x}, {vec_y}, NORM: {norm}, TARGET: {x}, {y}')
         return (x, y)
 
     def __inward_spiral(self) -> Move:
@@ -244,34 +215,6 @@ class G6_Player:
                 self.maze.south_end - cum_offset - offset,
             )
 
-    # def __get_available_moves(self) -> list[Move]:
-    #     curr_cell = self.maze.current_cell()
-    #     curr_available_moves = []
-
-    #     for move in Move:
-    #         if curr_cell.is_move_available(move):
-    #             curr_available_moves.append(move)
-    #     return curr_available_moves
-
-    # def __get_unstuck(self) -> Move:
-    #     curr_available_moves = self.__get_available_moves()
-
-    #     # [TODO] - this will not work if there is a full three-sided trap (like a maze with a dead end).
-    #     for available_move in curr_available_moves:
-    #         if self.prev_move in [RIGHT, LEFT] and available_move in [
-    #             Move.UP,
-    #             Move.DOWN,
-    #         ]:
-    #             return available_move
-    #         elif self.prev_move in [DOWN, UP] and available_move in [
-    #             Move.LEFT,
-    #             Move.RIGHT,
-    #         ]:
-    #             return available_move
-
-    #     # No available moves
-    #     return Move.WAIT
-
     def __exploit(self, current_state: TypedTimingMazeState) -> Move:
         """
         Use the A* shortest path to generate moves towards the target.
@@ -289,16 +232,6 @@ class G6_Player:
         print(f"TARGET: {len(result)} moves - {cost} cost")
 
         return result[0]
-
-    # def __exploit_a_star(self, current_state: TypedTimingMazeState) -> Move:
-    #     """
-    #     [TODO] Use the A* shortest_path to generate moves towards the target.:
-    #     """
-    #     start = self.maze.curr_pos
-    #     target = (self.maze.target_pos[0], self.maze.target_pos[1])
-    #     shortest_path, path_length = self.maze.graph.astar_shortest_path(start, target)
-
-    #     return Move.WAIT
 
     def __str__(self) -> str:
         # TODO: how do we get the current position

@@ -10,6 +10,8 @@ class Cell:
         # coordinates in 199x199 grid
         self.x = x
         self.y = y
+
+        # whether the cell has been visited
         self.seen = False
 
         # doors of current cell
