@@ -15,6 +15,7 @@ class MemoryDoor:
         self.is_certain_freq = False
         self.observations = {} # {turn : 1 - Closed / 2 - Open / 3 - Boundary}
         self.freq_distribution = {}
+        self.is_boundary = False
     
     def is_open(self, turn):
         # Returns if the door is open at a given turn
@@ -22,6 +23,10 @@ class MemoryDoor:
     
     def update_observations(self, door_state, turn):
         # Updates observed freqs, runs get_freq
+        if door_state == constants.BOUNDARY:
+            self.is_boundary = True
+            return
+        
         if not self.is_certain_freq:
             self.observations[turn] = door_state
             self.freq_distribution = self.get_freq()
@@ -30,6 +35,9 @@ class MemoryDoor:
     
     def get_freq(self):
         # Tries to find the frequency given observed, returns a probability distribution
+        if self.is_boundary: # Boundary has 0 frequency
+            return {0:1}
+        
         possible_open_frequencies = set()
         closed_frequencies = set()
 
@@ -56,11 +64,13 @@ class MemoryDoor:
 
         return probability_distribution
     
-    def roll_freq(self):
+    def roll_freq(self, use_max=False):
         # Returns a frequency based on the distribution
             # Calculate cumulative distribution
         if self.freq_distribution == {}:
             return 0
+        if use_max:
+            return max(self.freq_distribution)
         cumulative_dist = []
         cumulative_sum = 0
         for freq, prob in self.freq_distribution.items():
@@ -85,23 +95,27 @@ class MemorySquare:
         right = MemoryDoor()
         down = MemoryDoor()
         self.doors = {constants.LEFT:left, constants.UP:up, constants.RIGHT:right, constants.DOWN:down}
+        self.visited = 0
+        self.seen = False
 
 class PlayerMemory:
     def __init__(self, map_size: int = 100):
         self.memory = [[MemorySquare() for _ in range(map_size * 2)] for _ in range(map_size * 2)]
         self.pos = (map_size, map_size) #(y, x)
+        self.boundary = Boundary(-1, -1, -1, -1)
+
     
     def update_memory(self, state, turn):
         # state = [door] = (row_offset, col_offset, door_type, door_status)
         for s in state:
-            # if s[0] == -1 and s[1] == 0:
-                # print("ya")
-            square = self.memory[self.pos[0] + s[1]][self.pos[1] + s[0]]
+            square: MemorySquare = self.memory[self.pos[0] + s[1]][self.pos[1] + s[0]]
+            square.seen = True
             door = square.doors[s[2]]
             door_state = s[3]
             door.update_observations(door_state, turn)
 
     def update_pos(self, move):
+        self.memory[self.pos[0]][self.pos[1]].visited += 1
         if move == constants.LEFT:
             self.pos = (self.pos[0], self.pos[1] - 1)
         if move == constants.UP:
@@ -110,51 +124,53 @@ class PlayerMemory:
             self.pos = (self.pos[0], self.pos[1] + 1)
         if move == constants.DOWN:
             self.pos = (self.pos[0] + 1, self.pos[1])
+    	
+    def get_boundary_coords(self):
+        if self.boundary.is_boundary_fully_known():
+            return self.boundary
+
+        # search for boundary
+        new_boundary = Boundary(-1, -1, -1, -1)
+        for y in range(len(self.memory)):
+            for x in range(len(self.memory[0])):
+                
+                if new_boundary.is_boundary_fully_known():
+                    self.boundary = new_boundary
+                    return new_boundary # We can break early if we have all the bounds
+                
+                if self.memory[y][x].doors[constants.LEFT].is_boundary:
+                    new_boundary.left = x
+                    new_boundary.right = x + 99
+                if self.memory[y][x].doors[constants.RIGHT].is_boundary:
+                    new_boundary.right = x
+                    new_boundary.left = x - 99
+                if self.memory[y][x].doors[constants.UP].is_boundary:
+                    new_boundary.up = y
+                    new_boundary.down = y + 99
+                if self.memory[y][x].doors[constants.DOWN].is_boundary:
+                    new_boundary.down = y
+                    new_boundary.up = y - 99
+        self.boundary = new_boundary
+        
+        return self.boundary
     
-    def is_move_valid(self, move, state):
+@dataclass
+class Boundary:
+    left: int
+    right: int
+    up: int
+    down: int
 
-        if move == constants.LEFT:
-            current_square_left_open = False
-            left_square_right_open = False
-            for s in state: 
-                if s[0] == 0 and s[1] == 0 and s[2] == constants.LEFT and s[3] == 2:
-                    current_square_left_open = True
-                if s[0] == -1 and s[1] == 0 and s[2] == constants.RIGHT and s[3] == 2:
-                    left_square_right_open = True
-            return current_square_left_open and left_square_right_open
+    def is_boundary_fully_known(self):
+        return self.left != -1 and self.right != -1 and self.up != -1 and self.down != -1
+    
+    def is_horizontal_boundary_known(self):
+        return self.left != -1 and self.right != -1
+    
+    def is_vertical_boundary_known(self):
+        return self.up != -1 and self.down != -1
 
-        if move == constants.UP:
-            current_square_up_open = False
-            up_square_down_open = False
-            for s in state:
-                if s[0] == 0 and s[1] == 0 and s[2] == constants.UP and s[3] == 2:
-                    current_square_up_open = True
-                if s[0] == 0 and s[1] == -1 and s[2] == constants.DOWN and s[3] == 2:
-                    up_square_down_open = True
-            return current_square_up_open and up_square_down_open
 
-        
-        if move == constants.RIGHT:
-            current_square_right_open = False
-            right_square_left_open = False
-            for s in state:
-                if s[0] == 0 and s[1] == 0 and s[2] == constants.RIGHT and s[3] == 2:
-                    current_square_right_open = True
-                if s[0] == 1 and s[1] == 0 and s[2] == constants.LEFT and s[3] == 2:
-                    right_square_left_open = True
-            return current_square_right_open and right_square_left_open
- 
-        if move == constants.DOWN:
-            current_square_down_open = False
-            down_square_up_open = False
-            for s in state:
-                if s[0] == 0 and s[1] == 0 and s[2] == constants.DOWN and s[3] == 2:
-                    current_square_down_open = True
-                if s[0] == 0 and s[1] == 1 and s[2] == constants.UP and s[3] == 2:
-                    down_square_up_open = True
-            return current_square_down_open and down_square_up_open
-        
-        return False
 
 class MazeGraph:
     def __init__(self, graph: dict = {}):
@@ -247,11 +263,11 @@ class MazeGraph:
         plt.savefig("graph.png", format="png", dpi=300)
         # plt.show()
         
-def reconstruct_path(parent, startNode, targetNode):
+def reconstruct_path(parent, targetNode):
     """Helper function to reconstruct the path from startNode to targetNode using the parent dictionary."""
     path = []
     # we are storing y, x in startNode (if y is row and x is xol...)
-    currentNode = (int(startNode[0] + targetNode[0]), int(startNode[1] + targetNode[1]))
+    currentNode = targetNode
     while currentNode is not None:
         if currentNode not in parent:
             print("Target Node is unreachable")
@@ -261,10 +277,11 @@ def reconstruct_path(parent, startNode, targetNode):
     path.reverse()  # Reverse the path to get it from start to target
     return path
 
-def build_graph_from_memory(player_memory: PlayerMemory) -> MazeGraph:
+def build_graph_from_memory(player_memory: PlayerMemory, use_max=False) -> MazeGraph:
     graph = MazeGraph()
 
     # Iterate through the map_memory and add edges to the graph
+    # use_max will make the heuristic assume worst case door frequency
     for y in range(len(player_memory.memory)): # i is the row index (basically y)
         for x in range(len(player_memory.memory[0])): # j is the column index (basically x)
             currMemSquare: MemorySquare = player_memory.memory[y][x]
@@ -275,42 +292,34 @@ def build_graph_from_memory(player_memory: PlayerMemory) -> MazeGraph:
                 'right': (y, x+1),
                 'up': (y-1, x),
                 'down': (y+1, x)
-            }
-            # test = [[(0,0),(0,1), (0,2), (0,3), (0,4)],
-            #  [(1,0),(1,1), (1,2), (1,3), (1,4)],
-            #  [(2,0),(2,1), (2,2), (2,3), (2,4)],
-            #  [(3,0),(3,1), (3,2), (3,3), (3,4)],
-            #  [(4,0),(4,1), (4,2), (4,3), (4,4)]]
-            
-            # Add edges based on door frequencies and valid neighboring cells
-            
+            }            
             # Left neighbor exists 
             if x > 0:
                 leftSquare: MemorySquare = player_memory.memory[y][x - 1]
                 graph.add_bidirectional_edge((y, x), neighbors['left'],
-                                                currMemSquare.doors[constants.LEFT].roll_freq(),
-                                                leftSquare.doors[constants.RIGHT].roll_freq())
+                                                currMemSquare.doors[constants.LEFT].roll_freq(use_max),
+                                                leftSquare.doors[constants.RIGHT].roll_freq(use_max))
 
             # Right neighbor exists 
             if x < len(player_memory.memory[0]) - 1:  
                 rightSquare: MemorySquare = player_memory.memory[y][x + 1]
                 graph.add_bidirectional_edge((y, x), neighbors['right'],
-                                                currMemSquare.doors[constants.RIGHT].roll_freq(),
-                                                rightSquare.doors[constants.LEFT].roll_freq())
+                                                currMemSquare.doors[constants.RIGHT].roll_freq(use_max),
+                                                rightSquare.doors[constants.LEFT].roll_freq(use_max))
             
             # Up neighbor exists 
             if y > 0: 
                 upSquare: MemorySquare = player_memory.memory[y - 1][x]
                 graph.add_bidirectional_edge((y, x), neighbors['up'],
-                                                currMemSquare.doors[constants.UP].roll_freq(),
-                                                upSquare.doors[constants.DOWN].roll_freq())
+                                                currMemSquare.doors[constants.UP].roll_freq(use_max),
+                                                upSquare.doors[constants.DOWN].roll_freq(use_max))
             
             # Down neighbor exists
             if y < len(player_memory.memory) - 1:
                 downSquare: MemorySquare = player_memory.memory[y + 1][x]
                 graph.add_bidirectional_edge((y, x), neighbors['down'],
-                                                currMemSquare.doors[constants.DOWN].roll_freq(),
-                                                downSquare.doors[constants.UP].roll_freq())
+                                                currMemSquare.doors[constants.DOWN].roll_freq(use_max),
+                                                downSquare.doors[constants.UP].roll_freq(use_max))
 
     return graph
 
@@ -373,6 +382,50 @@ def findShortestPathsToEachNode(graph: MazeGraph, startNode: tuple, turnNumber: 
     return minDistanceArray, parent  # Return both distances and paths
 
 
+
+def is_move_valid(move, state):
+    if move == constants.LEFT:
+        current_square_left_open = False
+        left_square_right_open = False
+        for s in state: 
+            if s[0] == 0 and s[1] == 0 and s[2] == constants.LEFT and s[3] == 2:
+                current_square_left_open = True
+            if s[0] == -1 and s[1] == 0 and s[2] == constants.RIGHT and s[3] == 2:
+                left_square_right_open = True
+        return current_square_left_open and left_square_right_open
+    
+    if move == constants.UP:
+        current_square_up_open = False
+        up_square_down_open = False
+        for s in state:
+            if s[0] == 0 and s[1] == 0 and s[2] == constants.UP and s[3] == 2:
+                current_square_up_open = True
+            if s[0] == 0 and s[1] == -1 and s[2] == constants.DOWN and s[3] == 2:
+                up_square_down_open = True
+        return current_square_up_open and up_square_down_open
+
+    
+    if move == constants.RIGHT:
+        current_square_right_open = False
+        right_square_left_open = False
+        for s in state:
+            if s[0] == 0 and s[1] == 0 and s[2] == constants.RIGHT and s[3] == 2:
+                current_square_right_open = True
+            if s[0] == 1 and s[1] == 0 and s[2] == constants.LEFT and s[3] == 2:
+                right_square_left_open = True
+        return current_square_right_open and right_square_left_open
+
+    if move == constants.DOWN:
+        current_square_down_open = False
+        down_square_up_open = False
+        for s in state:
+            if s[0] == 0 and s[1] == 0 and s[2] == constants.DOWN and s[3] == 2:
+                current_square_down_open = True
+            if s[0] == 0 and s[1] == 1 and s[2] == constants.UP and s[3] == 2:
+                down_square_up_open = True
+        return current_square_down_open and down_square_up_open
+    return False
+    
 def print_min_dist_array(minDistanceArray, start_row, end_row, start_col, end_col, width=4):
     for y in range(len(minDistanceArray)):
         if y >= start_row and y <= end_row:
