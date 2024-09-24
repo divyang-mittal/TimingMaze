@@ -4,6 +4,7 @@ import numpy as np
 import logging
 import math
 import heapq
+import random
 from collections import deque, defaultdict
 
 import constants
@@ -39,7 +40,7 @@ class Player:
 
         self.rng = rng
         self.logger = logger
-        self.maximum_door_frequency = maximum_door_frequency
+        self.maximum_door_frequency = min(maximum_door_frequency, 5000)
         self.radius = radius
         
         self.curr_x = 0
@@ -59,19 +60,23 @@ class Player:
         self.turn_number = 0
         self.turn_path_changed = 0
         
-    def determine_destination(self):
+    def determine_destination(self, invalid_tries):
         """
-        Determines the next destination based on the least discovered cells and heuristic score.
+        Determines the next destination based on the least discovered cells and heuristic score, 
+        while excluding the current cell and any invalid destination attempts.
 
         Inputs:
-            None (relies on class attributes: self.times_discovered, self.curr_x, self.curr_y)
+            invalid_tries (set): A set of cells that have already been tried and deemed invalid.
 
         Outputs:
-            destination (tuple): The cell with the lowest score based on times discovered and heuristic.
+            destination (tuple): The cell with the lowest score based on the number of times it has been discovered 
+                                and its heuristic distance from the current position. Returns None if no valid destination is found.
         """
         min_score = float('inf')
         destination = None
         for cell in self.times_discovered:
+            if cell == (self.curr_x, self.curr_y) or cell in invalid_tries:
+                continue
             score = self.times_discovered[cell] + self.heuristic((self.curr_x, self.curr_y), cell)
             if score < min_score:
                 min_score = score
@@ -180,10 +185,17 @@ class Player:
                 neighbor = (current[0] + move[0], current[1] + move[1])
                 
                 # Check for boundaries
-                if neighbor not in self.door_frequencies:
-                    continue
+                if neighbor not in self.door_frequencies or current not in self.door_frequencies:
+                    continue  # Skip if no information is available for the current or neighbor position
+
+                if move[2] not in self.door_frequencies[current] or move[3] not in self.door_frequencies[neighbor]:
+                    continue  # Skip if the required door information is not available
+
+                lcm = self.calculate_LCM(
+                    self.door_frequencies[current][move[2]]['frequency'],
+                    self.door_frequencies[neighbor][move[3]]['frequency']
+                )
                 
-                lcm = self.calculate_LCM(self.door_frequencies[current][move[2]]['frequency'], self.door_frequencies[neighbor][move[3]]['frequency'])
                 tentative_g_score = g_score[current] + lcm - current_turn % lcm
 
                 if (neighbor not in g_score or tentative_g_score < g_score[neighbor]) and neighbor not in vis:
@@ -281,27 +293,37 @@ class Player:
         self.turn_number += 1
                 
         self.curr_x, self.curr_y = -current_percept.start_x, -current_percept.start_y
-        print(f'Current Position: [{self.curr_x}, {self.curr_y}]')
         
         if current_percept.is_end_visible and not self.is_end_visible:
             self.target_x = current_percept.end_x + self.curr_x
             self.target_y = current_percept.end_y + self.curr_y
-            self.turn_path_changed = self.turn_number
             self.is_end_visible = True
             
         self.update_door_frequencies(current_percept.maze_state)
         
-        if self.is_end_visible:
-            if (self.turn_number - self.turn_path_changed) % 5 == 0:
-                path = self.a_star_search((self.curr_x, self.curr_y), (self.target_x, self.target_y))
+        if self.is_end_visible and self.current_destination != (self.target_x, self.target_y):
+            path = self.a_star_search((self.curr_x, self.curr_y), (self.target_x, self.target_y))
+            if path:
                 self.path_to_end = self.coordinates_to_moves(path)
-        else:
-            if not self.path_to_end:
-                self.current_destination = self.determine_destination()
                 self.turn_path_changed = self.turn_number
-            if (self.turn_number - self.turn_path_changed) % 5 == 0:
-                path = self.a_star_search((self.curr_x, self.curr_y), self.current_destination)
-                self.path_to_end = self.coordinates_to_moves(path)
+                self.current_destination = (self.target_x, self.target_y)
+                
+        num_tries = 0
+        invalid_tries = set()
+        while not self.path_to_end and num_tries < 5:
+            self.current_destination = self.determine_destination(invalid_tries)
+            path = self.a_star_search((self.curr_x, self.curr_y), self.current_destination)
+            self.path_to_end = self.coordinates_to_moves(path)
+            self.turn_path_changed = self.turn_number
+            invalid_tries.add(self.current_destination)
+            num_tries += 1
+            
+        if self.path_to_end and (self.turn_number - self.turn_path_changed) % 3 == 0:
+            path = self.a_star_search((self.curr_x, self.curr_y), self.current_destination)
+            self.path_to_end = self.coordinates_to_moves(path)
+            
+        if not self.path_to_end:
+            return random.choice([constants.LEFT, constants.UP, constants.RIGHT, constants.DOWN])
         
         attempted_direction = self.path_to_end[0]
             
