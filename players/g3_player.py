@@ -62,9 +62,6 @@ class Player:
         self.end_y = 0
         self.global_unvisited_map = np.full((201, 201), -1, dtype=int)
 
-        self.is_djikstra_available = False
-        self.end_visible_timer = 0
-
         self.a_star_path = np.full((201, 201), -1, dtype=int)
         self.is_a_star_available = False
 
@@ -230,18 +227,16 @@ class Player:
             self.end_y = current_percept.end_y - current_percept.start_y
 
         if self.is_end_visible:
-            if self.end_visible_timer > 1.5 * self.maximum_door_frequency:
-                dijkstra_step = self.find_djikstra_step(current_percept, constants.map_dim + self.end_x, constants.map_dim + self.end_y)
-                if dijkstra_step != -1:
-                    return dijkstra_step
+            dijkstra_step = self.find_djikstra_step(current_percept, constants.map_dim + self.end_x, constants.map_dim + self.end_y)
+            if dijkstra_step != -1:
+                return dijkstra_step
 
-                # A* is triggered if Dijkstra fails to find the path
-                found_a_star = self.calculate_a_star(current_percept)
-                if found_a_star:
-                    move = self.get_a_star(current_percept)
-                    return move
+            # A* is triggered if Dijkstra fails to find the path
+            found_a_star = self.calculate_a_star(current_percept)
+            if found_a_star:
+                move = self.get_a_star(current_percept)
+                return move
 
-            self.end_visible_timer += 1
             direction = [0, 0, 0, 0]
             reverse_direction = [0, 0, 0, 0]
             for maze_state in current_percept.maze_state:
@@ -342,7 +337,6 @@ class Player:
 
     def find_djikstra_step(self, current_percept, end_x, end_y) -> int:
         # start_x and start_y are the relative positions of the start position
-        # self.is_djikstra_available = False
         direction = -1
         start_x = constants.map_dim - current_percept.start_x
         start_y = constants.map_dim - current_percept.start_y
@@ -409,7 +403,6 @@ class Player:
             return -1
 
         # # if we found the position set it as path available and traverse the parent direction
-        # self.is_djikstra_available = True
 
         # traverse the parent direction to get the path from end to start and update djikstra path
         x = end_x
