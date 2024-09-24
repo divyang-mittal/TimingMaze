@@ -16,8 +16,8 @@ class ConvergeStrategy:
 	def move(self) -> int:
 		path = dyjkstra(self.cur_pos, self.goal, self.turn, self.player_map,  self.max_door_frequency)
 
-		print("path: ", path)
-		print("Direction: ", path[0])
+		# print("path: ", path)
+		# print("Direction: ", path[0])
 
 		return path[0] if path else None
 

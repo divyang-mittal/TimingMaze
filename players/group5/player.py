@@ -56,6 +56,10 @@ class G5_Player:
             # self.logger.debug(f"Valid moves: {valid_moves}")
 
             exists, end_pos = self.player_map.get_end_pos_if_known()
+
+            print(f"Current Position: {self.player_map.get_cur_pos()}:")
+            print(f"Get Boundaries: {self.player_map.get_boundaries()}")
+
             if not exists:
                 if self.search_strategy is None:
                     self.search_strategy = SearchStrategy(self.player_map, self.radius, self.maximum_door_frequency, self.logger)  # check if change in player_map is recorded or seen

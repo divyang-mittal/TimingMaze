@@ -5,6 +5,7 @@ import logging
 from typing import List, Tuple
 import constants
 from players.group5.converge import dyjkstra
+from players.group5.door import DoorIdentifier
 from players.group5.player_map import PlayerMapInterface
 from players.group5.util import setup_file_logger
 from timing_maze_state import TimingMazeState
@@ -82,6 +83,32 @@ class SearchStrategy:
         self.traversed_corridors: List[Corridor] = []
         # self.current_corridor = None TODO: might not need if corridor[0] is the current corridor
 
+        self.detouring = False
+        self.detour_target = None
+
+        self.quick_search = True
+        self.quick_search_multiplier = 1
+
+    
+
+    def print_corridors(self) -> None:
+        if not self.corridors:
+            self.logger.debug("No corridors available.")
+            print("No corridors available.")
+            return
+
+        print("Current Corridor:")
+        for i, corridor in enumerate(self.corridors):
+            # print(f"Current Position: {self.player_map.get_cur_pos()}:")
+            print(f"Corridor {i + 1}:")
+            print(f"  Boundaries: {corridor.boundaries}")
+            print(f"  Direction: {corridor.direction}")
+            print(f"  Start Indices: {corridor.start_indices}")
+            print(f"  End Indices: {corridor.end_indices}")
+
+            return
+
+    
     def _setup_logger(self, logger):
         return setup_file_logger(logger, self.__class__.__name__, "./log")
 
@@ -93,6 +120,7 @@ class SearchStrategy:
         
         if self.stage == SearchStage.TRAVERSE_CORRIDORS:
             move = self.traverse_corridors(turn)
+            self.print_corridors()
             self.logger.debug(f"Traversed corridors move: {move}")
             if move == -100:
                 if len(self.traversed_corridors) == 1 and len(self.corridors) == 0:
@@ -106,10 +134,10 @@ class SearchStrategy:
     def _get_g2e_targets(self) -> List[List[int]]:
         boundaries = self.player_map.get_boundaries()
         
-        left_edge_targets_x_idx = boundaries[constants.LEFT] + (self.radius - 1)
-        right_edge_targets_x_idx = boundaries[constants.RIGHT] - (self.radius - 1)
-        top_edge_targets_y_idx = boundaries[constants.UP] + (self.radius - 1)
-        bottom_edge_targets_y_idx = boundaries[constants.DOWN] - (self.radius - 1)
+        left_edge_targets_x_idx = boundaries[constants.LEFT] + (self.quick_search_multiplier * self.radius - 1)
+        right_edge_targets_x_idx = boundaries[constants.RIGHT] - (self.quick_search_multiplier * self.radius - 1)
+        top_edge_targets_y_idx = boundaries[constants.UP] + (self.quick_search_multiplier * self.radius - 1)
+        bottom_edge_targets_y_idx = boundaries[constants.DOWN] - (self.quick_search_multiplier * self.radius - 1)
 
         target = []
         for x in range(left_edge_targets_x_idx, right_edge_targets_x_idx + 1):
@@ -121,6 +149,7 @@ class SearchStrategy:
         return target
 
     def go_to_edge(self, turn: int) -> int:
+        print("GOING TO EDGE")
         self._g2e_targets = self._get_g2e_targets()
         cur_pos = self.player_map.get_cur_pos()
 
@@ -138,17 +167,18 @@ class SearchStrategy:
 
         path = dyjkstra(cur_pos, self._g2e_targets, turn, self.player_map, self.max_door_frequency)
         # print("path: ", path)
-        print("Direction: ", path[0]) if path else None
+        print("Going in Direction: ", path[0]) if path else print("(No path to edge)")
         return path[0] if path else None
     
     def get_first_corridor(self) -> Corridor:
+        print("--getting first corridor--")
         cur_pos = self.player_map.get_cur_pos()
         boundaries = self.player_map.get_boundaries()
         
-        left_edge_x_idx = boundaries[constants.LEFT] + (self.radius - 1)
-        right_edge_x_idx = boundaries[constants.RIGHT] - (self.radius - 1)
-        top_edge_y_idx = boundaries[constants.UP] + (self.radius - 1)
-        bottom_edge_y_idx = boundaries[constants.DOWN] - (self.radius - 1)
+        left_edge_x_idx = boundaries[constants.LEFT] + (self.quick_search_multiplier * self.radius - 1)
+        right_edge_x_idx = boundaries[constants.RIGHT] - (self.quick_search_multiplier * self.radius - 1)
+        top_edge_y_idx = boundaries[constants.UP] + (self.quick_search_multiplier * self.radius - 1)
+        bottom_edge_y_idx = boundaries[constants.DOWN] - (self.quick_search_multiplier * self.radius - 1)
         
         my_edge = None
         if cur_pos[0] == left_edge_x_idx:
@@ -171,7 +201,7 @@ class SearchStrategy:
                         [
                             boundaries[constants.LEFT], 
                             boundaries[constants.UP], 
-                            boundaries[constants.LEFT]+ self.radius, 
+                            boundaries[constants.LEFT]+ self.radius * self.quick_search_multiplier, 
                             cur_pos[1],
                         ], 
                         constants.UP,
@@ -179,7 +209,7 @@ class SearchStrategy:
                 else:
                     return Corridor(
                         [
-                            boundaries[constants.RIGHT] - self.radius, 
+                            boundaries[constants.RIGHT] - self.radius * self.quick_search_multiplier, 
                             boundaries[constants.UP], 
                             boundaries[constants.RIGHT], 
                             cur_pos[1],
@@ -194,7 +224,7 @@ class SearchStrategy:
                         [
                             boundaries[constants.LEFT], 
                             cur_pos[1], 
-                            boundaries[constants.LEFT]+ self.radius, 
+                            boundaries[constants.LEFT]+ self.radius * self.quick_search_multiplier, 
                             boundaries[constants.DOWN],
                         ], 
                         constants.DOWN,
@@ -202,7 +232,7 @@ class SearchStrategy:
                 else:
                     return Corridor(
                         [
-                            boundaries[constants.RIGHT] - self.radius, 
+                            boundaries[constants.RIGHT] - self.radius * self.quick_search_multiplier, 
                             cur_pos[1], 
                             boundaries[constants.RIGHT], 
                             boundaries[constants.DOWN],
@@ -220,7 +250,7 @@ class SearchStrategy:
                             boundaries[constants.LEFT], 
                             boundaries[constants.UP], 
                             cur_pos[0], 
-                            boundaries[constants.UP] + self.radius,
+                            boundaries[constants.UP] + self.radius * self.quick_search_multiplier,
                         ], 
                         constants.LEFT,
                     )
@@ -228,7 +258,7 @@ class SearchStrategy:
                     return Corridor(
                         [
                             cur_pos[0], 
-                            boundaries[constants.DOWN] - self.radius, 
+                            boundaries[constants.DOWN] - self.radius * self.quick_search_multiplier, 
                             boundaries[constants.RIGHT], 
                             boundaries[constants.DOWN],
                         ], 
@@ -243,7 +273,7 @@ class SearchStrategy:
                             cur_pos[0], 
                             boundaries[constants.UP], 
                             boundaries[constants.RIGHT], 
-                            boundaries[constants.UP] + self.radius,
+                            boundaries[constants.UP] + self.radius * self.quick_search_multiplier,
                         ], 
                         constants.RIGHT,
                     )
@@ -251,7 +281,7 @@ class SearchStrategy:
                     return Corridor(
                         [
                             boundaries[constants.LEFT], 
-                            boundaries[constants.DOWN] - self.radius, 
+                            boundaries[constants.DOWN] - self.radius * self.quick_search_multiplier, 
                             cur_pos[0], 
                             boundaries[constants.DOWN],
                         ], 
@@ -260,6 +290,12 @@ class SearchStrategy:
         
     
     def traverse_corridors(self, turn: int) -> int:
+
+        if self.detouring:
+            return self.detour(turn)
+        
+        print("TRAVERSING CORRIDORS")
+
         cur_pos = self.player_map.get_cur_pos()
 
         # self.logger.debug(f"지금 제일 위에 있는 건: {self.corridors[0].boundaries}, {self.corridors[0].direction=}, {self.corridors[0].start_indices=}, {self.corridors[0].end_indices=}") if self.corridors else None
@@ -285,13 +321,18 @@ class SearchStrategy:
 
         corridor_map = copy.copy(self.player_map)
         corridor_map.set_boundaries(current_corridor.boundaries)
+
+        # start_indices_list = [int(x) for x in ]
+        start_indices_list = [[int(x) for x in inner_list] for inner_list in current_corridor.start_indices]
         
-        if cur_pos in current_corridor.start_indices:
+        if cur_pos in start_indices_list:
             current_corridor.reached_start_indices = True
 
         if not current_corridor.reached_start_indices:
-            path = dyjkstra(cur_pos, current_corridor.start_indices, turn, corridor_map, self.max_door_frequency)
+            print("Going to start indices", start_indices_list)
+            path = dyjkstra(cur_pos, start_indices_list, turn, self.player_map, self.max_door_frequency)
             if not path:
+                print("No path to start indices")
                 self.logger.debug(f"No path from {cur_pos} to {current_corridor.start_indices}")
             return path[0] if path else None
 
@@ -306,8 +347,23 @@ class SearchStrategy:
             return -1  # TODO: currently wasting a turn. make it iterative above to avoid this
 
         path = dyjkstra(cur_pos, current_corridor.end_indices, turn, corridor_map, self.max_door_frequency)
-        # if not path:
-            # self.logger.debug(f"AHA 여기구2 {cur_pos} {current_corridor.start_indices}")
+        if not path:
+
+            self.detouring = True
+
+            if current_corridor.direction == constants.LEFT:
+                self.detour_target = [[cur_pos[0]-1, cur_pos[1]]]
+            elif current_corridor.direction == constants.RIGHT:
+                self.detour_target = [[cur_pos[0]+1, cur_pos[1]]]
+            elif current_corridor.direction == constants.UP:    
+                self.detour_target = [[cur_pos[0], cur_pos[1]-1]]
+            elif current_corridor.direction == constants.DOWN:
+                self.detour_target = [[cur_pos[0], cur_pos[1]+1]]
+
+            print("--detouring to ", self.detour_target)
+
+            return self.detour(turn)
+
         return path[0] if path else None
 
     def create_corridors(self) -> List[Corridor]:
@@ -323,24 +379,24 @@ class SearchStrategy:
                     [
                         boundaries[constants.LEFT], 
                         boundaries[constants.UP], 
-                        boundaries[constants.RIGHT] - self.radius, 
-                        boundaries[constants.UP] + self.radius,
+                        boundaries[constants.RIGHT] - self.radius * self.quick_search_multiplier, 
+                        boundaries[constants.UP] + self.radius * self.quick_search_multiplier,
                     ],
                     constants.RIGHT if self.rotation_direction == RotationDirection.CLOCKWISE else constants.LEFT,
                 ),
                 constants.DOWN if self.rotation_direction == RotationDirection.CLOCKWISE else constants.UP: Corridor(
                     [
-                        boundaries[constants.RIGHT] - self.radius, 
+                        boundaries[constants.RIGHT] - self.radius * self.quick_search_multiplier, 
                         boundaries[constants.UP], 
                         boundaries[constants.RIGHT], 
-                        boundaries[constants.DOWN] - self.radius,
+                        boundaries[constants.DOWN] - self.radius * self.quick_search_multiplier,
                     ],
                     constants.DOWN if self.rotation_direction == RotationDirection.CLOCKWISE else constants.UP,
                 ),
                 constants.LEFT if self.rotation_direction == RotationDirection.CLOCKWISE else constants.RIGHT: Corridor(
                     [
-                        boundaries[constants.LEFT] + self.radius, 
-                        boundaries[constants.DOWN] - self.radius, 
+                        boundaries[constants.LEFT] + self.radius * self.quick_search_multiplier, 
+                        boundaries[constants.DOWN] - self.radius * self.quick_search_multiplier, 
                         boundaries[constants.RIGHT], 
                         boundaries[constants.DOWN],
                     ],
@@ -349,8 +405,8 @@ class SearchStrategy:
                 constants.UP if self.rotation_direction == RotationDirection.CLOCKWISE else constants.DOWN: Corridor(
                     [
                         boundaries[constants.LEFT], 
-                        boundaries[constants.UP] + self.radius, 
-                        boundaries[constants.LEFT] + self.radius, 
+                        boundaries[constants.UP] + self.radius * self.quick_search_multiplier, 
+                        boundaries[constants.LEFT] + self.radius * self.quick_search_multiplier, 
                         boundaries[constants.DOWN],
                     ],
                     constants.UP if self.rotation_direction == RotationDirection.CLOCKWISE else constants.DOWN,
@@ -363,10 +419,10 @@ class SearchStrategy:
             
             # break
             boundaries = [
-                boundaries[constants.LEFT] + self.radius,
-                boundaries[constants.UP] + self.radius,
-                boundaries[constants.RIGHT] - self.radius,
-                boundaries[constants.DOWN] - self.radius,
+                boundaries[constants.LEFT] + self.radius * self.quick_search_multiplier,
+                boundaries[constants.UP] + self.radius * self.quick_search_multiplier,
+                boundaries[constants.RIGHT] - self.radius * self.quick_search_multiplier,
+                boundaries[constants.DOWN] - self.radius * self.quick_search_multiplier,
             ]
             # self.logger.debug(f"boundaries: {boundaries}")
         
@@ -375,6 +431,25 @@ class SearchStrategy:
             self.logger.debug(f"Corridor: {corridor.boundaries}; {corridor.direction} {corridor.start_indices=} {corridor.end_indices}->")
 
         return self.corridors
+    
+    def detour(self, turn: int) -> int:
+        cur_pos = self.player_map.get_cur_pos()
+        path = dyjkstra(cur_pos, self.detour_target, turn, self.player_map, self.max_door_frequency)
+
+    
+        if cur_pos in self.detour_target:
+            self.detouring = False
+
+        if path:
+            return path[0]
+        else:
+            print("No path in detour")
+            return None
+
+
+        # return path[0] if path else None
+
+
         
 
 CLOCKWISE_ORDER = [constants.RIGHT, constants.DOWN, constants.LEFT, constants.UP]
@@ -387,5 +462,6 @@ COUNTERCLOCKWISE_ORDER = [constants.RIGHT, constants.UP, constants.LEFT, constan
 
 def next_direction(is_clockwise: bool, current_direction: int) -> int:
     order = CLOCKWISE_ORDER if is_clockwise else COUNTERCLOCKWISE_ORDER
+    # order = COUNTERCLOCKWISE_ORDER if is_clockwise else CLOCKWISE_ORDER
     idx = order.index(current_direction)
     return order[(idx + 1) % 4]
