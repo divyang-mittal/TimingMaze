@@ -2,7 +2,7 @@ from collections import defaultdict
 import heapq
 import random
 import time
-from constants import WAIT, LEFT, UP, RIGHT, DOWN
+from constants import WAIT, LEFT, UP, RIGHT, DOWN, CLOSED, OPEN, BOUNDARY
 import os
 import pickle
 import numpy as np
@@ -52,15 +52,15 @@ class Player:
         factors = set(divisors(self.curr_turn))
         for dX, dY, door, state in current_percept.maze_state:
             # update frequency dictionary
-            if state == constants.CLOSED:
+            if state == CLOSED:
                 self.frequencies_per_cell[(curr_x + dX, curr_y + dY, door)] -= factors
-            elif state == constants.OPEN:
+            elif state == OPEN:
                 self.frequencies_per_cell[(curr_x + dX, curr_y + dY, door)] &= factors
             elif (
                 curr_x + dX,
                 curr_y + dY,
                 door,
-            ) not in self.frequencies_per_cell.keys() and state == constants.BOUNDARY:
+            ) not in self.frequencies_per_cell.keys() and state == BOUNDARY:
                 self.frequencies_per_cell[(curr_x + dX, curr_y + dY, door)] = {0}
 
     def update_graph(self, curr_x, curr_y, current_percept):
@@ -70,13 +70,13 @@ class Player:
             neighbor_pos = None
 
             # Determine the neighbor position based on the door direction
-            if door == constants.LEFT:
+            if door == LEFT:
                 neighbor_pos = (cell_pos[0] - 1, cell_pos[1])
-            elif door == constants.RIGHT:
+            elif door == RIGHT:
                 neighbor_pos = (cell_pos[0] + 1, cell_pos[1])
-            elif door == constants.UP:
+            elif door == UP:
                 neighbor_pos = (cell_pos[0], cell_pos[1] - 1)
-            elif door == constants.DOWN:
+            elif door == DOWN:
                 neighbor_pos = (cell_pos[0], cell_pos[1] + 1)
             else:
                 continue  # Should not happen
@@ -149,14 +149,14 @@ class Player:
         return total_sum / count if count > 0 else float("inf")
 
     def opposite_door(self, door):
-        if door == constants.LEFT:
-            return constants.RIGHT
-        elif door == constants.RIGHT:
-            return constants.LEFT
-        elif door == constants.UP:
-            return constants.DOWN
-        elif door == constants.DOWN:
-            return constants.UP
+        if door == LEFT:
+            return RIGHT
+        elif door == RIGHT:
+            return LEFT
+        elif door == UP:
+            return DOWN
+        elif door == DOWN:
+            return UP
         else:
             return None
 
@@ -199,6 +199,60 @@ class Player:
 
         # Goal not reachable
         return None
+    
+    def is_valid(self, action, current_percept):
+        if action == LEFT:
+            dx, dy = -1, 0
+        elif action == UP:
+            dx, dy = 0, -1
+        elif action == RIGHT:
+            dx, dy = 1, 0
+        elif action == DOWN:
+            dx, dy = 0, 1
+        else:
+            return True
+        
+        opposite_door = self.opposite_door(action)
+
+        curr_state = None
+        opp_state = None
+
+        for x, y, door, state in current_percept.maze_state:
+            if (x, y, door) == (0, 0, action):
+                curr_state = state
+            elif (x, y, door) == (dx, dy, opposite_door):
+                opp_state = state
+            if curr_state is not None and opp_state is not None:
+                break
+
+        return curr_state == OPEN and opp_state == OPEN
+    
+    def open_chance(self, cell, action, turn):
+        if action == LEFT:
+            adj_cell = (cell[0] - 1, cell[1])
+        elif action == UP:
+            adj_cell = (cell[0], cell[1] - 1)
+        elif action == RIGHT:
+            adj_cell = (cell[0] + 1, cell[1])
+        elif action == DOWN:
+            adj_cell = (cell[0], cell[1] + 1)
+        
+        opp_door = self.opposite_door(action)
+
+        best_next_open = float('inf')
+
+        for a in self.frequencies_per_cell[(*cell, action)]:
+            for b in self.frequencies_per_cell[(*adj_cell, opp_door)]:
+                if a == 0 or b == 0:
+                    continue
+
+                lcm = self.lcm(a, b)
+                next_open = -turn % lcm
+
+                if next_open < best_next_open:
+                    best_next_open = next_open
+
+        return best_next_open
 
     def move(self, current_percept) -> int:
         """Function which retrieves the current state of the maze and returns a movement action.
@@ -238,19 +292,63 @@ class Player:
                 # Decide which direction to move
                 dx, dy = next_pos[0] - curr_x, next_pos[1] - curr_y
                 if dx == -1:
-                    move = constants.LEFT
+                    move = LEFT
                 elif dx == 1:
-                    move = constants.RIGHT
+                    move = RIGHT
                 elif dy == -1:
-                    move = constants.UP
+                    move = UP
                 elif dy == 1:
-                    move = constants.DOWN
+                    move = DOWN
                 else:
-                    move = constants.WAIT
+                    move = WAIT
+
+                if not self.is_valid(move, current_percept):
+                    wait_turn = self.curr_turn + 1
+                    wait_chance = self.open_chance(start, move, wait_turn) + len(path)
+
+                    actions = [LEFT, UP, RIGHT, DOWN]
+                    best_move_chance = float('inf')
+                    alt_move = float('inf')
+                    for action in actions:
+                        if action == move:
+                            continue
+
+                        if self.is_valid(action, current_percept):
+                            # print(f'trying alternative action : {action}')
+                            if action == LEFT:
+                                adj_cell = (start[0] - 1, start[1])
+                            elif action == UP:
+                                adj_cell = (start[0], start[1] - 1)
+                            elif action == RIGHT:
+                                adj_cell = (start[0] + 1, start[1])
+                            elif action == DOWN:
+                                adj_cell = (start[0], start[1] + 1)
+
+                            move_turn = self.curr_turn + 2
+                            alt_path = self.a_star_search(adj_cell, goal)
+
+                            if not alt_path or len(alt_path) <=1:
+                                continue
+
+                            move_chance = self.open_chance(adj_cell, action, move_turn) + len(alt_path) + 1
+
+                            if move_chance < best_move_chance:
+                                best_move_chance = move_chance
+                                alt_move = action
+
+                    # print(f'chance difference: {best_move_chance - wait_chance}')
+                    if best_move_chance < wait_chance:
+                        print('='*50)
+                        print("choosing alternative move")
+                        print('='*50)
+                        return alt_move
+
+                    return WAIT
+                
                 return move
             else:
                 # No valid path found, or already at goal
-                return constants.WAIT
+                return WAIT
         else:
             # Goal is not known; implement exploration strategy or wait
-            return constants.WAIT
+            return WAIT
