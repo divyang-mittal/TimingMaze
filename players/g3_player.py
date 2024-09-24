@@ -88,7 +88,7 @@ class Player:
         self.outside_in_mode =False
         
     def get_corner(self, current_percept) -> int:
-        print("Get Corner started")
+        # print("Get Corner started")
         for maze_state in current_percept.maze_state:
             x_1=maze_state[0]
             y_1=maze_state[1]
@@ -146,7 +146,7 @@ class Player:
             self.previous_position = current_position
             # print("stuck counter reset")
 
-        print("Stale counter", self.stale_counter)
+        # print("Stale counter", self.stale_counter)
 
         # print("end stuck too long function")
         return (self.stuck_turn_counter > min((self.maximum_door_frequency-1)*self.maximum_door_frequency, 50)
@@ -222,7 +222,7 @@ class Player:
         self.global_unvisited_map[current_x, current_y] = 1
 
         if self.unstuck_counter == 1:
-            print("Unstuck counter reached")
+            # print("Unstuck counter reached")
             self.synthetic_goal = None
             self.unstuck_counter = 0
 
@@ -279,11 +279,11 @@ class Player:
 
         # Exploratory phase
         if self.has_been_stuck_too_long(current_percept):
-            print("Stuck too long")
+            # print("Stuck too long")
             self.pick_new_synthetic_goal(current_percept)
 
         if self.synthetic_goal is not None:
-            print("Synthetic goal is not None", self.synthetic_goal)
+            # print("Synthetic goal is not None", self.synthetic_goal)
             self.reached_synthetic_goal(current_percept)
 
             move = self.find_djikstra_step(current_percept, self.synthetic_goal[0], self.synthetic_goal[1])
@@ -296,10 +296,10 @@ class Player:
         if corner!=0:
             self.outside_in_mode=True
         if self.outside_in_mode:
-            print("Outside in mode")
+            # print("Outside in mode")
             return self.move_outside_in_3(current_percept)
         else:
-            print("Inside out mode")
+            # print("Inside out mode")
             return self.move_inside_out(current_percept)
 
     def update_door_timers(self, current_percept):
@@ -748,7 +748,7 @@ class Player:
         abs_y = constants.map_dim - current_percept.start_y
      
         if self.outside_in_state == 0:
-            print("Outside IN started")
+            # print("Outside IN started")
             self.corner_val= self.get_corner2(-current_percept.start_x, -current_percept.start_y, current_percept)
             if self.corner_val== 1:
                     self.outside_in_state = 1
@@ -766,7 +766,7 @@ class Player:
                 self.outside_in_start_radius=100 - 2*self.x_axis_dist
             else:
                 self.outside_in_start_radius=100 - 2*self.y_axis_dist
-            print(self.outside_in_start_radius)
+            # print(self.outside_in_start_radius)
             outside_in_rem_dict={1:[self.outside_in_start_radius, self.outside_in_start_radius-self.radius, self.outside_in_start_radius, self.outside_in_start_radius],
                                 2:[self.outside_in_start_radius, self.outside_in_start_radius, self.outside_in_start_radius-self.radius, self.outside_in_start_radius],
                                 3:[self.outside_in_start_radius, self.outside_in_start_radius, self.outside_in_start_radius, self.outside_in_start_radius-self.radius],
