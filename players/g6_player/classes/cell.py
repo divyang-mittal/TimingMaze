@@ -10,6 +10,7 @@ class Cell:
         # coordinates in 199x199 grid
         self.x = x
         self.y = y
+        self.seen = False
 
         # doors of current cell
         self.n_door = Door(Move.UP)
