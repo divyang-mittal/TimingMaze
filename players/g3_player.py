@@ -60,6 +60,7 @@ class Player:
         self.is_end_visible = False
         self.end_x = 0
         self.end_y = 0
+        self.global_unvisited_map = np.full((201, 201), -1, dtype=int)
 
         self.is_djikstra_available = False
         self.end_visible_timer = 0
@@ -78,6 +79,11 @@ class Player:
         self.global_counter=0
         self.update_case=0
         self.outside_in_state = 0
+
+        self.synthetic_goal = None
+
+        self.previous_position = None
+        self.stuck_turn_counter = 0
         
         self.outside_in_mode =False
         
@@ -102,6 +108,70 @@ class Player:
             
         return 0
 
+    def has_been_stuck_too_long(self, current_percept) -> bool:
+        # print("start stuck too long function")
+        # Get current position
+        current_position = (constants.map_dim - current_percept.start_x, constants.map_dim - current_percept.start_y)
+
+        # If the player is in the same position as before, increase the stuck counter
+        if self.previous_position == current_position:
+            self.stuck_turn_counter += 1
+            # print("stuck counter incremented")
+        else:
+            # If the player moved, reset the stuck counter
+            self.stuck_turn_counter = 0
+            self.previous_position = current_position
+            # print("stuck counter reset")
+
+        # print("end stuck too long function")
+        return self.stuck_turn_counter > (self.maximum_door_frequency-1)*self.maximum_door_frequency
+
+    def pick_new_synthetic_goal(self, current_percept):
+        """Pick a new synthetic goal from unvisited cells within the given radius."""
+
+        unvisited_cells = []
+        # Find unvisited cells within the radius
+        for i in range(201):
+            for j in range(201):
+                if self.global_unvisited_map[i, j] == 0:
+                    unvisited_cells.append((i, j))
+
+        if len(unvisited_cells) > 0:
+            random_idx = self.rng.choice(len(unvisited_cells))
+            synthetic_goal_global = unvisited_cells[random_idx]
+            self.synthetic_goal = synthetic_goal_global
+            self.stuck_turn_counter = 0
+            # print(f"Selected synthetic goal: {self.synthetic_goal}")
+
+            # Try Dijkstra towards the synthetic goal
+            move = self.find_djikstra_step(current_percept, synthetic_goal_global[0], synthetic_goal_global[1])
+
+            return move
+        return constants.WAIT
+
+    def reached_synthetic_goal(self, current_percept):
+        """Check if the player has reached the synthetic goal and pick a new one if necessary."""
+
+        # Get current position of the player
+        current_x = constants.map_dim - current_percept.start_x
+        current_y = constants.map_dim - current_percept.start_y
+
+        # Check if the player reached the synthetic goal
+        if (current_x, current_y) == tuple(self.synthetic_goal):
+            # print(f"Reached synthetic goal at: {self.synthetic_goal}")
+
+            # If the end is visible, stop picking synthetic goals and pursue the end goal
+            if current_percept.is_end_visible:
+                # print("End goal is visible! Stopping synthetic goal selection.")
+                return True
+
+            # If the end is not visible, pick a new synthetic goal
+            # print("End goal not visible. Picking a new synthetic goal.")
+            self.pick_new_synthetic_goal(current_percept)
+            return True
+
+        return False
+
     def move(self, current_percept) -> int:
         """Function which retrieves the current state of the map and returns a movement
 
@@ -115,12 +185,12 @@ class Player:
                     RIGHT = 2
                     DOWN = 3
         """
+        current_x = constants.map_dim - current_percept.start_x
+        current_y = constants.map_dim - current_percept.start_y
+        self.global_unvisited_map[current_x, current_y] = 1
+
         self.update_door_timers(current_percept)
         self.update_relative_frequencies(current_percept)
-
-        if self.is_djikstra_available:
-            move = self.traverse_djikstra(current_percept)
-            return move
 
         if current_percept.is_end_visible:
             self.is_end_visible = True
@@ -171,12 +241,28 @@ class Player:
                 if val != -1:
                     return val
                 return constants.WAIT
+
+        # Exploratory phase
+        if self.has_been_stuck_too_long(current_percept):
+            print("Stuck too long")
+            self.pick_new_synthetic_goal(current_percept)
+
+        if self.synthetic_goal is not None:
+            print("Synthetic goal is not None", self.synthetic_goal)
+            self.reached_synthetic_goal(current_percept)
+
+            move = self.find_djikstra_step(current_percept, self.synthetic_goal[0], self.synthetic_goal[1])
+            if move != -1:
+                return move
+
         corner= self.get_corner(current_percept)
         if corner!=0:
             self.outside_in_mode=True
         if self.outside_in_mode:
+            print("Outside in mode")
             return self.move_outside_in_3(current_percept)
         else:
+            print("Inside out mode")
             return self.move_inside_out(current_percept)
 
     def update_door_timers(self, current_percept):
@@ -189,6 +275,9 @@ class Player:
             abs_y = y - current_percept.start_y
             door_seen[abs_x, abs_y, direction] = True
 
+            if self.global_unvisited_map[abs_x, abs_y] == -1:
+                self.global_unvisited_map[abs_x, abs_y] = 0
+
             # if we see the door on this turn, then increment the timer if the door is closed
             if state == constants.CLOSED:
                 self.door_timers[abs_x, abs_y, direction] += 1
@@ -200,6 +289,9 @@ class Player:
             #if the door is open, then reset the timer
             if state == constants.OPEN:
                 self.door_timers[abs_x, abs_y, direction] = 0
+
+            if state == constants.BOUNDARY:
+                self.always_closed[abs_x, abs_y, direction] = True
 
         # for all doors that we were not present in current_percept.maze_state, set the timer as -1
         for i in range(201):
@@ -492,7 +584,7 @@ class Player:
 
         if self.inside_out_state == 0:
             self.inside_out_rem = [self.inside_out_start_radius+self.radius, self.inside_out_start_radius+self.radius, self.inside_out_start_radius, self.inside_out_start_radius]
-            self.inside_out_start_radius = self.inside_out_start_radius + self.radius
+            self.inside_out_start_radius = self.inside_out_start_radius + 2*self.radius
             self.inside_out_state = 1
 
         if self.inside_out_state == 1:
@@ -576,6 +668,7 @@ class Player:
                     return constants.LEFT
 
         return constants.WAIT
+
     def reset_for_outside_in(self):
         if self.global_counter%4==0 and self.global_counter!=0:
             # print('*****************################')
