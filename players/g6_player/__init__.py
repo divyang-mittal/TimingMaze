@@ -192,7 +192,7 @@ class G6_Player:
         up_dist = max(self.maze.curr_pos[1] - self.maze.target_pos[1], 0)
         right_dist = max(self.maze.target_pos[0] - self.maze.curr_pos[0], 0)
         down_dist = max(self.maze.target_pos[1] - self.maze.curr_pos[1], 0)
-        dist_arr = [left_dist, up_dist, right_dist, down_dist]
+        dist_arr = np.array([left_dist, up_dist, right_dist, down_dist])
 
         # Sort in descending order
         rank = np.argsort(-dist_arr)
