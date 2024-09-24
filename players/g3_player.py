@@ -85,7 +85,8 @@ class Player:
 
         self.previous_position = None
         self.stuck_turn_counter = 0
-        
+        self.unstuck_counter = 0
+
         self.outside_in_mode =False
         
     def get_corner(self, current_percept) -> int:
@@ -107,9 +108,9 @@ class Player:
                             return 4
                         elif direction_1==constants.LEFT and maze_state[2]==constants.UP:
                             return 1
-            
+
         return 0
-    
+
     def get_corner2(self, x,y, current_percept) -> int:
         # print("Get Corner2 started")
         for maze_state in current_percept.maze_state:
@@ -211,7 +212,14 @@ class Player:
         """
         current_x = constants.map_dim - current_percept.start_x
         current_y = constants.map_dim - current_percept.start_y
+        if self.synthetic_goal is not None and self.global_unvisited_map[current_x, current_y] != 1:
+            self.unstuck_counter += 1
         self.global_unvisited_map[current_x, current_y] = 1
+
+        if self.unstuck_counter == 1:
+            print("Unstuck counter reached")
+            self.synthetic_goal = None
+            self.unstuck_counter = 0
 
         self.update_door_timers(current_percept)
         self.update_relative_frequencies(current_percept)
@@ -278,6 +286,8 @@ class Player:
             move = self.find_djikstra_step(current_percept, self.synthetic_goal[0], self.synthetic_goal[1])
             if move != -1:
                 return move
+            else:
+                self.pick_new_synthetic_goal(current_percept)
 
         corner= self.get_corner(current_percept)
         if corner!=0:
@@ -295,8 +305,8 @@ class Player:
             x, y, direction, state = cell
 
             # positions relative to start position
-            abs_x = x - current_percept.start_x
-            abs_y = y - current_percept.start_y
+            abs_x = constants.map_dim + x - current_percept.start_x
+            abs_y = constants.map_dim + y - current_percept.start_y
             door_seen[abs_x, abs_y, direction] = True
 
             if self.global_unvisited_map[abs_x, abs_y] == -1:
@@ -423,8 +433,8 @@ class Player:
         return direction
     
     def get_a_star(self, current_percept):
-        abs_x = 100 - current_percept.start_x
-        abs_y = 100 - current_percept.start_y
+        abs_x = constants.map_dim - current_percept.start_x
+        abs_y = constants.map_dim - current_percept.start_y
         return self.a_star_path[abs_x, abs_y].item()
     
     def calculate_a_star(self, current_percept) -> bool:
@@ -603,8 +613,8 @@ class Player:
                 reverse_direction[constants.RIGHT] = maze_state[3]
             if maze_state[0] == -1 and maze_state[1] == 0 and maze_state[2] == constants.RIGHT:
                 reverse_direction[constants.LEFT] = maze_state[3]
-        abs_x = - current_percept.start_x
-        abs_y = - current_percept.start_y
+        abs_x = constants.map_dim - current_percept.start_x
+        abs_y = constants.map_dim - current_percept.start_y
 
         if self.inside_out_state == 0:
             self.inside_out_rem = [self.inside_out_start_radius+self.radius, self.inside_out_start_radius+self.radius, self.inside_out_start_radius, self.inside_out_start_radius]
@@ -718,13 +728,12 @@ class Player:
             if maze_state[0] == -1 and maze_state[1] == 0 and maze_state[2] == constants.RIGHT:
                 reverse_direction[constants.LEFT] = maze_state[3]
         #check for one side which will be short now
-        abs_x = - current_percept.start_x
-        abs_y = - current_percept.start_y
-        print(abs_x,abs_y)
+        abs_x = constants.map_dim - current_percept.start_x
+        abs_y = constants.map_dim - current_percept.start_y
      
         if self.outside_in_state == 0:
             print("Outside IN started")
-            self.corner_val= self.get_corner2(abs_x,abs_y, current_percept)      
+            self.corner_val= self.get_corner2(abs_x,abs_y, current_percept)
             if self.corner_val== 1:
                     self.outside_in_state = 1
                     self.update_case =1
@@ -737,7 +746,7 @@ class Player:
             elif self.corner_val ==4:
                     self.outside_in_state = 4 
                     self.update_case = 4
-            if self.corner_val ==1 and self.corner_val==3:
+            if self.corner_val ==1 or self.corner_val==3:
                 self.outside_in_start_radius=100 - 2*self.x_axis_dist
             else:
                 self.outside_in_start_radius=100 - 2*self.y_axis_dist
