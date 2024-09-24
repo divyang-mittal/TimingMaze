@@ -7,7 +7,6 @@ import logging
 
 import constants
 from timing_maze_state import TimingMazeState
-from collections import deque as queue
 
 import heapq
 
@@ -57,7 +56,7 @@ class Player:
         self.dRow = [-1, 0, 1, 0]
         self.dCol = [0, -1, 0, 1]
 
-        self.djikstra_path = np.full((201, 201), -1, dtype=int)
+        self.djikstra_path = np.full((constants.map_dim*2+1, constants.map_dim*2+1), -1, dtype=int)
         self.is_djikstra_available = False
         self.end_visible_timer = 0
 
@@ -172,7 +171,6 @@ class Player:
                     return val
                 return constants.WAIT
         corner= self.get_corner(current_percept)
-        print("The Corner is", corner)
         if corner!=0:
             self.outside_in_mode=True
         if self.outside_in_mode:
@@ -211,37 +209,37 @@ class Player:
 
 
     def traverse_djikstra(self, current_percept) -> int:
-        print("Traversing Djikstra")
-        abs_x = 100 - current_percept.start_x
-        abs_y = 100 - current_percept.start_y
+        abs_x = constants.map_dim - current_percept.start_x
+        abs_y = constants.map_dim - current_percept.start_y
         return self.djikstra_path[abs_x, abs_y].item()
 
     def calculate_rush_in(self, current_percept) -> bool:
         # start_x and start_y are the relative positions of the start position
-        start_x = 100 - current_percept.start_x
-        start_y = 100 - current_percept.start_y
+        start_x = constants.map_dim - current_percept.start_x
+        start_y = constants.map_dim - current_percept.start_y
 
-        end_x = 100 + current_percept.end_x - current_percept.start_x
-        end_y = 100 + current_percept.end_y - current_percept.start_y
+        end_x = constants.map_dim + current_percept.end_x - current_percept.start_x
+        end_y = constants.map_dim + current_percept.end_y - current_percept.start_y
+
+        size = constants.map_dim*2 + 1
 
         # initialize the distance array
-        distance = np.full((201, 201), np.inf)
+        distance = np.full((size, size), np.inf)
         distance[start_x, start_y] = 0
 
         # initialize the visited array
-        visited = np.full((201, 201), False)
+        visited = np.full((size, size), False)
 
         # initialize the queue
-        q = queue()
-        q.append((start_x, start_y, self.turn_counter))
+        q = []
+        heapq.heappush(q, (self.turn_counter, start_x, start_y))
 
         # initialize the direction array
-        parent_direction = np.full((201, 201), -1)
-
+        parent_direction = np.full((size, size), -1)
 
         while len(q) > 0:
-            current = q.popleft()
-            x, y, turn = current
+            current = heapq.heappop(q)
+            turn, x, y = current
 
             if visited[x, y]:
                 continue
@@ -253,7 +251,6 @@ class Player:
             if x == end_x and y == end_y:
                 break
 
-            # print("Check for x, y: ", x, y)
             # check for all the four directions
             for i in range(4):
                 new_x = x + self.dRow[i]
@@ -261,7 +258,7 @@ class Player:
 
                 # print("Checking for new_x, new_y: ", new_x, new_y)
                 # check if the new position is valid
-                if new_x >= 0 and new_x < 201 and new_y >= 0 and new_y < 201 and not visited[new_x, new_y]:
+                if new_x >= 0 and new_x < size and new_y >= 0 and new_y < size and not visited[new_x, new_y]:
                     # check if the door is open
                     # print("Checking relative frequencies for x, y: ", new_x, new_y, self.relative_frequencies[x, y, i], self.relative_frequencies[new_x, new_y, self.opposite[i]])
                     if self.relative_frequencies[x, y, i] <= 0 or self.relative_frequencies[new_x, new_y, self.opposite[i]] <= 0:
@@ -271,21 +268,19 @@ class Player:
                     lcm = math.lcm(self.relative_frequencies[x, y, i], self.relative_frequencies[new_x, new_y,
                         self.opposite[i]])
 
-                    next_turn = turn
-                    if lcm % turn != 0:
-                        next_turn = (turn // lcm + 1) * lcm
-
-                    new_distance = next_turn - turn
+                    next_turn = turn+1
+                    if lcm % next_turn != 0:
+                        next_turn = (next_turn // lcm + 1) * lcm
 
                     # check if the new distance is less than the previous distance
-                    if distance[new_x, new_y] > new_distance:
-                        # print(x, y, i, new_x, new_y, self.opposite[i])
-                        distance[new_x, new_y] = new_distance
+                    if distance[new_x, new_y] > next_turn:
+                        distance[new_x, new_y] = next_turn
                         parent_direction[new_x, new_y] = self.opposite[i]
-                        q.append((new_x, new_y, turn+new_distance))
+                        heapq.heappush(q, (next_turn, new_x, new_y))
 
         # if end position is not reachable, then return -1
         if not visited[end_x, end_y]:
+            self.is_djikstra_available = False
             return False
 
         # if we found the position set it as path available and traverse the parent direction
@@ -295,7 +290,6 @@ class Player:
         x = end_x
         y = end_y
         while x != start_x or y != start_y:
-            # print(x, y, parent_direction[x, y])
             parent_x = x
             parent_y = y
             if parent_direction[x, y] == constants.RIGHT:
