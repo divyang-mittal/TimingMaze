@@ -52,14 +52,17 @@ class Player:
         self.maximum_door_frequency = maximum_door_frequency
         self.radius = radius
 
+        ################# Lingyi & Tom (9/23):
+        self.wait_penalty = 0.8
+        ######################################
         ########## Tom (9/15):
         self.frontier = []
         self.explored = set()
         self.path = []
         ######################
 
-        ########## Frank (9/16):
-        self.experience = Experience(self.maximum_door_frequency, self.radius)
+        ########## Frank (9/16), edited by Tom (9/23):
+        self.experience = Experience(self.maximum_door_frequency, self.radius, self.wait_penalty)
         ######################
 
         self.frequency={}
@@ -87,11 +90,13 @@ class Player:
                     self.frequency[key]= math.gcd(Player.turn, self.frequency[key])
 
     
-    def heuristic(self,cur, target,parent):
-         distance = abs(cur[0]- target[0])+ abs(cur[1]-target[1])
-         wait_time = self.find_wait(parent,cur)
-         # Todo: Try different weights for wait_Time
-         return (distance*1)+ (wait_time*1)
+    def heuristic(self, cur, target, parent):
+        distance = abs(cur[0] - target[0]) + abs(cur[1] - target[1])
+        wait_time = self.find_wait(parent, cur)
+        revisit_penalty = 5 if cur in self.explored else 0  # Add a penalty for revisiting cells
+        self.logger.info(f"From cur {cur} to target {target} which came from {parent} dist: {distance} wait: {wait_time} penalty: {revisit_penalty}")
+        return distance + wait_time + revisit_penalty
+
     
     def find_wait(self,cur,next):
          cur_to_next = (cur[0],cur[1],self.get_dir(cur,next))
@@ -165,7 +170,9 @@ class Player:
                 if not self.path:
                     #print("not self.path")
                     self.path = self.a_star(cur, target)
-                
+                    if self.path:
+                        next_move = self.path.pop(0) 
+                        return next_move
                 # If A* found a path, execute the next move
                 else:
                     # Get the next move from the path

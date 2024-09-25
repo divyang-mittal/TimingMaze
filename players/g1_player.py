@@ -21,7 +21,7 @@ import traceback
 class Player:
     turn =0
     def __init__(self, rng: np.random.Generator, logger: logging.Logger,
-                 precomp_dir: str, maximum_door_frequency: int, radius: int, wait_penalty: int) -> None:
+                 precomp_dir: str, maximum_door_frequency: int, radius: int) -> None:
         """Initialise the player with the basic amoeba information
 
             Args:
@@ -51,17 +51,14 @@ class Player:
         self.logger = logger
         self.maximum_door_frequency = maximum_door_frequency
         self.radius = radius
-        
-        ################# Lingyi & Tom (9/23):
-        self.wait_penalty = wait_penalty
-        ######################################
+
         ########## Tom (9/15):
         self.frontier = []
         self.path = []
         ######################
 
-        ########## Frank (9/16), edited by Tom (9/23):
-        self.experience = Experience(self.maximum_door_frequency, self.radius, self.wait_penalty)
+        ########## Frank (9/16):
+        self.experience = Experience(self.maximum_door_frequency, self.radius)
         ######################
 
         self.frequency={}
@@ -195,11 +192,6 @@ class Player:
         # Reset frontier and explored set
         self.frontier = []
         self.explored = set()
-        self.incons = [] # Reset the inconsistency list.
-        self.g_values = {start: float('inf')}  # Initialize g-value of the start node to infinity (not yet discovered).
-        self.rhs_values = {start: 0}  # Set the rhs-value of the start node to 0 (starting point).
-        self.goal = goal  # Store the goal node for use in heuristic calculations.
-        heapq.heappush(self.frontier, (self.calculate_key(start), start))
 
         # # Start position and goal position
         # start = (0, 0)  # (x, y) relative position
