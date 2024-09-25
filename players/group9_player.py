@@ -94,7 +94,8 @@ class Player:
         self.waited = 0
         self.escaping = False
         self.escape_route = deque([])
-
+        self.find_nearest = False
+        self.nearest_unexp = [0,0]
         self.reset_counter = 0
 
     class Corner:
@@ -513,10 +514,42 @@ class Player:
                 move_regret.append(regret)
             
             # print("I am out of checking moves")
+            
             print("Move Regret: ", move_regret)
+            # self.find_closest_unvisited()
+            
+            
             self.move_regrets[tuple(self.cur_pos)] = move_regret
+            
+            # print(self.step)
+            #70% of map has been explored
+            if len(self.door_states) > 7000:
+                self.find_nearest = True
+                print("FIND FLAG SET TRUE")
+            
+            if self.find_nearest:
+                self.find_closest_unvisited()
+                nearest_unvisited= self.nearest_unexp
+                # print("Current point is:", self.cur_pos)
+                # print("Nearest unexplored point is:", self.nearest_unexp)
+                if nearest_unvisited:
+                    cur_x, cur_y = self.cur_pos
+                    target_x, target_y = nearest_unvisited
+                    if target_x < cur_x:
+                        # Nearest point is to the left
+                        move_regret[constants.LEFT] = float('-inf')
+                    elif target_x > cur_x:
+                        # Nearest point is to the right
+                        move_regret[constants.RIGHT] = float('-inf')
+                    if target_y < cur_y:
+                        # Nearest point is down
+                        move_regret[constants.DOWN] = float('-inf')
+                    elif target_y > cur_y:
+                        # Nearest point is above
+                        move_regret[constants.UP] = float('-inf')
+                # print("Move Regret_akil: ", move_regret)
 
-            sorted_move_regret = sorted(range(len(move_regret)), key=lambda k : move_regret[k]) # Sorts the move regrets. Resulting values of result are the DIRECTIONS in ascending order.
+            sorted_move_regret = sorted(range(len(move_regret)), key=lambda k : move_regret[k]) 
             print("Sorted Move Regret: ", sorted_move_regret)
 
             print("Available Moves: ", available_moves)
@@ -553,8 +586,10 @@ class Player:
             Player has moved in the given direction. Append move to past_moves. Update known position to match. 
         """
         if not self.escaping:
+        # Ensure the current position is marked as visited
+            if tuple(self.cur_pos) not in self.past_coords:
+                self.past_coords.append(tuple(self.cur_pos))
             self.past_moves.append(direction)
-            self.past_coords.append(tuple(self.cur_pos))
 
         if direction >= 0:
             self.cur_pos = get_neighbor(self.cur_pos, direction)
@@ -667,3 +702,35 @@ class Player:
                     heapq.heappush(queue, (new_steps_in_dijkstras, neighbor))
 
         return
+    
+
+    def find_closest_unvisited(self):
+        
+        current_pos = tuple(self.cur_pos) 
+        visited_set = set(self.past_coords)  #
+        
+        visited_set.add(current_pos)
+        
+        min_distance = float('inf')
+        nearest_point = None
+        
+        min_x = min(current_pos[0], *[coord[0] for coord in visited_set]) - 1
+        max_x = max(current_pos[0], *[coord[0] for coord in visited_set]) + 1
+        min_y = min(current_pos[1], *[coord[1] for coord in visited_set]) - 1
+        max_y = max(current_pos[1], *[coord[1] for coord in visited_set]) + 1
+
+        for x in range(min_x, max_x + 1):
+            for y in range(min_y, max_y + 1):
+                point = (x, y)
+                
+                if point not in visited_set:
+                    # Calculate Manhattan distance
+                    distance = abs(current_pos[0] - x) + abs(current_pos[1] - y)
+                    if distance < min_distance:
+                        min_distance = distance
+                        nearest_point = point
+        
+        if nearest_point is not None:
+            self.nearest_unexp = nearest_point  
+        else:
+            self.nearest_unexp = None
