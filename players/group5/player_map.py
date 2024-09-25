@@ -2,7 +2,6 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 import logging
 import math
-import os
 from typing import List, Optional, Set, Tuple
 
 import constants
@@ -52,7 +51,7 @@ class PlayerMapInterface(ABC):
         pass
 
     @abstractmethod
-    def get_wall_freq_candidates(self, door_id: DoorIdentifier) -> List[Set[int]]:
+    def get_wall_freq_candidates(self, door_id: DoorIdentifier) -> List[int]:
         """Function which returns the frequency candidates for the given door and its touching door (i.e., collectively called a wall)
 
             Args:
@@ -99,7 +98,18 @@ class PlayerMapInterface(ABC):
         """
         pass
 
-# TODO: check this
+    @abstractmethod
+    def is_boundary_found(self, dir: int) -> bool:
+        """Function which returns if the boundary in the given direction is found
+
+            Args:
+                dir (int): Integer representing the direction of the boundary (i,e., left, up, right, down)
+            Returns:
+                bool: Boolean indicating if the boundary is found
+        """
+        pass
+
+
 def default_freq_candidates(max_door_frequency: int):
     # generate a set of door frequencies from 0 to max_door_frequency
     return lambda: set(range(max_door_frequency+1))
@@ -119,14 +129,14 @@ class StartPosCentricPlayerMap(PlayerMapInterface):
         self._START_POS = [map_dim-1, map_dim-1]
 
         self._end_pos = None
-        self._boundaries = [-1, -1, self._GLOBAL_MAP_LEN, self._GLOBAL_MAP_LEN]  # will be set to last cell whose outer wall is a boundary
-        self._prev_start_ref = [0,0]  # TODO: rename. currently functional.
+        self._boundaries = [-1, -1, self._GLOBAL_MAP_LEN, self._GLOBAL_MAP_LEN]
+        self._prev_start_ref = [0,0]  # reference point used to evaluate movement of player.
 
         self._door_freqs = defaultdict(default_freq_candidates(max_door_frequency))
         self._door_status = defaultdict(int)
         
         self.turn_num = 0
-        self.cur_pos = self._START_POS  # (x, y) start pos centric
+        self.cur_pos = self._START_POS
 
     def _setup_logger(self, logger):
         logger = setup_file_logger(logger, self.__class__.__name__, "./log")
@@ -175,7 +185,7 @@ class StartPosCentricPlayerMap(PlayerMapInterface):
         key = self._door_dictkey(map_coords=coord, door_type=door_type)
         self._door_freqs[key] = freq_candidates
     
-    def _is_boundary_found(self, dir: int) -> bool:
+    def is_boundary_found(self, dir: int) -> bool:
         BOUNDARY_NOT_FOUND_VALUES = {-1, self._GLOBAL_MAP_LEN}
         return self._boundaries[dir] not in BOUNDARY_NOT_FOUND_VALUES
 
@@ -196,49 +206,35 @@ class StartPosCentricPlayerMap(PlayerMapInterface):
             self._boundaries[constants.UP] = coord[1] - map_e2e_dist
 
     def _update_cur_pos(self, new_start_ref: List[int]):
-        # start_ref is the user-centric coordinate of the start position provided by the current_percept at each turn TODO: rename
+        # start_ref is the user-centric coordinate of the start position provided by the current_percept at each turn
         self.cur_pos[0] -= (new_start_ref[0] - self._prev_start_ref[0])
         self.cur_pos[1] -= (new_start_ref[1] - self._prev_start_ref[1])
 
-        # self.logger.debug(f"Updating cur pos: {self.cur_pos}")
         self._prev_start_ref = new_start_ref
 
     def update_door_status(self, coord: List[int], door_type: int, door_state: int):
         key = self._door_dictkey(map_coords=coord, door_type=door_type)
-
-        # self.logger.debug(f"Updating door status for {key} to {door_state}") if coord[0] == 90 and coord[1] == 99 else None
         self._door_status[key] = door_state
 
     def update_map(self, turn_num: int, percept: TimingMazeState):
         self.turn_num = turn_num
         self._update_cur_pos([percept.start_x, percept.start_y])
 
-        # self.logger.debug(f"!!!!Updating map for turn {turn_num}")
         for door in percept.maze_state:
             player_relative_coordinates, door_type, door_state = door[:2], door[2], door[3]
-            # self.logger.debug(f">percept_coords: {player_relative_coordinates}, {door_type}, {door_state} ; cur_pos {self.cur_pos}") if door_state == constants.CLOSED else None
-
-            # self.logger.debug(f"Door seen in percept: {player_relative_coordinates}, {door_type}, {door_state}") if player_relative_coordinates[0] == 90 and player_relative_coordinates[1] == 99 else None
-
             coord = self._get_map_coordinates(player_relative_coordinates)
 
-            # update boundaries if newly found
-            # self.logger.debug(f"boundary found!!!") if door_state == constants.BOUNDARY and door_type == constants.UP else None
-            if door_state == constants.BOUNDARY and not self._is_boundary_found(door_type):
+            if door_state == constants.BOUNDARY and not self.is_boundary_found(door_type):
                 self._update_boundaries(door_type, coord)
-                # self.logger.debug(f"Boundaries updated: {self._boundaries}")
 
-            # update frequencies (TODO: refactor for readability)
-            cur_freq_candidates = self._get_freq_candidates_usecase(coord, door_type)  # TODO: consider refactoring how doorID is used
-            new_freq_candidates = get_updated_frequency_candidates(cur_freq_candidates, turn_num=turn_num, door_state=door_state)
-            self._set_freq_candidates_usecase(coord, door_type, new_freq_candidates)
+            cur_freq_candidates = self._get_freq_candidates_usecase(coord, door_type)
+            updated_freq_candidates = get_updated_frequency_candidates(candidates=cur_freq_candidates, turn_num=turn_num, door_state=door_state)
+            self._set_freq_candidates_usecase(coord, door_type, updated_freq_candidates)
 
             self.update_door_status(coord, door_type, door_state)
 
         if percept.is_end_visible and self._end_pos is None:
             self.set_end_pos([percept.end_x, percept.end_y])
-
-    OUT_OF_BOUND_SEEN_COUNT = 1000
 
     def _is_out_of_bound(self, coord: List[int]) -> bool:
         return any([
@@ -252,7 +248,6 @@ class StartPosCentricPlayerMap(PlayerMapInterface):
         if turn_num != self.turn_num:
             raise ValueError("Turn number does not match map's current turn number")
 
-        # self.logger.debug(f"Getting valid moves for turn {turn_num}")
         cur_pos = self.cur_pos
         valid_moves_dependent_doors = {
             constants.LEFT: [
@@ -275,19 +270,13 @@ class StartPosCentricPlayerMap(PlayerMapInterface):
 
         valid_moves = []
         for move, door_keys in valid_moves_dependent_doors.items():
-            # self.logger.debug(f"Door {door_keys[0]} status: {self._door_status[door_keys[0]]}, {door_keys[1]} {self._door_status[door_keys[1]]}")
-
             if all([self._door_status[key] == constants.OPEN for key in door_keys]):
                 valid_moves.append(move)
-
         return valid_moves
 
-    def get_wall_freq_candidates(self, door_id: DoorIdentifier) -> List[Set[int]]:
+    def get_wall_freq_candidates(self, door_id: DoorIdentifier) -> List[int]:
         door_freq_candidates = self._get_freq_candidates_usecase(door_id.absolute_coord, door_id.door_type)
 
-        # print("Inner Door freq candidates: ", door_freq_candidates)
-        # print("Door ID: ", door_id)
-        
         door_type_to_touching_door_offsets = {
             constants.LEFT: ([-1, 0], constants.RIGHT),
             constants.UP: ([0, -1], constants.DOWN),
@@ -296,24 +285,15 @@ class StartPosCentricPlayerMap(PlayerMapInterface):
         }
         touching_door_offset, touching_door_type = door_type_to_touching_door_offsets[door_id.door_type]
         touching_door_coord = [door_id.absolute_coord[0] + touching_door_offset[0], door_id.absolute_coord[1] + touching_door_offset[1]]
-
-        # print("Touching Door coord: ", touching_door_coord)
         
         touching_door_freq_candidates = self._get_freq_candidates_usecase(touching_door_coord, touching_door_type)
 
-        # print("Outer Door freq candidates: ", touching_door_freq_candidates)
-
-        wall_freq_candidates = [door_freq_candidates, touching_door_freq_candidates]
-
-        # find LCM of two lists
         def lcm(a, b):
             if a==0 or b==0:
                 return 0
             return abs(a * b) // math.gcd(a, b)
 
         return [lcm(f1, f2) for f1 in door_freq_candidates for f2 in touching_door_freq_candidates]
-
-        # return [door_freq_candidates, touching_door_freq_candidates]
 
     def get_freq_candidates(self, door_id: DoorIdentifier) -> Set[int]:
         return self._get_freq_candidates_usecase(door_id.absolute_coord, door_id.door_type)

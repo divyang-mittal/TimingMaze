@@ -8,7 +8,6 @@ from players.group5.search import SearchStrategy
 from players.group5.util import setup_file_logger
 from timing_maze_state import TimingMazeState
 from players.group5.converge import ConvergeStrategy, dyjkstra
-from players.group5.simple_search import simple_search
 
 
 class G5_Player:
@@ -26,8 +25,8 @@ class G5_Player:
         self.rng = rng
         self.maximum_door_frequency = maximum_door_frequency
         self.radius = radius
-        self.player_map: PlayerMapInterface = StartPosCentricPlayerMap(maximum_door_frequency, logger)
         self.turns = 0
+        self.player_map: PlayerMapInterface = StartPosCentricPlayerMap(maximum_door_frequency, logger)
 
         self.search_strategy = None
         
@@ -50,17 +49,17 @@ class G5_Player:
         """
         try:
             self.turns += 1
+
             self.player_map.update_map(self.turns, current_percept)
             
-            valid_moves = self.player_map.get_valid_moves(self.turns)
-            # self.logger.debug(f"Valid moves: {valid_moves}")
-
             exists, end_pos = self.player_map.get_end_pos_if_known()
-            if not exists:
-                if self.search_strategy is None:
-                    self.search_strategy = SearchStrategy(self.player_map, self.radius, self.maximum_door_frequency, self.logger)  # check if change in player_map is recorded or seen
-                return self.search_strategy.move(current_percept, self.turns)
-            return ConvergeStrategy(self.player_map.get_cur_pos(), [end_pos], self.turns, self.player_map, self.maximum_door_frequency).move()
+            if exists:
+                return ConvergeStrategy(self.player_map.get_cur_pos(), [end_pos], self.turns, self.player_map, self.maximum_door_frequency).move()
+
+            if self.search_strategy is None:
+                self.search_strategy = SearchStrategy(self.player_map, self.radius, self.maximum_door_frequency, self.logger)
+            
+            return self.search_strategy.move(self.turns)
         except Exception as e:
             self.logger.debug(e, e.with_traceback)
             return constants.WAIT
