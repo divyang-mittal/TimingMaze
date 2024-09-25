@@ -149,8 +149,8 @@ class Player:
         # print("Stale counter", self.stale_counter)
 
         # print("end stuck too long function")
-        return (self.stuck_turn_counter > min((self.maximum_door_frequency-1)*self.maximum_door_frequency, 50)
-            or self.stale_counter > min((self.maximum_door_frequency-1)*self.maximum_door_frequency, 100))
+        return (self.stuck_turn_counter > min((self.maximum_door_frequency-1)*self.maximum_door_frequency, 500)
+            or self.stale_counter > min((self.maximum_door_frequency-1)*self.maximum_door_frequency, 500))
 
     def pick_new_synthetic_goal(self, current_percept):
         """Pick a new synthetic goal from unvisited cells within the given radius."""
@@ -602,13 +602,13 @@ class Player:
         # Detect the edge and reduce inside out traversal
         for maze_state in current_percept.maze_state:
             if maze_state[3] == constants.BOUNDARY:
-                if maze_state[2] == constants.RIGHT and maze_state[1] == 0 and maze_state[0] < self.radius / 2:
+                if self.inside_out_state == 1 and maze_state[2] == constants.RIGHT and maze_state[1] == 0 and maze_state[0] < self.radius / 1.5:
                     self.inside_out_rem[constants.RIGHT] = 0
-                elif maze_state[2] == constants.LEFT and maze_state[1] == 0 and maze_state[0] > -self.radius / 2:
+                elif self.inside_out_state == 3 and maze_state[2] == constants.LEFT and maze_state[1] == 0 and maze_state[0] > -self.radius / 1.5:
                     self.inside_out_rem[constants.LEFT] = 0
-                elif maze_state[2] == constants.DOWN and maze_state[0] == 0 and maze_state[1] < self.radius / 2:
+                elif self.inside_out_state == 2 and maze_state[2] == constants.DOWN and maze_state[0] == 0 and maze_state[1] < self.radius / 1.5:
                     self.inside_out_rem[constants.DOWN] = 0
-                elif maze_state[2] == constants.UP and maze_state[0] == 0 and maze_state[1] > -self.radius / 2:
+                elif self.inside_out_state == 4 and maze_state[2] == constants.UP and maze_state[0] == 0 and maze_state[1] > -self.radius / 1.5:
                     self.inside_out_rem[constants.UP] = 0
 
     def move_inside_out(self, current_percept) -> int:
