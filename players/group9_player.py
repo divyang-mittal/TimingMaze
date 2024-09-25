@@ -403,7 +403,7 @@ class Player:
             if not self.escape_route:
                 self.escaping = False
             else:
-                best_move = self.find_best_out()
+                best_move = self.escape_route.popleft()
             
                 if best_move != constants.WAIT:
                     self.update_position(best_move)
@@ -437,14 +437,24 @@ class Player:
         # The available moves of player in the current turn
         available_moves = []
         for i in range(4):
+            print(available_moves)
             if self.can_move_in_direction(i):
+                print("can move in " + str(i))
                 x_or_y = 0 if i % 2 == 0 else 1
                 neg_or_pos = -1 if i <= 1 else 1
 
                 changed_dim = self.cur_pos[x_or_y] + (self.radius * neg_or_pos)
+
+                print("normal print")
+                print(self.boundary[i], changed_dim)
                 # Check if we have found a boundary and whether or not our vision is beyond it
-                if self.boundary[i] != 100 and abs(changed_dim) >= abs(self.boundary[i]):
-                    continue
+                if self.boundary[i] != 100:
+                    if i <= 1:
+                        if changed_dim <= self.boundary[i]:
+                            continue
+                    else:
+                        if changed_dim >= self.boundary[i]:
+                            continue
 
                 available_moves.append(i)
 
@@ -467,10 +477,23 @@ class Player:
                 neg_or_pos = -1 if move <= 1 else 1
                 changed_dim = self.cur_pos[x_or_y] + (self.radius * neg_or_pos) # The x or y value after adding radius (We want the edge cell)
 
+
+                print("regret print")
+                print(self.boundary[move], changed_dim)
                 # If we have seen the boundary and the changed_dim is going to be over the boundary, then DO NOT move there.
-                if self.boundary[move] != 100 and abs(changed_dim) >= abs(self.boundary[move]):
-                    move_regret.append(math.inf)
-                    continue
+                if self.boundary[i] != 100:
+                    if i <= 1:
+                        if changed_dim <= self.boundary[i]:
+                            move_regret.append(math.inf)
+                            continue
+                    else:
+                        if changed_dim >= self.boundary[i]:
+                            move_regret.append(math.inf)
+                            continue
+
+                # if self.boundary[move] != 100 and abs(changed_dim) >= abs(self.boundary[move]):
+                #     move_regret.append(math.inf)
+                #     continue
 
                 target_coord = (changed_dim if x_or_y == 0 else self.cur_pos[0], changed_dim if x_or_y == 1 else self.cur_pos[1]) # This simply sets the target coord (edge cell)
                 # print("Boundary: ", self.boundary)
@@ -490,9 +513,14 @@ class Player:
                 move_regret.append(regret)
             
             # print("I am out of checking moves")
+            print("Move Regret: ", move_regret)
             self.move_regrets[tuple(self.cur_pos)] = move_regret
 
             sorted_move_regret = sorted(range(len(move_regret)), key=lambda k : move_regret[k]) # Sorts the move regrets. Resulting values of result are the DIRECTIONS in ascending order.
+            print("Sorted Move Regret: ", sorted_move_regret)
+
+            print("Available Moves: ", available_moves)
+            
             # print("After sorting")
             for move in sorted_move_regret:
                 if move in available_moves:
@@ -524,9 +552,9 @@ class Player:
         """
             Player has moved in the given direction. Append move to past_moves. Update known position to match. 
         """
-        self.past_moves.append(direction)
-        self.past_coords.append(tuple(self.cur_pos))
-
+        if not self.escaping:
+            self.past_moves.append(direction)
+            self.past_coords.append(tuple(self.cur_pos))
 
         if direction >= 0:
             self.cur_pos = get_neighbor(self.cur_pos, direction)
