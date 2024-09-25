@@ -3,7 +3,7 @@
 import copy
 import logging
 import constants
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 from players.group5.converge import dyjkstra
 from players.group5.player_map import PlayerMapInterface
@@ -94,7 +94,7 @@ class SearchStrategy:
         self.traversed_corridors: List[Corridor] = []
 
         self.is_detouring = False
-        self.detour_target = None
+        self.detour_target: Optional[List[List[int]]] = None
 
         self.search_speed_coefficient = SearchStrategy.MINIMUM_SEARCH_SPEED_COEFFICIENT
         """
@@ -319,7 +319,7 @@ class SearchStrategy:
         path = dyjkstra(cur_pos, current_corridor.end_indices, turn, corridor_map, self.max_door_frequency)
         if not path:
             self.is_detouring = True
-            self.detour_target = get_offset_cell_coordinate(cur_pos, current_corridor.direction, 1)
+            self.detour_target = [get_offset_cell_coordinate(cur_pos, current_corridor.direction, 1)]
             return self.detour(turn)
 
         return path[0] if path else None
@@ -329,6 +329,7 @@ class SearchStrategy:
 
         prev_corridor = self.traversed_corridors[-1]
         prev_dir = prev_corridor.direction
+
         while boundaries[constants.RIGHT] - boundaries[constants.LEFT] > 2*self.radius:
             additional_corridors = {
                 constants.RIGHT if self.rotation_direction == RotationDirection.CLOCKWISE else constants.LEFT: Corridor(
@@ -380,6 +381,26 @@ class SearchStrategy:
                 boundaries[constants.DOWN] - self.radius * self.search_speed_coefficient,
             ]
         
+        if boundaries[constants.RIGHT] - boundaries[constants.LEFT] > 0:
+            self.corridors.append(Corridor(
+                [
+                    boundaries[constants.LEFT], 
+                    boundaries[constants.UP], 
+                    boundaries[constants.LEFT] + (boundaries[constants.RIGHT] - boundaries[constants.LEFT])//2, 
+                    boundaries[constants.DOWN],
+                ],
+                constants.RIGHT,
+            ))
+            self.corridors.append(Corridor(
+                [
+                    boundaries[constants.LEFT] + (boundaries[constants.RIGHT] - boundaries[constants.LEFT])//2 + 1,
+                    boundaries[constants.UP], 
+                    boundaries[constants.RIGHT], 
+                    boundaries[constants.DOWN],
+                ],
+                constants.LEFT,
+            ))
+
         return self.corridors
     
     def detour(self, turn: int) -> int:
