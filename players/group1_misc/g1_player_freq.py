@@ -21,7 +21,7 @@ import traceback
 class Player:
     turn =0
     def __init__(self, rng: np.random.Generator, logger: logging.Logger,
-                 precomp_dir: str, maximum_door_frequency: int, radius: int) -> None:
+                 precomp_dir: str, maximum_door_frequency: int, radius: int, wait_penalty: int) -> None:
         """Initialise the player with the basic amoeba information
 
             Args:
@@ -52,14 +52,17 @@ class Player:
         self.maximum_door_frequency = maximum_door_frequency
         self.radius = radius
 
+        ################# Lingyi & Tom (9/23):
+        self.wait_penalty = wait_penalty
+        ######################################
         ########## Tom (9/15):
         self.frontier = []
         self.explored = set()
         self.path = []
         ######################
 
-        ########## Frank (9/16):
-        self.experience = Experience(self.maximum_door_frequency, self.radius)
+        ########## Frank (9/16), edited by Tom (9/23):
+        self.experience = Experience(self.maximum_door_frequency, self.radius, self.wait_penalty)
         ######################
 
         self.frequency={}
