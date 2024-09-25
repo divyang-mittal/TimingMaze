@@ -466,7 +466,7 @@ class Player:
                             adj_cell = (start[0], start[1] + 1)
 
                         move_turn = self.curr_turn + 2
-                        alt_path = self.a_star_search(adj_cell, goal)
+                        alt_path = self.a_star_search(adj_cell, goals)
 
                         if not alt_path or len(alt_path) <=1:
                             continue
