@@ -124,7 +124,7 @@ class Player:
         if self.current_intermediate_target == self.memory.pos: # we have reached this intermediate target
             self.current_intermediate_target = None
         
-        how_long_to_follow_intermediate_target = min(max(self.memory.memory[self.memory.pos[0]][self.memory.pos[1]].visited * 2, 5), 100)
+        how_long_to_follow_intermediate_target = min(max(self.memory.memory[self.memory.pos[0]][self.memory.pos[1]].visited * 2, 7), 100)
         if self.current_intermediate_target and self.current_intermediate_target_age < how_long_to_follow_intermediate_target:
             self.current_intermediate_target_age += 1 # increment the age
         else: # update the intermediate target
@@ -218,10 +218,11 @@ class Player:
             euclidean_dist = options[pos]["euclidean_dist"]
             time_to_reach = options[pos]["dist"]
 
+            visited = self.memory.memory[pos[0]][pos[1]].visited
             # Calculate normalized factors
             unseen_factor = unseen_weight * (unseen_cells / (3 * self.radius**2))
-            distance_factor = distance_weight * (euclidean_dist / (self.radius)) / (1 + self.memory.memory[pos[0]][pos[1]].visited)
-            time_factor = time_weight * (time_to_reach - min_min_dist) / (max_min_dist - min_min_dist if max_min_dist != min_min_dist else 1)
+            distance_factor = distance_weight * (euclidean_dist / (self.radius)) / (1 + visited)
+            time_factor = time_weight * (time_to_reach - min_min_dist) / (max_min_dist - min_min_dist if max_min_dist != min_min_dist else 1) / np.sqrt(1 + visited)
 
             # Adjust score to favor unexplored areas, penalize far away and high-time positions
             final_score = unseen_factor - distance_factor - time_factor
