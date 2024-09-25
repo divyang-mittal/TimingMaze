@@ -730,4 +730,3 @@ class TimingMazeGame:
             cx, cy = self.x_offset + x * constants.CELL_SIZE + constants.CELL_SIZE/2, self.y_offset + y * constants.CELL_SIZE + constants.CELL_SIZE/2
             r = self.radius*constants.CELL_SIZE
             self.canvas.create_oval(cx - r, cy - r, cx + r, cy + r, fill="", outline="blue", width=1)
-            
