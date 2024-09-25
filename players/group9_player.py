@@ -95,6 +95,8 @@ class Player:
         self.escaping = False
         self.escape_route = deque([])
 
+        self.reset_counter = 0
+
     class Corner:
         def __init__(self, end_x, end_y) -> None:
             self.end_x = end_x
@@ -535,6 +537,11 @@ class Player:
         """
         curr_cell = tuple(self.cur_pos)
         # Look for the best path to current position if one hasn't been found yet
+
+        if self.step == self.maximum_door_frequency and self.reset_counter <= 2:
+            self.reset_counter += 1
+            self.best_path_found = {}
+
         if len(self.best_path_found) == 0 or curr_cell not in self.best_path_found:
             result = self.find_path(current_percept.end_x, current_percept.end_y)
             if result != -2:
