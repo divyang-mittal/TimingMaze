@@ -63,7 +63,6 @@ class G6_Player:
         if self.target_cell is None and current_percept.is_end_visible:
             self.target_cell = self.maze.target_cell()
 
-        print(f"MOVE: {move_to_str(player_move)}")
         return player_move.value
 
     def __move(self, current_percept: TypedTimingMazeState) -> Move:
@@ -99,7 +98,6 @@ class G6_Player:
 
         self.maze.target_pos = self.__set_target_on_radius()
         result, cost = a_star(self.maze.current_cell(), self.maze.target_cell())
-        print(f"TARGET: {len(result)} moves - {cost} cost")
         return result[0]
 
     def __is_boundary_in_sight(self, direction: int) -> bool:
@@ -165,7 +163,6 @@ class G6_Player:
         # A* search to target
         self.maze.target_pos = self.__set_target_on_radius()
         result, cost = a_star(self.maze.current_cell(), self.maze.target_cell())
-        print(f"TARGET: {len(result)} moves - {cost} cost")
 
         # Move in least obstructed direction towards target
         target_directions = self.__get_target_directions()
@@ -297,8 +294,6 @@ class G6_Player:
         # this shouldn't happen
         if len(result) == 0:
             return Move.WAIT
-
-        print(f"TARGET: {len(result)} moves - {cost} cost")
 
         # [TODO] IMPLEMENT SAME TACTICAL MOVE AS IN EXPLORE
 
