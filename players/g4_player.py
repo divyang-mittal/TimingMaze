@@ -589,29 +589,3 @@ class Player:
                     self.get_positions_in_grid_cell(neighbor)
                 )
                 self.frontier_positions |= positions_in_neighbor_grid_cell
-
-def get_open_neighboring_directions(self, current_percept):
-    direction = [constants.CLOSED, constants.CLOSED, constants.CLOSED, constants.CLOSED]
-    current_cell_doors = [0, 0, 0, 0]
-    for maze_state in current_percept.maze_state:
-        if maze_state[0] == 0 and maze_state[1] == 0: # If the cell is the current cell
-            current_cell_doors[maze_state[2]] = maze_state[3] # Set the direction to the state of the door
-            if maze_state[3] == constants.BOUNDARY:
-                direction[maze_state[2]] = constants.BOUNDARY
-    if current_cell_doors[constants.LEFT] == constants.OPEN:
-        for maze_state in current_percept.maze_state:
-            if maze_state[0] == -1 and maze_state[1] == 0 and maze_state[2] == constants.RIGHT and maze_state[3] == constants.OPEN:
-                direction[constants.LEFT] = constants.OPEN
-    if current_cell_doors[constants.RIGHT] == constants.OPEN:
-        for maze_state in current_percept.maze_state:
-            if maze_state[0] == 1 and maze_state[1] == 0 and maze_state[2] == constants.LEFT and maze_state[3] == constants.OPEN:
-                direction[constants.RIGHT] = constants.OPEN
-    if current_cell_doors[constants.UP] == constants.OPEN:
-        for maze_state in current_percept.maze_state:
-            if maze_state[0] == 0 and maze_state[1] == -1 and maze_state[2] == constants.DOWN and maze_state[3] == constants.OPEN:
-                direction[constants.UP] = constants.OPEN
-    if current_cell_doors[constants.DOWN] == constants.OPEN:    
-        for maze_state in current_percept.maze_state:
-            if maze_state[0] == 0 and maze_state[1] == 1 and maze_state[2] == constants.UP and maze_state[3] == constants.OPEN:
-                direction[constants.DOWN] = constants.OPEN
-    return direction
