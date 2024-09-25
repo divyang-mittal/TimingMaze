@@ -203,6 +203,7 @@ class Player:
                     if new_cost < self.cost[node] and self.is_valid_move(parent, node):
                         self.cost[node] = new_cost
                         heapq.heappush(self.open_list, (self.cost[node], node))
+                        self.parent[node]=parent
                         changed=True
         if changed:
             self.logger.info(f"Changed so updating path")
@@ -245,6 +246,9 @@ class Player:
         current = goal
         while current != start:
             path.append(current)
+            if current not in parent:
+                self.logger.info(f"Current {current} not in parent")
+                return []
             current = parent[current]
         path.reverse()
         self.logger.info(f"Path at turn {Player.turn} is {path}")
