@@ -15,12 +15,12 @@ class Player:
         self.maximum_door_frequency = maximum_door_frequency
         self.radius = radius
         self.frequency = {}
-        self.cur_percept = {}
+        self.cur_percept = set()
         self.path = []  # Current path from start to end
         self.cost = {}  # Cost to reach each node
         self.end = -1
         self.experience = Experience(self.maximum_door_frequency, self.radius,2)
-        self.newcells = {}  # Cells whose frequencies changed or are seen for the first time
+        self.newcells = set()  # Cells whose frequencies changed or are seen for the first time
         self.open_list = []  # Priority queue for the D* Lite algorithm
         self.parent = {}  # Keeps track of the parent node for path reconstruction
         self.depth = {}  # Stores the depth (turn count) for each node
@@ -35,14 +35,14 @@ class Player:
             if state == constants.OPEN:
                 glob_x, glob_y = self.get_rel_start(x, y, current_percept.start_x, current_percept.start_y)
                 key = (glob_x, glob_y, direction)
-                self.cur_percept[key] = 1
+                self.cur_percept.add(key)
                 if key not in self.frequency:
                     self.frequency[key] = Player.turn
-                    self.newcells[key] = 1
+                    self.newcells.add((glob_x, glob_y))
                 else:
                     newfrequency = math.gcd(Player.turn, self.frequency[key])
                     if newfrequency < self.frequency[key]:
-                        self.newcells[key] = 1
+                        self.newcells.add((glob_x, glob_y))
                     self.frequency[key] = newfrequency
 
     def lcm(self, a, b):
@@ -51,29 +51,35 @@ class Player:
     def find_wait(self, cur, next, turn):
         cur_to_next = (cur[0], cur[1], self.get_dir(cur, next))
         next_to_cur = (next[0], next[1], self.get_dir(next, cur))
+        
         frequency = self.maximum_door_frequency + 1
-        wait_time = self.maximum_door_frequency + 1
+        wait_time = frequency
+        
+        # Cache frequency values
+        cur_freq = self.frequency.get(cur_to_next, None)
+        next_freq = self.frequency.get(next_to_cur, None)
 
-        if cur_to_next in self.frequency and next_to_cur in self.frequency:
-            frequency = self.lcm(self.frequency[cur_to_next], self.frequency[next_to_cur])
-            #self.logger.info(f"Frequency of door from {cur} to {next} is {frequency} at move {turn}")
-            wait_time = (frequency - (turn % frequency)) % frequency
+        if cur_freq is not None and next_freq is not None:
+            frequency = self.lcm(cur_freq, next_freq)
+            if frequency!=0:
+                wait_time = (frequency - (turn % frequency)) % frequency
 
         return wait_time
 
     def get_neighbours(self, node):
+        x,y = node
         neighbours = [
-            (node[0] - 1, node[1], constants.LEFT),
-            (node[0] + 1, node[1], constants.RIGHT),
-            (node[0], node[1] - 1, constants.UP),
-            (node[0], node[1] + 1, constants.DOWN)
+            (x - 1, y, constants.LEFT),
+            (x + 1, y, constants.RIGHT),
+            (x, y - 1, constants.UP),
+            (x, y + 1, constants.DOWN)
         ]
         return neighbours
 
     def move(self, current_percept) -> int:
         try:
             Player.turn += 1
-            self.cur_percept = {}
+            self.cur_percept.clear()
             self.update_door_frequencies(current_percept)
 
             if current_percept.is_end_visible or self.end!=-1:
@@ -107,14 +113,12 @@ class Player:
                                 return self.experience.move(current_percept)
                         else:
                             return constants.WAIT
-
-                return constants.WAIT
-            else:
-                self.logger.info(f"Exploring since no path")
-                next_move = self.experience.move(current_percept)
-                if self.experience.is_valid_move(current_percept, next_move):
+                        
+            self.logger.info(f"Exploring since no path or end not seen")
+            next_move = self.experience.move(current_percept)
+            if self.experience.is_valid_move(current_percept, next_move):
                     return self.experience.move(current_percept)
-                return constants.WAIT
+            return constants.WAIT
 
         except Exception as e:
             print(e)
@@ -122,9 +126,9 @@ class Player:
 
     def initialize_path(self,start,goal):
             self.cost[start] = 0
-            self.open_list = []
+            self.open_list.clear()
             heapq.heappush(self.open_list, (self.cost[start], start))
-            self.path = []  # Store the resulting path
+            self.path.clear()  # Store the resulting path
             self.parent = {start: None}
             self.depth = {start: Player.turn}
 
@@ -151,7 +155,7 @@ class Player:
             self.path = self.retrace_path(start, goal, self.parent)
         else:
             self.logger.info(f"No path for {start} to {goal} at {Player.turn}")
-            self.path=[]
+            self.path = []
         return self.path
 
     def find_full_path(self, start, goal):
@@ -181,8 +185,7 @@ class Player:
 
     def incremental_update_with_new_cells(self, start, goal):
         changed =False
-        for cell in self.newcells.keys():
-            new_cell=(cell[0],cell[1])
+        for new_cell in self.newcells:
             node = self.is_near_path(new_cell)
             if node !=-1:
                 wait_time = self.find_wait(node, new_cell, self.depth[node] + 1)
