@@ -8,7 +8,7 @@ import pickle
 import numpy as np
 import logging
 import math
-
+import random
 import constants
 from timing_maze_state import TimingMazeState
 from players.g4.gridworld import GridWorld
@@ -363,7 +363,7 @@ class Player:
         if self.goal:
             # Use A* search to the goal
             return self.perform_a_star_and_get_next_move(
-                (curr_x, curr_y), {self.goal}, False
+                (curr_x, curr_y), {self.goal}, False, current_percept
             )
         else:
             # Update observed positions in grid cells and check for fully observed grid cells
@@ -372,7 +372,7 @@ class Player:
             if self.frontier_positions:
                 # Use A* search to any of the frontier positions
                 return self.perform_a_star_and_get_next_move(
-                    (curr_x, curr_y), self.frontier_positions, True
+                    (curr_x, curr_y), self.frontier_positions, True, current_percept
                 )
 
             return constants.WAIT
@@ -447,22 +447,95 @@ class Player:
                 neighbors.append(neighbor)
         return neighbors
 
-    def determine_move(self, dx, dy):
-        if dx == -1:
-            return constants.LEFT
-        elif dx == 1:
-            return constants.RIGHT
-        elif dy == -1:
-            return constants.UP
-        elif dy == 1:
-            return constants.DOWN
-        else:
+    def determine_move(self, dx, dy, direction, position_difference, always_try_to_move = False):
+        print("dx:", dx, "dy:", dy)
+        if always_try_to_move:
+            if dx != 0:
+                if dx == -1 and direction[constants.LEFT] == constants.OPEN:
+                        print("Moving left")
+                        return constants.LEFT
+                if dx == 1 and direction[constants.RIGHT] == constants.OPEN:
+                        print("Moving right")
+                        return constants.RIGHT
+                # Go towards the direction of the target vertically with a 50% chance
+                if random.random() < 0.5:
+                    print("Randomly choosing vertical movement")
+                    if position_difference[1] > 0 and direction[constants.DOWN] == constants.OPEN:
+                            print("Moving down because can't move horizontally")
+                            return constants.DOWN
+                    if position_difference[1] < 0 and direction[constants.UP] == constants.OPEN:
+                            print("Moving up because can't move horizontally")
+                            return constants.UP
+            if dy != 0:
+                if dy == -1 and direction[constants.UP] == constants.OPEN:
+                        print("Moving up")
+                        return constants.UP
+                if dy == 1 and direction[constants.DOWN] == constants.OPEN:
+                        print("Moving down")
+                        return constants.DOWN
+                # Go towards the direction of the target horizontally with a 50% chance
+                if random.random() < 0.5:
+                    print("Randomly choosing horizontal movement")
+                    if position_difference[0] > 0 and direction[constants.RIGHT] == constants.OPEN:
+                            print("Moving right because can't move vertically")
+                            return constants.RIGHT
+                    if position_difference[0] < 0 and direction[constants.LEFT] == constants.OPEN:
+                            print("Moving left because can't move vertically")
+                            return constants.LEFT
+            print("No movement possible or waiting")
             return constants.WAIT
+        else:
+            if dx == -1 and direction[constants.LEFT] == constants.OPEN:
+                return constants.LEFT
+            elif dx == 1 and direction[constants.RIGHT] == constants.OPEN:
+                return constants.RIGHT
+            elif dy == -1 and direction[constants.UP] == constants.OPEN:
+                return constants.UP
+            elif dy == 1 and direction[constants.DOWN] == constants.OPEN:
+                return constants.DOWN
+            else:
+                print("No movement possible towards to the path or waiting")
+                return constants.WAIT
 
-    def perform_a_star_and_get_next_move(self, start, goals, exploration):
+    def perform_a_star_and_get_next_move(self, start, goals, exploration, current_percept):
         path = self.a_star_search(start, goals, exploration)
+        goal = list(goals)[0]
+        curr_x, curr_y = -current_percept.start_x, -current_percept.start_y
+        position_difference = (goal[0] - curr_x, goal[1] - curr_y)
+        print("Difference:", position_difference)
+        direction = get_open_neighboring_directions(self, current_percept)
+        
         if path and len(path) > 1:
             next_pos = path[1]
             dx, dy = next_pos[0] - start[0], next_pos[1] - start[1]
-            return self.determine_move(dx, dy)
+            value = self.determine_move(dx, dy, direction, position_difference, False)
+            print("Value:", value)
+            return value
+        print("No path found, so waiting.")
         return constants.WAIT
+
+def get_open_neighboring_directions(self, current_percept):
+    direction = [constants.CLOSED, constants.CLOSED, constants.CLOSED, constants.CLOSED]
+    current_cell_doors = [0, 0, 0, 0]
+    for maze_state in current_percept.maze_state:
+        if maze_state[0] == 0 and maze_state[1] == 0: # If the cell is the current cell
+            current_cell_doors[maze_state[2]] = maze_state[3] # Set the direction to the state of the door
+            if maze_state[3] == constants.BOUNDARY:
+                direction[maze_state[2]] = constants.BOUNDARY
+    if current_cell_doors[constants.LEFT] == constants.OPEN:
+        for maze_state in current_percept.maze_state:
+            if maze_state[0] == -1 and maze_state[1] == 0 and maze_state[2] == constants.RIGHT and maze_state[3] == constants.OPEN:
+                direction[constants.LEFT] = constants.OPEN
+    if current_cell_doors[constants.RIGHT] == constants.OPEN:
+        for maze_state in current_percept.maze_state:
+            if maze_state[0] == 1 and maze_state[1] == 0 and maze_state[2] == constants.LEFT and maze_state[3] == constants.OPEN:
+                direction[constants.RIGHT] = constants.OPEN
+    if current_cell_doors[constants.UP] == constants.OPEN:
+        for maze_state in current_percept.maze_state:
+            if maze_state[0] == 0 and maze_state[1] == -1 and maze_state[2] == constants.DOWN and maze_state[3] == constants.OPEN:
+                direction[constants.UP] = constants.OPEN
+    if current_cell_doors[constants.DOWN] == constants.OPEN:    
+        for maze_state in current_percept.maze_state:
+            if maze_state[0] == 0 and maze_state[1] == 1 and maze_state[2] == constants.UP and maze_state[3] == constants.OPEN:
+                direction[constants.DOWN] = constants.OPEN
+    return direction

@@ -8,7 +8,7 @@ if __name__ == '__main__':
                         help="Value between 1 and 100 (including 1)")
     parser.add_argument("--radius", "-r", type=int, default=15,
                         help="radius of the circle visible by the drone ""(min=1, max=150")
-    parser.add_argument("--seed", "-s", type=int, default=2, help="Seed used by random number generator")
+    parser.add_argument("--seed", "-s", type=int, default=4, help="Seed used by random number generator")
     parser.add_argument(
         "--maze", "-mz", help="Use the given map, if no map is given, Generate a maze using the seed provided"
     )
