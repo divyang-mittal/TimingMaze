@@ -345,6 +345,7 @@ class Player:
                 RIGHT = 2
                 DOWN = 3
         """
+        self.grid_cell_positions_cache = {}
         self.adjacent_doors = {}
         curr_x, curr_y = -current_percept.start_x, -current_percept.start_y
         self.curr_turn += 1
@@ -354,9 +355,6 @@ class Player:
 
         # Update graph based on current percept
         self.update_graph(curr_x, curr_y, current_percept)
-
-        # Update observed positions in grid cells and check for fully observed grid cells
-        self.update_observed(current_percept, curr_x, curr_y)
 
         # Update goal if end is visible
         if current_percept.is_end_visible:
@@ -368,6 +366,8 @@ class Player:
                 (curr_x, curr_y), {self.goal}, False
             )
         else:
+            # Update observed positions in grid cells and check for fully observed grid cells
+            self.update_observed(current_percept, curr_x, curr_y)
             # Exploration strategy
             if self.frontier_positions:
                 # Use A* search to any of the frontier positions
@@ -383,6 +383,10 @@ class Player:
         return (grid_x, grid_y)
 
     def compute_total_positions_in_grid_cell(self, grid_cell):
+        # Check if the positions for this grid cell are already computed
+        if grid_cell in self.grid_cell_positions_cache:
+            return self.grid_cell_positions_cache[grid_cell]
+
         grid_x, grid_y = grid_cell
 
         min_x = grid_x * self.cell_size
@@ -402,13 +406,19 @@ class Player:
 
         # If after adjustment min_x > max_x or min_y > max_y, grid cell is outside maze
         if min_x > max_x or min_y > max_y:
-            return set()
+            total_positions = set()
+        else:
+            positions = set()
+            for x in range(min_x, max_x + 1):
+                for y in range(min_y, max_y + 1):
+                    positions.add((x, y))
+            total_positions = positions
 
-        positions = set()
-        for x in range(min_x, max_x + 1):
-            for y in range(min_y, max_y + 1):
-                positions.add((x, y))
-        return positions
+        # Store the computed positions in the cache
+        self.grid_cell_positions_cache[grid_cell] = total_positions
+
+        return total_positions
+
 
     def get_unvisited_neighbors(self, grid_cell):
         x, y = grid_cell
