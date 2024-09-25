@@ -72,14 +72,14 @@ class Player:
         #     self.starting_position_set = True
         self.turn += 1
         move = constants.WAIT
-
+        
         # Decide on the next move based on the current percept.
         self.memory.update_memory(current_percept.maze_state, self.turn)
         
         # Build the graph from the updated memory
         currentGraph = build_graph_from_memory(self.memory, True)
         minDistanceArray, parent = findShortestPathsToEachNode(currentGraph, self.memory.pos, self.turn)
-
+        
         # Case 1: We know the end position and we can reach it Follow path.
         # Case 2: We know the end position but we can't reach it. 
         # Case 3: We don't know the end position.
@@ -121,18 +121,16 @@ class Player:
         # If the end is not visible, choosing an intermediate node
 
         # If we have intermediate target node. Follow it for at least 10 steps. Then switch to a new one.
-
         if self.current_intermediate_target == self.memory.pos: # we have reached this intermediate target
             self.current_intermediate_target = None
         
-        how_long_to_follow_intermediate_target = 150
-        how_long_to_follow_intermediate_target = max(self.memory.memory[self.memory.pos[0]][self.memory.pos[1]].visited * 2, 5)
+        how_long_to_follow_intermediate_target = min(max(self.memory.memory[self.memory.pos[0]][self.memory.pos[1]].visited * 2, 7), 100)
         if self.current_intermediate_target and self.current_intermediate_target_age < how_long_to_follow_intermediate_target:
             self.current_intermediate_target_age += 1 # increment the age
         else: # update the intermediate target
             self.current_intermediate_target_age = 0
             self.current_intermediate_target = self.choose_intermediate_target_node(minDistanceArray)
-
+        
         path = reconstruct_path(parent, self.current_intermediate_target)
         if path and len(path) > 1:
             # Case 1: We know the end position and we can reach it. Follow path..
@@ -141,7 +139,7 @@ class Player:
                 print("Want to make next move: ", next_move)
                 if is_move_valid(next_move, current_percept.maze_state):
                     self.memory.update_pos(next_move)
-                    print("New Pos: ", self.memory.pos)
+                    print("New Pos: ", self.memory.pos)       
                     return next_move
                 else: 
                     print("Desired Next Move is Invalid. Waiting.")
@@ -161,7 +159,8 @@ class Player:
         best_new_pos = self.memory.pos
         boundary: Boundary = self.memory.get_boundary_coords()
         for new_pos in options:
-            num_unseen_squares = len(self.get_unseen_squares(new_pos, boundary))
+            # num_unseen_squares = len(self.get_unseen_squares(new_pos, boundary))
+            num_unseen_squares = self.get_unseen_squares(new_pos, boundary)
             options[new_pos]["num_unseen"] = num_unseen_squares
         
         best_new_pos = self.generate_best_option(options, min_dist_array)
@@ -219,10 +218,11 @@ class Player:
             euclidean_dist = options[pos]["euclidean_dist"]
             time_to_reach = options[pos]["dist"]
 
+            visited = self.memory.memory[pos[0]][pos[1]].visited
             # Calculate normalized factors
             unseen_factor = unseen_weight * (unseen_cells / (3 * self.radius**2))
-            distance_factor = distance_weight * (euclidean_dist / (self.radius)) / (1 + self.memory.memory[pos[0]][pos[1]].visited)
-            time_factor = time_weight * (time_to_reach - min_min_dist) / (max_min_dist - min_min_dist if max_min_dist != min_min_dist else 1)
+            distance_factor = distance_weight * (euclidean_dist / (self.radius)) / (1 + visited)
+            time_factor = time_weight * (time_to_reach - min_min_dist) / (max_min_dist - min_min_dist if max_min_dist != min_min_dist else 1) / np.sqrt(1 + visited)
 
             # Adjust score to favor unexplored areas, penalize far away and high-time positions
             final_score = unseen_factor - distance_factor - time_factor
@@ -250,14 +250,20 @@ class Player:
     def get_unseen_squares(self, pos, boundary: Boundary):
         squares = self.get_visible_squares_at_pos(pos, boundary)
         not_seen_squares = []
+        total_score = 0
 
         if squares:
             for y in range(len(squares)):
                 for x in range(len(squares[y])):
                     square = squares[y][x]
-                    if not square.seen:  # Add only unseen squares within boundaries
-                        not_seen_squares.append((y, x))
-        return not_seen_squares
+                    for door in square.doors.values():
+                        num_obs = len(door.observations)
+                        if door.is_certain_freq:
+                            # This will zero effectively
+                            num_obs = 100
+                        door_score = np.exp(-num_obs)
+                        total_score += door_score
+        return total_score
 
     def get_visible_squares_at_pos(self, pos, boundary: Boundary):
         """
