@@ -103,12 +103,10 @@ class Cell:
         """
         Calculates the path frequency for each direction using the least common multiple
         """
-        self.n_path = lcm(self.n_door.freq, self.n_cell.s_door.freq)
-        self.s_path = lcm(self.s_door.freq, self.s_cell.n_door.freq)
-        self.e_path = lcm(self.e_door.freq, self.e_cell.w_door.freq)
-        self.w_path = lcm(self.w_door.freq, self.w_cell.e_door.freq)
-
-        pass
+        self.n_path = lcm(self.n_door.freq, self.n_cell.s_door.freq) if self.n_cell else 0
+        self.s_path = lcm(self.s_door.freq, self.s_cell.n_door.freq) if self.s_cell else 0
+        self.e_path = lcm(self.e_door.freq, self.e_cell.w_door.freq) if self.e_cell else 0
+        self.w_path = lcm(self.w_door.freq, self.w_cell.e_door.freq) if self.w_cell else 0
 
     def __str__(self) -> str:
         return f"Cell({self.x}, {self.y})"
