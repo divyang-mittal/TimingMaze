@@ -31,15 +31,15 @@ timeout = 60 * 10
 
 CELL_SIZE = 8
 
-def make_maze(args, seed):
+def make_maze(args, seed=2):
     rng = np.random.default_rng(seed)
     start_pos = tuple(args.start_pos)
     end_pos = tuple(args.end_pos)
     map_frequencies = np.zeros((map_dim, map_dim, 4), dtype=int)
 
     # if maze is hard, set a minimum distance between start and end positions
-    if not args.easy:
-        dist = np.linalg.norm(start_pos - end_pos)
+    if args.difficulty != 'easy':
+        dist = np.linalg.norm(np.array(start_pos) - np.array(end_pos))
         if dist < 30:
             raise Exception("Start and end position are too close (less than 30)")
         
@@ -57,7 +57,7 @@ def make_maze(args, seed):
         raise Exception("Start and end positions are the same")
     
     # check if closed probability is too large
-    if args.closed_prob >= 0.2:
+    if args.closed_prob >= 0.2 and args.max_door_frequency > 1:
         raise Exception("Closed probability too large")
 
     # generate maze
@@ -67,28 +67,38 @@ def make_maze(args, seed):
                 if rng.random() < args.closed_prob:
                     map_frequencies[i][j][k] = 0
                 else:
-                    map_frequencies[i][j][k] = rng.integers(1, args.max_door_frequency)
-                
-    # Constants for wall and opening
-    wall_size = 94
-    padding = (map_dim - wall_size) // 2  # 3 cells from the outer edge
+                    if args.max_door_frequency > 1:
+                        map_frequencies[i][j][k] = rng.integers(1, args.max_door_frequency)
+                    else:
+                        map_frequencies[i][j][k] = 1
 
-    # Iterate over the outer cells and set the door frequencies to 0 for the wall
-    for i in range(padding, padding + wall_size):
-        for j in range(padding, padding + wall_size):
-            # Top and bottom sides of the wall
-            if i == padding or i == padding + wall_size - 1:
-                for k in [0, 2]:  # Top (k=0) and bottom (k=2) walls
-                    map_frequencies[i][j][k] = 0
-            # Left and right sides of the wall
-            if j == padding or j == padding + wall_size - 1:
-                for k in [1, 3]:  # Left (k=3) and right (k=1) walls
-                    map_frequencies[i][j][k] = 0
+    if args.difficulty == 'comp':       
+        # Constants for wall and opening
+        wall_size = 90
+        padding = (map_dim - wall_size) // 2  # 5 cells from the outer edge
 
-    # Open a passage in the upper left corner by resetting one door frequency
-    # This is at position (padding, padding), and we open the top wall (k=0) for that cell
-    map_frequencies[padding][padding][0] = rng.integers(1, args.max_door_frequency)
+        # Iterate over the outer cells and set the door frequencies to 0 for the wall
+        for i in range(padding, padding + wall_size):
+            for j in range(padding, padding + wall_size):
+                # Top side of wall (k=1)
+                if i == padding:
+                    map_frequencies[i][j][1] = 0
+                # Bottom side of wall (k=3)
+                elif i == padding + wall_size - 1:
+                    map_frequencies[i][j][3] = 0
 
+                # Left side of wall (k=0)
+                if j == padding:
+                    map_frequencies[i][j][0] = 0
+                # Right side of wall (k=2)
+                elif j == padding + wall_size - 1:
+                    map_frequencies[i][j][2] = 0
+
+        # Open a passage in the upper left corner by resetting one door frequency
+        # This is at position (padding, padding), and we open the top wall (k=1) for that cell
+        # map_frequencies[padding][padding][1] = rng.integers(1, args.max_door_frequency)
+        map_frequencies[padding][padding][1] = 1
+        map_frequencies[padding][padding][0] = 1
     
     # make sure the borders are closed
     for i in range (map_dim):
@@ -182,7 +192,14 @@ def validate_maze(args, map_frequencies):
                 if 0 <= adj_x < map_dim and 0 <= adj_y < map_dim and visited[adj_x][adj_y] == 0:
                     q.append((adj_x, adj_y))
                     visited[adj_x][adj_y] = 1
-
+    
+        # for i in range(map_dim):
+        #     for j in range(map_dim):
+        #         if visited[i][j] == 0:
+        #             print(f"not visited at ({i},{j})")
+        #             for k in range(4):
+        #                 if map_frequencies[i][j][k] == 0:
+        #                     print(f'door closed at direction {k}')
     return visited_count == map_dim * map_dim
 
 def save_maze(args, map_frequencies, start_pos, end_pos):
@@ -206,17 +223,30 @@ if __name__ == '__main__':
                         help="Probability that a door is permanently closed")
     parser.add_argument("--start_pos", "-sp", type=int, nargs=2, required=True, help="Starting position")
     parser.add_argument("--end_pos", "-ep", type=int, nargs=2, required=True, help="Target position")
-    parser.add_argument("--easy", "-e", type=bool, default=True, help="Difficulty of maze")
+    parser.add_argument(
+        "--difficulty", 
+        "-d", 
+        default="easy", const="easy", nargs='?', 
+        choices=['easy', 'hard', 'comp'],
+        help="Difficulty of maze, choices of easy, hard, and comp")
     # parser.add_argument("--seed", "-s", type=int, default=2, help="Seed used by random number generator")
     parser.add_argument("--file_name", "-f", type=str, default="group4", help="File name of maze")
     parser.add_argument("--outdir", "-o", type=str, default="maps/default/", 
                         help="Output directory to save the maze")
     args = parser.parse_args()
 
+    map_generated = False
     for i in range(100):
         map_frequencies, start_pos, end_pos = make_maze(args, i)
 
         if validate_maze(args, map_frequencies):
             save_maze(args, map_frequencies, start_pos, end_pos)
+            map_generated = True
             print(f"Maze created and saved successfully with seed {i}...")
             break
+
+    if not map_generated:
+        print("Failed to create valid maze.")
+
+    # map_frequencies, start_pos, end_pos = make_maze(args)
+    # save_maze(args, map_frequencies, start_pos, end_pos)
