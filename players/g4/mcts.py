@@ -139,9 +139,10 @@ class MCTS:
                 if turn % freq == 0:
                     mod_count += 1
             
+            # maybe divide over L? double check
             score = mod_count / len(cum_freq)
 
-            print(score)
+            # print(score)
             return score
     
     def choose_action(self, state, turn=None):
