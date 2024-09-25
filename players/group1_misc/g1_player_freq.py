@@ -1,279 +1,259 @@
-import os
-import pickle
 import numpy as np
 import logging
-
-import constants
-from timing_maze_state import TimingMazeState
-
-##### Frank (9/16):
-# For exploration algorithm
-from players.group1_misc.experience import Experience
-#################
-
-##### Tom (9/15):
-# For heap in a*
-import heapq
-#################
 import math
 import traceback
+import heapq
+import constants
+from players.group1_misc.experience import Experience
 
 class Player:
-    turn =0
-    def __init__(self, rng: np.random.Generator, logger: logging.Logger,
-                 precomp_dir: str, maximum_door_frequency: int, radius: int, wait_penalty: int) -> None:
-        """Initialise the player with the basic amoeba information
+    turn = 0
 
-            Args:
-                rng (np.random.Generator): numpy random number generator, use this for same player behavior across run
-                logger (logging.Logger): logger use this like logger.info("message")
-                maximum_door_frequency (int): the maximum frequency of doors
-                radius (int): the radius of the drone
-                precomp_dir (str): Directory path to store/load pre-computation
-        """
-
-        # precomp_path = os.path.join(precomp_dir, "{}.pkl".format(map_path))
-
-        # # precompute check
-        # if os.path.isfile(precomp_path):
-        #     # Getting back the objects:
-        #     with open(precomp_path, "rb") as f:
-        #         self.obj0, self.obj1, self.obj2 = pickle.load(f)
-        # else:
-        #     # Compute objects to store
-        #     self.obj0, self.obj1, self.obj2 = _
-
-        #     # Dump the objects
-        #     with open(precomp_path, 'wb') as f:
-        #         pickle.dump([self.obj0, self.obj1, self.obj2], f)
-
+    def __init__(self, rng, logger, precomp_dir, maximum_door_frequency, radius):
         self.rng = rng
         self.logger = logger
         self.maximum_door_frequency = maximum_door_frequency
         self.radius = radius
+        self.frequency = {}
+        self.cur_percept = {}
+        self.path = []  # Current path from start to end
+        self.cost = {}  # Cost to reach each node
+        self.end = -1
+        self.experience = Experience(self.maximum_door_frequency, self.radius)
+        self.newcells = {}  # Cells whose frequencies changed or are seen for the first time
+        self.open_list = []  # Priority queue for the D* Lite algorithm
+        self.parent = {}  # Keeps track of the parent node for path reconstruction
+        self.depth = {}  # Stores the depth (turn count) for each node
 
-        ################# Lingyi & Tom (9/23):
-        self.wait_penalty = wait_penalty
-        ######################################
-        ########## Tom (9/15):
-        self.frontier = []
-        self.explored = set()
-        self.path = []
-        ######################
+    def get_rel_start(self, x, y, startx, starty):
+        newx = x - startx
+        newy = y - starty
+        return newx, newy
 
-        ########## Frank (9/16), edited by Tom (9/23):
-        self.experience = Experience(self.maximum_door_frequency, self.radius, self.wait_penalty)
-        ######################
-
-        self.frequency={}
-        self.cur_percept={}
-
-    ####### Adithi:
     def update_door_frequencies(self, current_percept):
         for x, y, direction, state in current_percept.maze_state:
             if state == constants.OPEN:
-                glob_x = x-current_percept.start_x
-                glob_y = y-current_percept.start_y
+                glob_x, glob_y = self.get_rel_start(x, y, current_percept.start_x, current_percept.start_y)
                 key = (glob_x, glob_y, direction)
-                self.cur_percept[key]=1
-                #self.logger.info(f"{x},{y} direction: {direction} is open at turn {self.turn}")
+                self.cur_percept[key] = 1
                 if key not in self.frequency:
                     self.frequency[key] = Player.turn
+                    self.newcells[key] = 1
                 else:
-                    self.frequency[key]= math.gcd(Player.turn, self.frequency[key])
+                    newfrequency = math.gcd(Player.turn, self.frequency[key])
+                    if newfrequency < self.frequency[key]:
+                        self.newcells[key] = 1
+                    self.frequency[key] = newfrequency
 
-    
-    def heuristic(self,cur, target,parent):
-         distance = abs(cur[0]- target[0])+ abs(cur[1]-target[1])
-         wait_time = self.find_wait(parent,cur)
-         # Todo: Try different weights for wait_Time
-         return distance+ wait_time*10
-    
-    def find_wait(self,cur,next):
-         cur_to_next = (cur[0],cur[1],self.get_dir(cur,next))
-         next_to_cur = (next[0],next[1],self.get_dir(next,cur))
-         frequency= self.maximum_door_frequency+1
-         if cur_to_next in self.frequency and next_to_cur in self.frequency:
-             frequency = math.gcd(self.frequency[cur_to_next], self.frequency[next_to_cur])
-         return (frequency - (Player.turn%frequency))%Player.turn
-                #  Wait time is (x−(ymodx))modx
-                # Where: x is the number of turns after which the door opens, y is the current turn.
-    
-    def get_rel_start(self,cur,start):
-         return (cur[0]-start[0], cur[1]-start[1])
-    
-    def get_dir(self,cur,next_move):
-        dx = next_move[0] - cur[0]
-        dy = next_move[1] - cur[1]
-        if dx == -1:
-            return constants.UP
-        elif dx == 1:
-            return constants.DOWN
-        elif dy == -1:
-            return constants.LEFT
-        elif dy == 1:
-            return constants.RIGHT
-        return constants.WAIT
-    #########
+    def lcm(self, a, b):
+        return abs(a * b) // math.gcd(a, b) if a and b else 0
+
+    def find_wait(self, cur, next, turn):
+        cur_to_next = (cur[0], cur[1], self.get_dir(cur, next))
+        next_to_cur = (next[0], next[1], self.get_dir(next, cur))
+        frequency = self.maximum_door_frequency + 1
+        wait_time = self.maximum_door_frequency + 1
+
+        if cur_to_next in self.frequency and next_to_cur in self.frequency:
+            frequency = self.lcm(self.frequency[cur_to_next], self.frequency[next_to_cur])
+            wait_time = (frequency - (turn % frequency)) % frequency
+
+        return wait_time
+
+    def get_neighbours(self, node):
+        neighbours = [
+            (node[0] - 1, node[1], constants.LEFT),
+            (node[0] + 1, node[1], constants.RIGHT),
+            (node[0], node[1] - 1, constants.UP),
+            (node[0], node[1] + 1, constants.DOWN)
+        ]
+        return neighbours
 
     def move(self, current_percept) -> int:
-        """Function which retrieves the current state of the amoeba map and returns an amoeba movement
-
-            Args:
-                current_percept(TimingMazeState): contains current state information
-            Returns:
-                int: This function returns the next move of the user:
-                    WAIT = -1
-                    LEFT = 0
-                    UP = 1
-                    RIGHT = 2
-                    DOWN = 3
-        """
         try:
-            Player.turn+=1
-            self.cur_percept={}
+            Player.turn += 1
+            self.cur_percept = {}
             self.update_door_frequencies(current_percept)
-            ################################ Tom (9/15): Comment this chunk to go back to default player
-            if current_percept.is_end_visible:
-                cur =self.get_rel_start((0,0),(current_percept.start_x, current_percept.start_y))
-                target =self.get_rel_start((current_percept.end_x, current_percept.end_y),(current_percept.start_x, current_percept.start_y))
-                self.logger.info(f"Cur {cur}, Target: {target}")
-                # If there's no path, run A* to find one
-                if not self.path:
-                    #print("not self.path")
-                    self.path = self.a_star(current_percept, cur, target)
-                
-                # If A* found a path, execute the next move
-                else:
-                    # Get the next move from the path
-                    #print("yes self.path")
-                    next_move = self.path.pop(0) 
-                    #print("next move is")
-                    #print(next_move)
-                    return next_move
-            else: # If End is not visible
 
-                ########## Frank (9/16):
-                return self.experience.move(current_percept)
-                ###########################
+            if current_percept.is_end_visible:
+                cur = self.get_rel_start(0, 0, current_percept.start_x, current_percept.start_y)
+                target = self.get_rel_start(current_percept.end_x, current_percept.end_y, current_percept.start_x, current_percept.start_y)
+                self.end = target  # Set the end position
+
+                # Use D* Lite algorithm to either find or update the path incrementally
+                self.path = self.d_star_lite(cur, target)
+
+                if self.path:
+                    next_move = self.path[0]
+                    if self.is_valid_move(cur, next_move):
+                        #self.logger.info(f"Move valid {next_move}")
+                        return self.get_dir(cur, next_move)
+                    else:
+                        wait_time = self.find_wait(cur, next_move, Player.turn)
+                        #self.logger.info(f"Wait time since move {next_move} is {wait_time}")
+                        if wait_time > self.maximum_door_frequency:
+                            self.initialize_path(cur,self.end)
+                            self.path = self.d_star_lite(cur, self.end)
+                            #print(self.path)
+                            if self.path and self.is_valid_move(cur, self.path[0]):
+                                return self.get_dir(cur, self.path[0])
+                            else:
+                                return self.experience.move(current_percept)
+                        else:
+                            return constants.WAIT
+
+                return constants.WAIT
+            else:
+                #self.logger.info(f"Exploring since no path")
+                next_move = self.experience.move(current_percept)
+                if self.experience.is_valid_move(current_percept, next_move):
+                    return self.experience.move(current_percept)
+                return constants.WAIT
+
         except Exception as e:
             print(e)
             traceback.print_exc()
-    
 
-    ########################################## Tom (9/15):
-    def a_star (self, current_percept, start, goal):
-        # Reset frontier and explored set
-        self.frontier = []
-        self.explored = set()
+    def initialize_path(self,start,goal):
+            self.cost[start] = 0
+            self.open_list = []
+            heapq.heappush(self.open_list, (self.cost[start], start))
+            self.path = []  # Store the resulting path
+            self.parent = {start: None}
+            self.depth = {start: Player.turn}
 
-        # # Start position and goal position
-        # start = (0, 0)  # (x, y) relative position
-        # #print("start is: ")
-        # #print(start)
-        # goal = (current_percept.end_x, current_percept.end_y)
-        # #print("goal is:")
-        # #print(goal)
+    def d_star_lite(self, start, goal):
+    # Initialize costs and priority queue if first time or when major recalculation is needed
+        if not self.cost:
+            self.initialize_path(start, goal)
 
-        # Push the start state to the frontier with a cost of 0
-        heapq.heappush(self.frontier, (0, start))
-        came_from = {start: None}
-        cost_so_far = {start: 0}
+        #self.logger.info(f"Start {start} Goal {goal}")
 
-        while self.frontier:
-            _, current = heapq.heappop(self.frontier)
-            #print ("current is:")
-            #print (current)
-            # Loop until the current state is the goal;
-            # Once the current state is the goal, we know that the path is found;
-            # then call the reconstruct_path function to construct a path.
-            if current == goal:
-                
-                return self.reconstruct_path(came_from, start, goal)
+        # Check if a path has already been found
+        if not self.path or goal not in self.parent:
+            #self.logger.info("No pre-existing path found. Calculating a new path.")
+            # Perform full path calculation if no path exists
+            self.find_full_path(start, goal)
+        else:
+            # If there are new cells, update the path incrementally
+            if self.newcells:
+                self.incremental_update_with_new_cells(start, goal)
 
-            self.explored.add(current)
-            
-            # Get the possible moves from the current position
-            neighbors = self.get_neighbors(current, current_percept)
-            #print("neighbors are:")
-            #print(neighbors)
-            for direction, neighbor in neighbors:
-                new_cost = cost_so_far[current] + 1  # Assume each move costs 1
-                if neighbor not in cost_so_far or new_cost < cost_so_far[neighbor]:
-                    cost_so_far[neighbor] = new_cost
-                    priority = new_cost + self.heuristic(neighbor, goal, current)
-                    heapq.heappush(self.frontier, (priority, neighbor))
-                    came_from[neighbor] = (current, direction)
+        # If path to goal has been found or updated, retrace the path
+        if goal in self.parent:
+            #self.logger.info(f"Trying to retrace path")
+            self.path = self.retrace_path(start, goal, self.parent)
+        else:
+            self.path=[]
+        return self.path
+
+    def find_full_path(self, start, goal):
+        heapq.heappush(self.open_list, (0, start))
         
-        return None  # No path found
+        while self.open_list:
+            current_cost, current = heapq.heappop(self.open_list)
+            #print(current,goal)
+            if current == goal:
+                break 
 
-    # Get neighbors and their movement directions based on door states.
-    def get_neighbors(self, current, current_percept):
-        x, y = current
-        #directions = [constants.LEFT, constants.UP, constants.RIGHT, constants.DOWN]
-        #moves = [(-1, 0), (0, -1), (1, 0), (0, 1)]  # left, up, right, down
-        neighbors = []
-
-        # The condition of the four doors at the current cell
-        counter1 = 0
-        direction = [0, 0, 0, 0] # [left, up, right, down]; 1 is closed, 2 is open, 3 is boundary
-        for maze_state in current_percept.maze_state: # looping through all the cells visible by the drone
-            if maze_state[0] == x and maze_state[1] == y: # (x,y) is the current loc; -> Looking to see the conditions of the four doors at the current location.
-                direction[maze_state[2]] = maze_state[3] # import that information into direction
-                counter1 += 1
-            # Meaning we have gathered everything needed for the variable direction; no need to keep going
-            if counter1 == 4: 
-                break
-
-        # Check if "moving to right" is a legit move: checking 1). the right door is open; 2) the left door on the cell to the right is open 
-        if (direction[constants.RIGHT] == constants.OPEN): # if the door on the right is open
-            for maze_state in current_percept.maze_state: # looping through all the cells visible by the drone
-                        if (maze_state[0] == x+1 and maze_state[1] == y+0 # (x+1,y+0) is the cell on the right; -> Looking to see the conditions of the four doors at the cell on the right.
-                            and maze_state[2] == constants.LEFT and maze_state[3] == constants.OPEN # if the left door of the cell on the right (the adjacent door to the current cell) is open
-                            ):
-                            neighbors.append((constants.RIGHT, (x + 1, y)))
-                            break
-
-        # Check if "moving to left" is a legit move: checking 1). the left door is open; 2) the right door on the cell to the left is open 
-        if (direction[constants.LEFT] == constants.OPEN): # if the door on the left is open
-            for maze_state in current_percept.maze_state: # looping through all the cells visible by the drone
-                        if (maze_state[0] == x-1 and maze_state[1] == y+0 # (x-1,y+0) is the cell on the left; -> Looking to see the conditions of the four doors at the cell on the left.
-                            and maze_state[2] == constants.RIGHT and maze_state[3] == constants.OPEN # if the right door of the cell on the left (the adjacent door to the current cell) is open
-                            ):
-                            neighbors.append((constants.LEFT, (x - 1, y)))
-                            break
+            # Get neighbours and update costs for all potential paths
+            for neighbour in self.get_neighbours(current):
+                x, y, direction = neighbour
+                wait_time = self.find_wait(current, (x, y), self.depth[current] + 1)
+                #self.logger.info(f"Wait for {current} to {(x, y)} is {wait_time} at turn {self.depth[current] + 1}")
                 
-        # Check if "moving up" is a legit move: checking 1). the up door is open; 2) the down door on the cell above is open 
-        if (direction[constants.UP] == constants.OPEN): # if the door above is open
-            for maze_state in current_percept.maze_state: # looping through all the cells visible by the drone
-                        if (maze_state[0] == x+0 and maze_state[1] == y-1 # (x+0,y-1) is the cell above; -> Looking to see the conditions of the four doors at the cell above.
-                            and maze_state[2] == constants.DOWN and maze_state[3] == constants.OPEN # if the down door of the cell above (the adjacent door to the current cell) is open
-                            ):
-                            neighbors.append((constants.UP, (x, y - 1)))
-                            break
-
-        # Check if "moving down" is a legit move: checking 1). the down door is open; 2) the up door on the cell to the below is open 
-        if (direction[constants.DOWN] == constants.OPEN): # if the door below is open
-            for maze_state in current_percept.maze_state: # looping through all the cells visible by the drone
-                        if (maze_state[0] == x+0 and maze_state[1] == y+1 # (x+0,y+1) is the cell below; -> Looking to see the conditions of the four doors at the cell below.
-                            and maze_state[2] == constants.UP and maze_state[3] == constants.OPEN # if the up door of the cell below (the adjacent door to the current cell) is open
-                            ):
-                            neighbors.append((constants.DOWN, (x, y + 1)))
-                            break
-
-        # Finally return the neighbors that we can possibly move to.
-        return neighbors
+                new_cost = current_cost + wait_time + self.cost_function((x, y), goal)+1
+                if (x, y) not in self.cost or new_cost < self.cost[(x, y)]:
+                    self.parent[(x, y)] = current
+                    self.depth[(x, y)] = self.depth[current] + 1
+                    self.cost[(x, y)] = new_cost
+                    heapq.heappush(self.open_list, (new_cost, (x, y)))
 
 
-    def reconstruct_path(self, came_from, start, goal):
-        """Reconstruct the path from start to goal."""
+    def incremental_update_with_new_cells(self, start, goal):
+        changed =False
+        for cell in self.newcells.keys():
+            new_cell=(cell[0],cell[1])
+            node = self.is_near_path(new_cell)
+            if node !=-1:
+                wait_time = self.find_wait(node, new_cell, self.depth[node] + 1)
+                new_cost = 0
+                if node != new_cell:
+                    if self.is_valid_move(node, new_cell):
+                        new_cost = self.cost[node]+ wait_time + self.cost_function(new_cell, goal)+1
+                        self.depth[new_cell]= self.depth[node]+1
+                        self.parent[new_cell]=node
+                        self.cost[new_cell] = new_cost
+                        heapq.heappush(self.open_list, (self.cost[new_cell], new_cell))
+                        changed=True
+                else:
+                    parent = self.parent[node]
+                    wait_time = self.find_wait(parent, node, self.depth[node])
+                    new_cost = self.cost[parent]+wait_time+ self.cost_function(node,goal)+1
+                    if new_cost < self.cost[node] and self.is_valid_move(parent, node):
+                        self.cost[node] = new_cost
+                        heapq.heappush(self.open_list, (self.cost[node], node))
+                        changed=True
+        if changed:
+            #self.logger.info(f"Changed so updating path")
+            self.update_path_segment(goal)
+
+        # Clear newcells after using them
+        self.newcells.clear()
+
+    def update_path_segment(self, goal):  
+        timeout = 100000      
+        while self.open_list and timeout>0:
+            timeout-=1
+            current_cost, current = heapq.heappop(self.open_list)
+            if current == goal:
+                #self.logger.info("Goal reached in update")
+                break  # Stop as soon as the goal is reached
+
+            # Get neighbours and update costs based on the new cell
+            for neighbour in self.get_neighbours(current):
+                x, y, direction = neighbour
+                wait_time = self.find_wait(current, (x, y), self.depth[current] + 1)
+                #self.logger.info(f"Wait for {current} to {(x, y)} is {wait_time} at turn {self.depth[current] + 1}")
+
+                new_cost = current_cost + wait_time + self.cost_function((x, y), goal)+1
+                if (x, y) not in self.cost or new_cost < self.cost[(x, y)]:
+                    self.parent[(x, y)] = current
+                    self.depth[(x, y)] = self.depth[current] + 1
+                    self.cost[(x, y)] = new_cost
+                    heapq.heappush(self.open_list, (new_cost, (x, y)))
+
+    def is_on_path(self, new_cell):
+        # Check if the new cell is part of the current path
+        return new_cell in self.path
+
+    def is_near_path(self, new_cell):
+        # Check if the new cell is adjacent to any node in the current path or on the path
+        for node in self.path:
+            if abs(node[0] - new_cell[0]) + abs(node[1] - new_cell[1]) <=1:  # Manhattan distance of 1 or 0
+                return node
+        return -1
+
+    def retrace_path(self, start, goal, parent):
         path = []
         current = goal
         while current != start:
-            current, direction = came_from[current]
-            path.append(direction)
+            path.append(current)
+            current = parent[current]
         path.reverse()
-        #print("path is:")
-        #print(path)
         return path
-    ##########################################
+
+    def cost_function(self, neighbour, goal):
+        return abs(neighbour[0] - goal[0]) + abs(neighbour[1] - goal[1])
+
+    def get_dir(self, cur, next):
+        if cur[0] - next[0] >= 1: return constants.LEFT
+        if cur[0] - next[0] <= -1: return constants.RIGHT
+        if cur[1] - next[1] >= 1: return constants.UP
+        if cur[1] - next[1] <= -1: return constants.DOWN
+        return constants.WAIT
+
+    def is_valid_move(self, cur, next):
+        cur_to_next = (cur[0], cur[1], self.get_dir(cur, next))
+        next_to_cur = (next[0], next[1], self.get_dir(next, cur))
+        return (cur_to_next in self.cur_percept) and (next_to_cur in self.cur_percept)
