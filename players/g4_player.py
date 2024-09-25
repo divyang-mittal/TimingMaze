@@ -2,7 +2,7 @@ from collections import defaultdict
 import heapq
 import random
 import time
-from constants import WAIT, LEFT, UP, RIGHT, DOWN, CLOSED, OPEN, BOUNDARY
+from constants import WAIT, LEFT, UP, RIGHT, DOWN, CLOSED, OPEN, BOUNDARY, CLOSED, OPEN, BOUNDARY
 import os
 import pickle
 import numpy as np
@@ -15,6 +15,8 @@ from players.g4.gridworld import GridWorld
 from players.g4.mcts import MCTS
 
 from sympy import divisors
+
+from collections import deque
 
 
 class Player:
@@ -47,6 +49,18 @@ class Player:
         self.start = (0, 0)
         self.goal = None
         self.maze_graph = defaultdict(dict)
+
+        # Used for the exploration values strategy
+        self.temp_goal = None
+        self.exploration_values = {}
+
+        # Calculate the grid cell size based on the radius
+        self.cell_size = max(int(self.radius / math.sqrt(2)), 1)
+
+        # Initialize variables for the exploration strategy
+        self.visited_grid_cells = set()
+        self.frontier_positions = set()
+        self.frontier_set = set()
 
     def update_door_frequencies(self, curr_x, curr_y, current_percept):
         factors = set(divisors(self.curr_turn))
@@ -104,6 +118,45 @@ class Player:
                 self.maze_graph[cell_pos][neighbor_pos] = expected_cost
                 self.maze_graph[neighbor_pos][cell_pos] = expected_cost
 
+    def update_exploration_values(self, curr_x, curr_y, current_percept):
+        for dX, dY, door, state in current_percept.maze_state:
+            cell_pos = (curr_x + dX, curr_y + dY)
+
+            # If the cell hasn't been explored yet, initialize its value
+            if cell_pos not in self.exploration_values:
+                self.exploration_values[cell_pos] = 0
+
+            # Each turn we see a cell, increase value by 1 (4 doors * .25 = 1)
+            self.exploration_values[cell_pos] += 0.25
+
+            # Further cells get lower increments based on distance
+            if dX != 0 and dY != 0:
+                self.exploration_values[cell_pos] += (1 / abs(dX) + 1 / abs(dY))
+            elif dX == 0 and dY != 0:
+                self.exploration_values[cell_pos] += 1 / abs(dY)
+            elif dY == 0 and dX != 0:
+                self.exploration_values[cell_pos] += 1 / abs(dX)
+        
+            # cells with boundary doors get lower values, but with decaying penalty
+            decay_factor = max(1, self.exploration_values[cell_pos] / 10)
+            if state == BOUNDARY:
+                self.exploration_values[cell_pos] -= 1 / decay_factor
+
+            # cells which contain very high frequency doors get high values
+            door_freqs = self.frequencies_per_cell[(cell_pos[0], cell_pos[1], door)]
+            # if len(door_freqs) == 1:
+            #     if self.maximum_door_frequency - door_freqs[0] <= 1:
+            #         self.exploration_values[cell_pos] += 5
+        
+        # After each move, apply a small decay to all previously explored cells
+        self.decay_exploration_values
+
+    def decay_exploration_values(self):
+        decay_rate = 0.99
+        for cell_pos in self.exploration_values:
+            if self.exploration_values[cell_pos] > 0:
+                self.exploration_values[cell_pos] *= decay_rate
+    
     def lcm(self, a, b):
         # Return 0 if one of the values is 0 (door never opens)
         if a == 0 or b == 0:
@@ -121,10 +174,10 @@ class Player:
 
         return result
 
-    """Function which returns an approximation of the number of turns from the current turn needed to
+    def avg_time_for_both_doors_to_open(self, door1_freq_set, door2_freq_set):
+        """Function which returns an approximation of the number of turns from the current turn needed to
         wait before adjacent doors are open at the same time"""
 
-    def avg_time_for_both_doors_to_open(self, door1_freq_set, door2_freq_set):
         total_sum = 0
         count = 0
 
@@ -166,25 +219,24 @@ class Player:
         avg_cost_per_move = 1
         return (dx + dy) * avg_cost_per_move
 
-    def a_star_search(self, start, goal):
+    def a_star_search(self, start, goals):
         open_set = []
-        heapq.heappush(open_set, (self.heuristic(start, goal), start))
-
+        heapq.heappush(open_set, (self.heuristic(start, start), 0, start))
         came_from = {start: None}
         g_score = {start: 0}
 
         while open_set:
-            _, current = heapq.heappop(open_set)
+            _, current_g, current = heapq.heappop(open_set)
 
-            if current == goal:
+            if current in goals:
                 # Reconstruct path
                 path = []
                 current_node = current
                 while current_node is not None:
                     path.append(current_node)
                     current_node = came_from[current_node]
-                # Don't need to deal with entire path if maximizing efficiency, but useful for debugging
                 path.reverse()
+                # print(path)
                 return path
 
             for neighbor in self.maze_graph[current]:
@@ -194,12 +246,40 @@ class Player:
                 if neighbor not in g_score or tentative_g_score < g_score[neighbor]:
                     came_from[neighbor] = current
                     g_score[neighbor] = tentative_g_score
-                    f_score = tentative_g_score + self.heuristic(neighbor, goal)
-                    heapq.heappush(open_set, (f_score, neighbor))
+                    f_score = tentative_g_score + self.heuristic(start, neighbor)
+                    heapq.heappush(open_set, (f_score, tentative_g_score, neighbor))
 
-        # Goal not reachable
+        # No path found
         return None
-    
+
+    def get_visible_cells(self, curr_x, curr_y, maze_state):
+        visible_cells = []
+        for dX, dY, door, state in maze_state:
+            cell_pos = (curr_x + dX, curr_y + dY)
+
+            if cell_pos not in visible_cells:
+                visible_cells.append(cell_pos)
+        
+        return visible_cells
+
+    def select_next_temp_goal(self, curr_x, curr_y, current_percept):
+        start = (curr_x, curr_y)
+        visible_cells = self.get_visible_cells(curr_x, curr_y, current_percept.maze_state)
+
+        def score(cell):
+            # Calculate the weighted score based on exploration value and distance
+            exploration_value = self.exploration_values.get(cell, float('inf'))
+            distance_to_cell = self.heuristic(start, cell)
+            alpha = 0.7  # weight for exploration value
+            beta = 0.3   # weight for distance
+            return alpha * exploration_value + beta * distance_to_cell
+        
+        # Filter out the current position from visible_cells
+        valid_cells = [cell for cell in visible_cells if (cell[0], cell[1]) != start]
+
+        # Select the cell with the lowest score
+        return min(valid_cells, key=score)
+        
     def is_valid(self, action, current_percept):
         if action == LEFT:
             dx, dy = -1, 0
@@ -276,79 +356,155 @@ class Player:
         # Update graph based on current percept
         self.update_graph(curr_x, curr_y, current_percept)
 
+        # Update exploration values for the cells in drone vision
+        self.update_exploration_values(curr_x, curr_y, current_percept)
+
+        start = (curr_x, curr_y)
+
         # Update goal if end is visible
         if current_percept.is_end_visible:
             self.goal = (curr_x + current_percept.end_x, curr_y + current_percept.end_y)
+        # THIS COMMENTED OUT CODE WAS USED FOR EXPLORATION VALUES STRATEGY
+        #elif self.temp_goal is None or self.heuristic(start, self.temp_goal) <= self.radius // 3:
+        #    self.temp_goal = self.select_next_temp_goal(curr_x, curr_y, current_percept)
+
+        #goal = self.goal if self.goal is not None else self.temp_goal
+        # [perform A* search on goal to get next move]
 
         if self.goal:
-            start = (curr_x, curr_y)
-            goal = self.goal
+            # Use A* search to the goal
+            return self.perform_a_star_and_get_next_move((curr_x, curr_y), {self.goal}, current_percept)
+        else:
+            # Exploration strategy
+            self.update_visited_and_frontier(curr_x, curr_y)
 
-            # Recompute path every turn
-            path = self.a_star_search(start, goal)
-            if path and len(path) > 1:
-                # Next position to move to
-                next_pos = path[1]
-                # Decide which direction to move
-                dx, dy = next_pos[0] - curr_x, next_pos[1] - curr_y
-                if dx == -1:
-                    move = LEFT
-                elif dx == 1:
-                    move = RIGHT
-                elif dy == -1:
-                    move = UP
-                elif dy == 1:
-                    move = DOWN
-                else:
-                    move = WAIT
+            if self.frontier_positions:
+                # Use A* search to any of the frontier positions
+                return self.perform_a_star_and_get_next_move(
+                    (curr_x, curr_y), self.frontier_positions, current_percept
+                )
 
-                if not self.is_valid(move, current_percept):
-                    wait_turn = self.curr_turn + 1
-                    wait_chance = self.open_chance(start, move, wait_turn) + len(path)
+            return constants.WAIT
 
-                    actions = [LEFT, UP, RIGHT, DOWN]
-                    best_move_chance = float('inf')
-                    alt_move = float('inf')
-                    for action in actions:
-                        if action == move:
-                            continue
+    def get_grid_cell(self, x, y):
+        grid_x = x // self.cell_size
+        grid_y = y // self.cell_size
+        return (grid_x, grid_y)
 
-                        if self.is_valid(action, current_percept):
-                            # print(f'trying alternative action : {action}')
-                            if action == LEFT:
-                                adj_cell = (start[0] - 1, start[1])
-                            elif action == UP:
-                                adj_cell = (start[0], start[1] - 1)
-                            elif action == RIGHT:
-                                adj_cell = (start[0] + 1, start[1])
-                            elif action == DOWN:
-                                adj_cell = (start[0], start[1] + 1)
+    def get_positions_in_grid_cell(self, grid_cell):
+        grid_x, grid_y = grid_cell
 
-                            move_turn = self.curr_turn + 2
-                            alt_path = self.a_star_search(adj_cell, goal)
+        # Define the boundaries of the grid cell
+        min_x = grid_x * self.cell_size
+        max_x = (grid_x + 1) * self.cell_size - 1
+        min_y = grid_y * self.cell_size
+        max_y = (grid_y + 1) * self.cell_size - 1
 
-                            if not alt_path or len(alt_path) <=1:
-                                continue
+        # Collect known positions within the grid cell
+        known_positions = set(self.maze_graph.keys())
+        positions = []
+        for x in range(min_x, max_x + 1):
+            for y in range(min_y, max_y + 1):
+                if (x, y) in known_positions:
+                    positions.append((x, y))
+        return positions
 
-                            move_chance = self.open_chance(adj_cell, action, move_turn) + len(alt_path) + 1
+    def get_unvisited_neighbors(self, grid_cell):
+        x, y = grid_cell
+        neighbors = []
+        directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+        for dx, dy in directions:
+            neighbor = (x + dx, y + dy)
+            if (
+                neighbor not in self.visited_grid_cells
+                and neighbor not in self.frontier_set
+            ):
+                neighbors.append(neighbor)
+                self.frontier_set.add(neighbor)
+        return neighbors
 
-                            if move_chance < best_move_chance:
-                                best_move_chance = move_chance
-                                alt_move = action
+    def determine_move(self, dx, dy):
+        if dx == -1:
+            return constants.LEFT
+        elif dx == 1:
+            return constants.RIGHT
+        elif dy == -1:
+            return constants.UP
+        elif dy == 1:
+            return constants.DOWN
+        else:
+            return WAIT
 
-                    # print(f'chance difference: {best_move_chance - wait_chance}')
-                    if best_move_chance < wait_chance:
-                        print('='*50)
-                        print("choosing alternative move")
-                        print('='*50)
-                        return alt_move
-
-                    return WAIT
-                
+    def perform_a_star_and_get_next_move(self, start, goals, current_percept):
+        path = self.a_star_search(start, goals)
+        if path and len(path) > 1:
+            next_pos = path[1]
+            dx, dy = next_pos[0] - start[0], next_pos[1] - start[1]
+            move = self.determine_move(dx, dy)
+            if self.is_valid(move, current_percept):
                 return move
             else:
-                # No valid path found, or already at goal
+                wait_turn = self.curr_turn + 1
+                wait_chance = self.open_chance(start, move, wait_turn) + len(path)
+
+                actions = [LEFT, UP, RIGHT, DOWN]
+                best_move_chance = float('inf')
+                alt_move = float('inf')
+                for action in actions:
+                    if action == move:
+                        continue
+
+                    if self.is_valid(action, current_percept):
+                        # print(f'trying alternative action : {action}')
+                        if action == LEFT:
+                            adj_cell = (start[0] - 1, start[1])
+                        elif action == UP:
+                            adj_cell = (start[0], start[1] - 1)
+                        elif action == RIGHT:
+                            adj_cell = (start[0] + 1, start[1])
+                        elif action == DOWN:
+                            adj_cell = (start[0], start[1] + 1)
+
+                        move_turn = self.curr_turn + 2
+                        alt_path = self.a_star_search(adj_cell, goal)
+
+                        if not alt_path or len(alt_path) <=1:
+                            continue
+
+                        move_chance = self.open_chance(adj_cell, action, move_turn) + len(alt_path) + 1
+
+                        if move_chance < best_move_chance:
+                            best_move_chance = move_chance
+                            alt_move = action
+
+                # print(f'chance difference: {best_move_chance - wait_chance}')
+                if best_move_chance < wait_chance:
+                    print('='*50)
+                    print("choosing alternative move")
+                    print('='*50)
+                    return alt_move
+
                 return WAIT
-        else:
-            # Goal is not known; implement exploration strategy or wait
-            return WAIT
+        return WAIT
+
+    def update_visited_and_frontier(self, curr_x, curr_y):
+        current_grid_cell = self.get_grid_cell(curr_x, curr_y)
+
+        if current_grid_cell not in self.visited_grid_cells:
+            self.visited_grid_cells.add(current_grid_cell)
+
+            # Remove positions in this grid cell from frontier_positions
+            positions_in_current_grid_cell = set(
+                self.get_positions_in_grid_cell(current_grid_cell)
+            )
+            self.frontier_positions -= positions_in_current_grid_cell
+
+            # Expand the frontier
+            neighbors = self.get_unvisited_neighbors(current_grid_cell)
+            for neighbor in neighbors:
+                self.frontier_set.add(neighbor)
+                # Add positions in neighbor grid cell to frontier_positions
+                positions_in_neighbor_grid_cell = set(
+                    self.get_positions_in_grid_cell(neighbor)
+                )
+                self.frontier_positions |= positions_in_neighbor_grid_cell

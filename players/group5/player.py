@@ -1,10 +1,14 @@
+from typing import List
 import numpy as np
 import logging
 
 import constants
-from players.group5.player_map import PlayerMapInterface, SimplePlayerMap
+from players.group5.player_map import PlayerMapInterface, StartPosCentricPlayerMap
+from players.group5.search import SearchStrategy
+from players.group5.util import setup_file_logger
 from timing_maze_state import TimingMazeState
-from players.group5.converge import converge_basic, converge
+from players.group5.converge import ConvergeStrategy, dyjkstra
+from players.group5.simple_search import simple_search
 
 
 class G5_Player:
@@ -18,44 +22,18 @@ class G5_Player:
                 radius (int): the radius of the drone
                 precomp_dir (str): Directory path to store/load pre-computation
         """
+        self._setup_logger(logger)
         self.rng = rng
-        self.logger = logger
         self.maximum_door_frequency = maximum_door_frequency
         self.radius = radius
-        self.player_map: PlayerMapInterface = SimplePlayerMap(maximum_door_frequency, logger)
+        self.player_map: PlayerMapInterface = StartPosCentricPlayerMap(maximum_door_frequency, logger)
         self.turns = 0
-        self.mode = 0
 
-    def simple_search(self):        
-        nw, sw, ne, se = 0, 0, 0, 0
-
-        for i in range(self.radius):
-            for j in range(self.radius):
-                if self.player_map.get_seen_counts([[-i, -j]])[0]>0:
-                    nw += 1
-                if self.player_map.get_seen_counts([[i, -j]])[0]>0:
-                    sw += 1
-                if self.player_map.get_seen_counts([[-i, j]])[0]>0:
-                    ne += 1
-                if self.player_map.get_seen_counts([[i, j]])[0]>0:
-                    se += 1
-        best_diagonal = max(nw, sw, ne, se)
-        if best_diagonal == nw:
-            if ne > sw:
-                return constants.UP
-            return constants.LEFT
-        elif best_diagonal == sw:
-            if se > nw:
-                return constants.DOWN
-            return constants.LEFT
-        elif best_diagonal == ne:
-            if nw > se:
-                return constants.UP
-            return constants.RIGHT
-        else:
-            if sw > ne:
-                return constants.DOWN
-            return constants.RIGHT
+        self.search_strategy = None
+        
+    def _setup_logger(self, logger):
+        logger = setup_file_logger(logger, self.__class__.__name__, "./log")
+        self.logger = logger
 
     def move(self, current_percept: TimingMazeState) -> int:
         """Function which retrieves the current state of the amoeba map and returns an amoeba movement
@@ -70,12 +48,19 @@ class G5_Player:
                     RIGHT = 2
                     DOWN = 3
         """
-        self.turns += 1
-        self.player_map.update_map(self.turns, current_percept)
+        try:
+            self.turns += 1
+            self.player_map.update_map(self.turns, current_percept)
+            
+            valid_moves = self.player_map.get_valid_moves(self.turns)
+            # self.logger.debug(f"Valid moves: {valid_moves}")
 
-        exists, end_pos = self.player_map.get_end_pos_if_known()
-        if not exists:
-            return self.simple_search()
-        return converge(self.player_map.get_cur_pos(), end_pos)
-
-
+            exists, end_pos = self.player_map.get_end_pos_if_known()
+            if not exists:
+                if self.search_strategy is None:
+                    self.search_strategy = SearchStrategy(self.player_map, self.radius, self.maximum_door_frequency, self.logger)  # check if change in player_map is recorded or seen
+                return self.search_strategy.move(current_percept, self.turns)
+            return ConvergeStrategy(self.player_map.get_cur_pos(), [end_pos], self.turns, self.player_map, self.maximum_door_frequency).move()
+        except Exception as e:
+            self.logger.debug(e, e.with_traceback)
+            return constants.WAIT
