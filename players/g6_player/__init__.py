@@ -37,11 +37,6 @@ class G6_Player:
         self.maximum_door_frequency = maximum_door_frequency
         self.radius = radius
 
-        # Variables to facilitate knowing where the player has been and if they are trapped
-        self.stuck = 0
-        self.move_history = []
-        self.prev_move = None
-
         # Initialize Maze object to hold information about cells and doors perceived by the drone
         self.maze = Maze()
 
@@ -53,6 +48,7 @@ class G6_Player:
         self.found_down_boundary = False
         self.layer = 0
         self.phase = 4  # phases match directions in constants.py; 4 = find SE corner
+        self.target_cell = None
 
     def move(self, current_percept: TimingMazeState) -> int:
         """
@@ -62,46 +58,19 @@ class G6_Player:
         current_percept: TypedTimingMazeState = convert(current_percept)
 
         self.maze.update(current_percept)
-        self.__update_history()
         player_move = self.__move(current_percept)
 
-        print(f"MOVE: {move_to_str(player_move)}")
+        if self.target_cell is None and current_percept.is_end_visible:
+            self.target_cell = self.maze.target_cell()
+
         return player_move.value
-
-    def __update_history(self):
-        """
-        This function adjusts the move_history ordered list of coordinates that the player has already visited.
-        """
-        if len(self.move_history) == 0:
-            return self.move_history.append(self.maze.curr_pos)
-        elif self.move_history[-1] == self.maze.curr_pos:
-            self.stuck += 1
-        else:
-            self.stuck = 0
-            self.prev_move = self.__get_prev_move()
-            self.move_history.append(self.maze.curr_pos)
-
-    def __get_prev_move(self):
-        delta = (
-            self.maze.curr_pos[0] - self.move_history[-1][0],
-            self.maze.curr_pos[1] - self.move_history[-1][1],
-        )
-
-        if delta == (-1, 0):
-            return LEFT
-        elif delta == (1, 0):
-            return RIGHT
-        elif delta == (0, -1):
-            return DOWN
-        else:
-            return UP
 
     def __move(self, current_percept: TypedTimingMazeState) -> Move:
         """
         Helper function to move().
         """
         # Explore map to get target within drone's view
-        if not current_percept.is_end_visible:
+        if self.target_cell is None:
             return self.__explore()
 
         # Otherwise, go to target
@@ -112,24 +81,24 @@ class G6_Player:
         Move towards the southeast corner and perform inward spiral when right
         and down boundaries are visible by drone
         """
-        if self.stuck >= (
-            self.maximum_door_frequency * (self.maximum_door_frequency - 1)
-        ):
-            return self.__get_unstuck()
-
         if not self.found_right_boundary:
             self.found_right_boundary = self.__is_boundary_in_sight(RIGHT)
         if not self.found_down_boundary:
             self.found_down_boundary = self.__is_boundary_in_sight(DOWN)
 
-        if not self.found_right_boundary and not self.found_down_boundary:
-            return self.__greedy_move(directions=[RIGHT, DOWN])
-        elif not self.found_right_boundary:
-            return self.__greedy_move(directions=[RIGHT])
-        elif not self.found_down_boundary:
-            return self.__greedy_move(directions=[DOWN])
+        if self.found_right_boundary and self.found_down_boundary:
+            return self.__inward_spiral()
 
-        return self.__inward_spiral()
+        if not self.found_right_boundary and not self.found_down_boundary:
+            self.search_target = (self.maze.east_end, self.maze.south_end)
+        elif not self.found_right_boundary:
+            self.search_target = (self.maze.east_end, self.maze.curr_pos[1])
+        elif not self.found_down_boundary:
+            self.search_target = (self.maze.curr_pos[0], self.maze.south_end)
+
+        self.maze.target_pos = self.__set_target_on_radius()
+        result, cost = a_star(self.maze.current_cell(), self.maze.target_cell())
+        return result[0]
 
     def __is_boundary_in_sight(self, direction: int) -> bool:
         """
@@ -161,7 +130,21 @@ class G6_Player:
 
         return False
 
-    def __inward_spiral(self):
+    def __set_target_on_radius(self) -> tuple:
+        """
+        Set target position on drone radius towards search target
+        """
+        vec_x = self.search_target[0] - self.maze.curr_pos[0]
+        vec_y = self.search_target[1] - self.maze.curr_pos[1]
+        norm = np.sqrt(vec_x**2 + vec_y**2)
+        if norm > self.radius:
+            x = int(np.floor(vec_x / norm * self.radius)) + self.maze.curr_pos[0]
+            y = int(np.floor(vec_y / norm * self.radius)) + self.maze.curr_pos[1]
+        else:
+            x, y = self.search_target
+        return (x, y)
+
+    def __inward_spiral(self) -> Move:
         """
         Perform clockwise inward spiral starting from the southeast corner.
         """
@@ -174,14 +157,86 @@ class G6_Player:
             )
 
         # Set inward spiral phase and layer and update search target
-        # [TODO] In case we are stuck getting to the exact target, we could consider
-        # setting a max distance from target before we move on to the next phase
         if self.maze.curr_pos == self.search_target:
             self.__adjust_phase_and_target()
 
-        # print(f'Phase: {self.phase}, Layer: {self.layer}, Target: {self.search_target}, curr_pos: {self.maze.curr_pos}')
+        # A* search to target
+        self.maze.target_pos = self.__set_target_on_radius()
+        result, cost = a_star(self.maze.current_cell(), self.maze.target_cell())
 
-        return self.__greedy_move(target=self.search_target)
+        # Move in least obstructed direction towards target
+        target_directions = self.__get_target_directions()
+        door1_freq = self.__get_door_freq(target_directions[0])
+        door2_freq = self.__get_door_freq(target_directions[1])
+        door3_freq = self.__get_door_freq(target_directions[2])
+        door4_freq = self.__get_door_freq(target_directions[3])
+
+        # [TODO] Can experiment with different cost and freq thresholds
+        if cost == float("inf"):
+            if door1_freq != 0:
+                return Move.target_directions[0]
+            elif door2_freq != 0:
+                return Move.target_directions[1]
+            elif door3_freq != 0:
+                return Move.target_directions[2]
+            elif door4_freq != 0:
+                return Move.target_directions[3]
+
+        return result[0]
+
+    def __get_target_directions(self) -> list:
+        """
+        Get directions to target based on current and target positions
+        """
+        # Rank directions based on distance to target
+        left_dist = max(self.maze.curr_pos[0] - self.maze.target_pos[0], 0)
+        up_dist = max(self.maze.curr_pos[1] - self.maze.target_pos[1], 0)
+        right_dist = max(self.maze.target_pos[0] - self.maze.curr_pos[0], 0)
+        down_dist = max(self.maze.target_pos[1] - self.maze.curr_pos[1], 0)
+        dist_arr = np.array([left_dist, up_dist, right_dist, down_dist])
+
+        # Sort in descending order
+        rank = np.argsort(-dist_arr)
+
+        # Rank bottom two directions based on distance from border
+        dist1 = 0
+        dist2 = 0
+        if rank[2] == LEFT:
+            dist1 = self.maze.curr_pos[0] - self.maze.west_end
+        elif rank[2] == UP:
+            dist1 = self.maze.curr_pos[1] - self.maze.north_end
+        elif rank[2] == RIGHT:
+            dist1 = self.maze.east_end - self.maze.curr_pos[0]
+        elif rank[2] == DOWN:
+            dist1 = self.maze.south_end - self.maze.curr_pos[1]
+
+        if rank[3] == LEFT:
+            dist2 = self.maze.curr_pos[0] - self.maze.west_end
+        elif rank[3] == UP:
+            dist2 = self.maze.curr_pos[1] - self.maze.north_end
+        elif rank[3] == RIGHT:
+            dist2 = self.maze.east_end - self.maze.curr_pos[0]
+        elif rank[3] == DOWN:
+            dist2 = self.maze.south_end - self.maze.curr_pos[1]
+
+        if dist1 < dist2:
+            rank[2], rank[3] = rank[3], rank[2]
+
+        return rank
+
+    def __get_door_freq(self, direction: int) -> int:
+        """
+        Get the frequency of the door in a given direction
+        """
+        curr_cell = self.maze.current_cell()
+        if direction == UP:
+            return curr_cell.n_door.freq
+        elif direction == RIGHT:
+            return curr_cell.e_door.freq
+        elif direction == DOWN:
+            return curr_cell.s_door.freq
+        elif direction == LEFT:
+            return curr_cell.w_door.freq
 
     def __adjust_phase_and_target(self):
         """
@@ -230,85 +285,17 @@ class G6_Player:
                 self.maze.south_end - cum_offset - offset,
             )
 
-    def __get_available_moves(self) -> list[Move]:
-        curr_cell = self.maze.current_cell()
-        curr_available_moves = []
-
-        for move in Move:
-            if curr_cell.is_move_available(move):
-                curr_available_moves.append(move)
-        return curr_available_moves
-
-    def __get_unstuck(self) -> Move:
-        curr_available_moves = self.__get_available_moves()
-
-        # [TODO] - this will not work if there is a full three-sided trap (like a maze with a dead end).
-        for available_move in curr_available_moves:
-            if self.prev_move in [RIGHT, LEFT] and available_move in [
-                Move.UP,
-                Move.DOWN,
-            ]:
-                return available_move
-            elif self.prev_move in [DOWN, UP] and available_move in [
-                Move.LEFT,
-                Move.RIGHT,
-            ]:
-                return available_move
-
-        # No available moves
-        return Move.WAIT
-
-    def __greedy_move(self, directions: list[int] = [], target: tuple = ()) -> Move:
-        """
-        Given a list of directions in order of priority or target coordinates, navigate
-        towards the target direction in a greedy manner.
-        [TODO] Consider tactics for avoiding walls and finding shortest paths
-        """
-        if directions:
-            if directions[0] == RIGHT:
-                return Move.RIGHT
-            if directions[0] == DOWN:
-                return Move.DOWN
-            if directions[0] == LEFT:
-                return Move.LEFT
-            if directions[0] == UP:
-                return Move.UP
-
-        elif target:
-            if self.maze.curr_pos[0] < target[0]:
-                return Move.RIGHT
-            if self.maze.curr_pos[0] > target[0]:
-                return Move.LEFT
-            if self.maze.curr_pos[1] < target[1]:
-                return Move.DOWN
-            if self.maze.curr_pos[1] > target[1]:
-                return Move.UP
-
-        return Move.WAIT
-
-    def __panic_escape(self):
-        curr_available_moves = self.__get_available_moves()
-        return self.rng.choice(curr_available_moves)
-
     def __exploit(self, current_state: TypedTimingMazeState) -> Move:
         """
-        [TODO] Implement A star algorithm
-        [TODO] Implement greedy algorithm if one of the following conditions is met:
-        a) after a certain number of turns (e.g. 3x Manhattan distance to target)
-        b) when we are not getting closer to the target after a certain number of turns
-        c) 10% random chance for any given turn
+        Use the A* shortest path to generate moves towards the target.
         """
-
-        assert current_state.end_x is not None
-        assert current_state.end_y is not None
-
         result, cost = a_star(self.maze.current_cell(), self.maze.target_cell())
 
         # this shouldn't happen
         if len(result) == 0:
             return Move.WAIT
 
-        print(f"TARGET: {len(result)} moves - {cost} cost")
+        # [TODO] IMPLEMENT SAME TACTICAL MOVE AS IN EXPLORE
 
         return result[0]
 

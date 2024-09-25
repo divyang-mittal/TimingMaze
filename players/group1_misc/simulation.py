@@ -1,3 +1,4 @@
+###Lingyi
 import argparse
 import os
 import json
@@ -11,10 +12,13 @@ import sys
 sys.setrecursionlimit(10000)
 
 
-def run_simulation(max_door_frequencies, radii, num_maps_per_config):
+def run_simulation(max_door_frequencies, radii, num_maps_per_config, wait_penalty):
     results = defaultdict(list)
     summary = []
 
+    #### Tom (9/23):
+    # for wait_penalty in wait_penalties: ??? 
+    ################
     for max_door_frequency in max_door_frequencies:
         for radius in radii:
             for seed in range(num_maps_per_config):
@@ -29,6 +33,9 @@ def run_simulation(max_door_frequencies, radii, num_maps_per_config):
                     disable_logging=False,
                     disable_timeout=True,
                     player="1",
+                    ############# Lingyi & Tom (9/23):
+                    wait_penalty=wait_penalty,
+                    #########################
                 )
 
                 root = tk.Tk()
@@ -154,11 +161,12 @@ def main():
     max_door_frequencies = [3]
     radii = [30]
     num_maps_per_config = 1
+    wait_penalty = 0.2
     output_dir = "simulation_results"
 
     all_summary = []
-
-    results, summary = run_simulation(max_door_frequencies, radii, num_maps_per_config)
+    
+    results, summary = run_simulation(max_door_frequencies, radii, num_maps_per_config, wait_penalty)
     save_results(results, output_dir)
     all_summary.extend(summary)
     print(f"Simulation complete")
