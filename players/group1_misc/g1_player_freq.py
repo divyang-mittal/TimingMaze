@@ -19,7 +19,7 @@ class Player:
         self.path = []  # Current path from start to end
         self.cost = {}  # Cost to reach each node
         self.end = -1
-        self.experience = Experience(self.maximum_door_frequency, self.radius)
+        self.experience = Experience(self.maximum_door_frequency, self.radius,2)
         self.newcells = {}  # Cells whose frequencies changed or are seen for the first time
         self.open_list = []  # Priority queue for the D* Lite algorithm
         self.parent = {}  # Keeps track of the parent node for path reconstruction
@@ -56,6 +56,7 @@ class Player:
 
         if cur_to_next in self.frequency and next_to_cur in self.frequency:
             frequency = self.lcm(self.frequency[cur_to_next], self.frequency[next_to_cur])
+            #self.logger.info(f"Frequency of door from {cur} to {next} is {frequency} at move {turn}")
             wait_time = (frequency - (turn % frequency)) % frequency
 
         return wait_time
@@ -75,7 +76,7 @@ class Player:
             self.cur_percept = {}
             self.update_door_frequencies(current_percept)
 
-            if current_percept.is_end_visible:
+            if current_percept.is_end_visible or self.end!=-1:
                 cur = self.get_rel_start(0, 0, current_percept.start_x, current_percept.start_y)
                 target = self.get_rel_start(current_percept.end_x, current_percept.end_y, current_percept.start_x, current_percept.start_y)
                 self.end = target  # Set the end position
@@ -86,25 +87,30 @@ class Player:
                 if self.path:
                     next_move = self.path[0]
                     if self.is_valid_move(cur, next_move):
-                        #self.logger.info(f"Move valid {next_move}")
+                        self.logger.info(f"Move valid {next_move} from {cur}")
                         return self.get_dir(cur, next_move)
                     else:
                         wait_time = self.find_wait(cur, next_move, Player.turn)
-                        #self.logger.info(f"Wait time since move {next_move} is {wait_time}")
+                        self.logger.info(f"Wait time since move {next_move} is {wait_time}")
                         if wait_time > self.maximum_door_frequency:
                             self.initialize_path(cur,self.end)
                             self.path = self.d_star_lite(cur, self.end)
-                            #print(self.path)
+                            self.logger.info(f"Path: {self.path}")
                             if self.path and self.is_valid_move(cur, self.path[0]):
                                 return self.get_dir(cur, self.path[0])
                             else:
+                                self.logger.info(f"No path so exploring as wait {wait_time} is long")
+                                for i in self.get_neighbours(cur):
+                                    if self.is_valid_move(cur, i):
+                                        return self.get_dir(cur,i)
+                                self.logger.info("No immediate valid moves so exploring")
                                 return self.experience.move(current_percept)
                         else:
                             return constants.WAIT
 
                 return constants.WAIT
             else:
-                #self.logger.info(f"Exploring since no path")
+                self.logger.info(f"Exploring since no path")
                 next_move = self.experience.move(current_percept)
                 if self.experience.is_valid_move(current_percept, next_move):
                     return self.experience.move(current_percept)
@@ -131,7 +137,7 @@ class Player:
 
         # Check if a path has already been found
         if not self.path or goal not in self.parent:
-            #self.logger.info("No pre-existing path found. Calculating a new path.")
+            self.logger.info("No pre-existing path found. Calculating a new path.")
             # Perform full path calculation if no path exists
             self.find_full_path(start, goal)
         else:
@@ -141,19 +147,22 @@ class Player:
 
         # If path to goal has been found or updated, retrace the path
         if goal in self.parent:
-            #self.logger.info(f"Trying to retrace path")
+            self.logger.info(f"Trying to retrace path")
             self.path = self.retrace_path(start, goal, self.parent)
         else:
+            self.logger.info(f"No path for {start} to {goal} at {Player.turn}")
             self.path=[]
         return self.path
 
     def find_full_path(self, start, goal):
         heapq.heappush(self.open_list, (0, start))
-        
-        while self.open_list:
+        timeout =10000
+        while self.open_list and timeout>0:
+            timeout-=1
             current_cost, current = heapq.heappop(self.open_list)
             #print(current,goal)
             if current == goal:
+                self.logger.info(f"Found path in full path")
                 break 
 
             # Get neighbours and update costs for all potential paths
@@ -195,19 +204,19 @@ class Player:
                         heapq.heappush(self.open_list, (self.cost[node], node))
                         changed=True
         if changed:
-            #self.logger.info(f"Changed so updating path")
+            self.logger.info(f"Changed so updating path")
             self.update_path_segment(goal)
 
         # Clear newcells after using them
         self.newcells.clear()
 
     def update_path_segment(self, goal):  
-        timeout = 100000      
+        timeout = 10000      
         while self.open_list and timeout>0:
             timeout-=1
             current_cost, current = heapq.heappop(self.open_list)
             if current == goal:
-                #self.logger.info("Goal reached in update")
+                self.logger.info("Goal reached in update")
                 break  # Stop as soon as the goal is reached
 
             # Get neighbours and update costs based on the new cell
@@ -223,10 +232,6 @@ class Player:
                     self.cost[(x, y)] = new_cost
                     heapq.heappush(self.open_list, (new_cost, (x, y)))
 
-    def is_on_path(self, new_cell):
-        # Check if the new cell is part of the current path
-        return new_cell in self.path
-
     def is_near_path(self, new_cell):
         # Check if the new cell is adjacent to any node in the current path or on the path
         for node in self.path:
@@ -241,6 +246,7 @@ class Player:
             path.append(current)
             current = parent[current]
         path.reverse()
+        self.logger.info(f"Path at turn {Player.turn} is {path}")
         return path
 
     def cost_function(self, neighbour, goal):
