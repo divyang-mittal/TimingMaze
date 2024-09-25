@@ -729,6 +729,19 @@ class Player:
             self.outside_in_rem = outside_in_rem_dict[self.update_case]
             self.outside_in_start_radius = self.outside_in_start_radius- 2*self.radius
 
+    def update_outside_in_rem(self, current_percept):
+        # Detect the edge and reduce inside out traversal
+        for maze_state in current_percept.maze_state:
+            if maze_state[3] == constants.BOUNDARY:
+                if self.outside_in_state == 1 and maze_state[2] == constants.RIGHT and maze_state[1] == 0 and maze_state[0] < self.radius / 1.5:
+                    self.outside_in_rem[constants.RIGHT] = 0
+                elif self.outside_in_state == 3 and maze_state[2] == constants.LEFT and maze_state[1] == 0 and maze_state[0] > -self.radius / 1.5:
+                    self.outside_in_rem[constants.LEFT] = 0
+                elif self.outside_in_state == 2 and maze_state[2] == constants.DOWN and maze_state[0] == 0 and maze_state[1] < self.radius / 1.5:
+                    self.outside_in_rem[constants.DOWN] = 0
+                elif self.outside_in_state == 4 and maze_state[2] == constants.UP and maze_state[0] == 0 and maze_state[1] > -self.radius / 1.5:
+                    self.outside_in_rem[constants.UP] = 0
+
     def move_outside_in_3(self,current_percept)->int:
         direction = [0, 0, 0, 0]
         reverse_direction = [0, 0, 0, 0]
@@ -775,6 +788,7 @@ class Player:
             self.outside_in_rem = outside_in_rem_dict[self.update_case]
             self.outside_in_start_radius = self.outside_in_start_radius- self.radius
 
+        self.update_outside_in_rem(current_percept)
         if self.outside_in_state == 1:
             
             if self.outside_in_rem[2] <= 0:
