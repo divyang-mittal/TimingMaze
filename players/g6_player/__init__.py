@@ -48,6 +48,7 @@ class G6_Player:
         self.found_down_boundary = False
         self.layer = 0
         self.phase = 4  # phases match directions in constants.py; 4 = find SE corner
+        self.target_cell = None
 
     def move(self, current_percept: TimingMazeState) -> int:
         """
@@ -59,6 +60,9 @@ class G6_Player:
         self.maze.update(current_percept)
         player_move = self.__move(current_percept)
 
+        if self.target_cell is None and current_percept.is_end_visible:
+            self.target_cell = self.maze.target_cell()
+
         print(f"MOVE: {move_to_str(player_move)}")
         return player_move.value
 
@@ -67,7 +71,7 @@ class G6_Player:
         Helper function to move().
         """
         # Explore map to get target within drone's view
-        if not current_percept.is_end_visible:
+        if self.target_cell is None:
             return self.__explore()
 
         # Otherwise, go to target
@@ -84,7 +88,7 @@ class G6_Player:
             self.found_down_boundary = self.__is_boundary_in_sight(DOWN)
 
         if self.found_right_boundary and self.found_down_boundary:
-            return self.__inward_spiral()    
+            return self.__inward_spiral()
 
         if not self.found_right_boundary and not self.found_down_boundary:
             self.search_target = (self.maze.east_end, self.maze.south_end)
@@ -127,7 +131,7 @@ class G6_Player:
                 curr_cell = curr_cell.n_cell
 
         return False
-    
+
     def __set_target_on_radius(self) -> tuple:
         """
         Set target position on drone radius towards search target
@@ -164,7 +168,7 @@ class G6_Player:
         print(f"TARGET: {len(result)} moves - {cost} cost")
 
         # Move in least obstructed direction towards target
-        target_directions = self.__get_target_directions()     
+        target_directions = self.__get_target_directions()
         door1_freq = self.__get_door_freq(target_directions[0])
         door2_freq = self.__get_door_freq(target_directions[1])
         door3_freq = self.__get_door_freq(target_directions[2])
@@ -208,7 +212,7 @@ class G6_Player:
             dist1 = self.maze.east_end - self.maze.curr_pos[0]
         elif rank[2] == DOWN:
             dist1 = self.maze.south_end - self.maze.curr_pos[1]
-        
+
         if rank[3] == LEFT:
             dist2 = self.maze.curr_pos[0] - self.maze.west_end
         elif rank[3] == UP:
@@ -217,7 +221,7 @@ class G6_Player:
             dist2 = self.maze.east_end - self.maze.curr_pos[0]
         elif rank[3] == DOWN:
             dist2 = self.maze.south_end - self.maze.curr_pos[1]
-        
+
         if dist1 < dist2:
             rank[2], rank[3] = rank[3], rank[2]
 
@@ -288,10 +292,6 @@ class G6_Player:
         """
         Use the A* shortest path to generate moves towards the target.
         """
-
-        assert current_state.end_x is not None
-        assert current_state.end_y is not None
-
         result, cost = a_star(self.maze.current_cell(), self.maze.target_cell())
 
         # this shouldn't happen
