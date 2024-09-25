@@ -87,7 +87,6 @@ class Player:
                 target = self.get_rel_start(current_percept.end_x, current_percept.end_y, current_percept.start_x, current_percept.start_y)
                 self.end = target  # Set the end position
 
-                # Use D* Lite algorithm to either find or update the path incrementally
                 self.path = self.d_star_lite(cur, target)
 
                 if self.path:
@@ -106,6 +105,8 @@ class Player:
                                 return self.get_dir(cur, self.path[0])
                             else:
                                 self.logger.info(f"No path so exploring as wait {wait_time} is long")
+                                self.path=[]
+                                self.open_list=[]
                                 for i in self.get_neighbours(cur):
                                     if self.is_valid_move(cur, i):
                                         return self.get_dir(cur,i)
