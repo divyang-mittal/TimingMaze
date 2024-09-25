@@ -373,17 +373,14 @@ class TimingMazeGame:
         returned_action = None
         if not self.player_timeout:
             player_start = time.time()
-            returned_action = self.player.move(
+            try:
+                # Call the player's move function for turn on this move
+                returned_action = self.player.move(
                     current_percept=before_state
                 )
-            # try:
-            #     # Call the player's move function for turn on this move
-            #     returned_action = self.player.move(
-            #         current_percept=before_state
-            #     )
-            # except Exception:
-            #     print("Exception in player code")
-            #     returned_action = None
+            except Exception:
+                print("Exception in player code")
+                returned_action = None
 
             player_time_taken = time.time() - player_start
             self.logger.debug("Player {} took {:.3f}s".format(self.player_name, player_time_taken))
