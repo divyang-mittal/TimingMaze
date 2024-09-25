@@ -10,13 +10,6 @@ import constants
 from utils import *
 from players.default_player import Player as DefaultPlayer
 from players.g1_player import Player as G1_Player
-from players.g2_player import Player as G2_Player
-from players.g3_player import Player as G3_Player
-from players.g4_player import Player as G4_Player
-from players.group5.player import G5_Player as G5_Player
-from players.G6_Player import G6_Player
-from players.g7.g7_player import Player as G7_Player
-from players.group9_player import Player as G9_Player
 from collections import deque as queue
 import tkinter as tk
 
@@ -96,13 +89,13 @@ class TimingMazeGame:
         self.radius = args.radius
         self.goal_reached = False
         self.turns = 0
-        self.max_turns = 1e10
+        self.max_turns = 1500
         self.valid_moves = 0
         self.map_state = np.zeros((constants.map_dim, constants.map_dim, 4), dtype=int)
         self.map_frequencies = np.zeros((constants.map_dim, constants.map_dim, 4), dtype=int)
 
         self.add_player(args.player)
-        self.initialize(args.maze)
+        # self.initialize(args.maze)
 
     def add_player(self, player_in):
         if player_in in constants.possible_players:
@@ -222,11 +215,10 @@ class TimingMazeGame:
         #     "end_pos": self.end_pos.tolist()
         # }
         # filename = 'data.json'
-        # file_path = os.path.join(os.getcwd(), filename)
         # with open(filename, 'w') as json_file:
         #     json.dump(data, json_file, indent=4)
-        
-        # print(f"JSON file '{filename}' created successfully at {file_path}")
+        #
+        # print(f"JSON file '{filename}' created successfully.")
 
         self.map_state = self.map_frequencies.copy()
 
@@ -274,10 +266,6 @@ class TimingMazeGame:
 
         if self.end_pos[0] < 0 or self.end_pos[0] >= constants.map_dim or self.end_pos[1] < 0 or self.end_pos[1] >= constants.map_dim:
             print("Error with end")
-            return False
-
-        if self.cur_pos[0] == self.end_pos[0] and self.cur_pos[1] == self.end_pos[1]:
-            print("Error with start and end")
             return False
 
         # Check if all cells are reachable from one-another
@@ -378,8 +366,8 @@ class TimingMazeGame:
                 returned_action = self.player.move(
                     current_percept=before_state
                 )
-            except Exception:
-                print("Exception in player code")
+            except Exception as e:
+                print(f"Exception in player code: {e}")
                 returned_action = None
 
             player_time_taken = time.time() - player_start
@@ -580,13 +568,13 @@ class TimingMazeGame:
 
                 # if door is a part of the drone visual
                 # add to state whether they are open, closed or at boundary
-                if row == 0 and door_type == constants.LEFT:
+                if row == 0 and door_type == constants.UP:
                     state.append((row-self.cur_pos[0], col-self.cur_pos[1], door_type, constants.BOUNDARY))
-                elif row == constants.map_dim-1 and door_type == constants.RIGHT:
+                elif row == constants.map_dim-1 and door_type == constants.DOWN:
                     state.append((row-self.cur_pos[0], col-self.cur_pos[1], door_type, constants.BOUNDARY))
-                elif col == 0 and door_type == constants.UP:
+                elif col == 0 and door_type == constants.LEFT:
                     state.append((row-self.cur_pos[0], col-self.cur_pos[1], door_type, constants.BOUNDARY))
-                elif col == constants.map_dim-1 and door_type == constants.DOWN:
+                elif col == constants.map_dim-1 and door_type == constants.RIGHT:
                     state.append((row-self.cur_pos[0], col-self.cur_pos[1], door_type, constants.BOUNDARY))
                 elif self.map_state[row][col][door_type] == 1:
                     state.append((row-self.cur_pos[0], col-self.cur_pos[1], door_type, constants.OPEN))
@@ -722,11 +710,11 @@ class TimingMazeGame:
     def mark_position(self, pos, color, withCircle = False):
         x, y = pos
 
-        x1, y1 = self.x_offset + x * constants.CELL_SIZE + constants.CELL_SIZE / 5, self.y_offset + y * constants.CELL_SIZE + constants.CELL_SIZE / 5
-        x2, y2 = x1 + constants.CELL_SIZE * 2/3, y1 + constants.CELL_SIZE * 2/3
+        x1, y1 = self.x_offset + x * constants.CELL_SIZE + 2, self.y_offset + y * constants.CELL_SIZE + 2
+        x2, y2 = x1+5, y1+5
         self.canvas.create_rectangle(x1, y1, x2, y2, fill=color)
 
         if withCircle:
-            cx, cy = self.x_offset + x * constants.CELL_SIZE + constants.CELL_SIZE/2, self.y_offset + y * constants.CELL_SIZE + constants.CELL_SIZE/2
+            cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
             r = self.radius*constants.CELL_SIZE
             self.canvas.create_oval(cx - r, cy - r, cx + r, cy + r, fill="", outline="blue", width=1)

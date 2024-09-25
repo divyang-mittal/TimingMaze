@@ -18,7 +18,7 @@ if __name__ == '__main__':
                                                           "disable_logging is false")
     parser.add_argument("--disable_logging", action="store_true", help="Disable Logging, log_path becomes path to file")
     parser.add_argument("--disable_timeout", action="store_true", help="Disable timeouts for player code")
-    parser.add_argument("--player", "-p", default="d", help="Specifying player")
+    parser.add_argument("--player", "-p", default="4", help="Specifying player")
     args = parser.parse_args()
 
     if args.disable_logging:
