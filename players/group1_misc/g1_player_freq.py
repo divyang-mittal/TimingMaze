@@ -19,7 +19,7 @@ class Player:
         self.path = []  # Current path from start to end
         self.cost = {}  # Cost to reach each node
         self.end = -1
-        self.experience = Experience(self.maximum_door_frequency, self.radius,2)
+        self.experience = Experience(self.maximum_door_frequency, self.radius)
         self.newcells = set()  # Cells whose frequencies changed or are seen for the first time
         self.open_list = []  # Priority queue for the D* Lite algorithm
         self.parent = {}  # Keeps track of the parent node for path reconstruction
@@ -115,10 +115,7 @@ class Player:
                             return constants.WAIT
                         
             self.logger.info(f"Exploring since no path or end not seen")
-            next_move = self.experience.move(current_percept)
-            if self.experience.is_valid_move(current_percept, next_move):
-                    return self.experience.move(current_percept)
-            return constants.WAIT
+            return self.experience.move(current_percept)
 
         except Exception as e:
             print(e)
