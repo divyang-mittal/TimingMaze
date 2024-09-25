@@ -57,7 +57,7 @@ class Player:
         self.path = []
         ######################
 
-        ########## Frank (9/16):
+        ########## Frank (9/16), edited by Tom (9/23):
         self.experience = Experience(self.maximum_door_frequency, self.radius)
         ######################
 

@@ -7,13 +7,13 @@ import numpy as np
 class Experience:
     def __init__(self, L, r):
         # Hyper-parameters
-        self.wait_penalty = 0.2  # penalty for waiting
-        self.revisit_penalty = 0.1  # penalty for revisiting a cell
-        self.revisit_max_penalty = 1  # maximum penalty for revisiting a cell
-        self.direction_vector_max_weight = 2  # maximum weight of the direction vector
-        self.direction_vector_multiplier = 0.01  # multiplier for the direction vector
+        self.wait_penalty = 0.3  # penalty for waiting
+        self.revisit_penalty = 0.3  # penalty for revisiting a cell
+        self.revisit_max_penalty = 5  # maximum penalty for revisiting a cell
+        self.direction_vector_max_weight = 5  # maximum weight of the direction vector
+        self.direction_vector_multiplier = 0.02  # multiplier for the direction vector
         self.direction_vector_pov_radius = (
-            30  # radius of the field of view for the direction vector
+            25  # radius of the field of view for the direction vector
         )
 
         self.L = L

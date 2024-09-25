@@ -9,7 +9,8 @@ from constants import *
 import constants
 from utils import *
 from players.default_player import Player as DefaultPlayer
-from players.g1_player import Player as G1_Player
+from players.group1_misc.g1_player_freq import Player as G1_Player
+# from players.g1_player import Player as G1_Player
 from players.g2_player import Player as G2_Player
 from players.g3_player import Player as G3_Player
 from players.g4_player import Player as G4_Player
