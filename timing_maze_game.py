@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 import time
 import signal
 import numpy as np
@@ -14,10 +15,10 @@ from players.group1_misc.g1_player_freq import Player as G1_Player
 from players.g2_player import Player as G2_Player
 from players.g3_player import Player as G3_Player
 from players.g4_player import Player as G4_Player
-# from players.group5.player import G5_Player as G5_Player
-# from players.G6_Player import G6_Player
-# from players.g7.g7_player import Player as G7_Player
-# from players.group9_player import Player as G9_Player
+from players.group5.player import G5_Player as G5_Player
+from players.G6_Player import G6_Player
+from players.g7.g7_player import Player as G7_Player
+from players.group9_player import Player as G9_Player
 from collections import deque as queue
 import tkinter as tk
 
@@ -97,10 +98,12 @@ class TimingMazeGame:
         self.radius = args.radius
         self.goal_reached = False
         self.turns = 0
-        self.max_turns = 1e10
+        self.max_turns = 10000
         self.valid_moves = 0
         self.map_state = np.zeros((constants.map_dim, constants.map_dim, 4), dtype=int)
         self.map_frequencies = np.zeros((constants.map_dim, constants.map_dim, 4), dtype=int)
+        self.timeout_warning_count = 0
+        sys.setrecursionlimit(20000)
 
         self.add_player(args.player)
         self.initialize(args.maze)
@@ -372,7 +375,7 @@ class TimingMazeGame:
                                        self.end_pos[0]-self.cur_pos[0], self.end_pos[1]-self.cur_pos[1],
                                        self.start_pos[0]-self.cur_pos[0], self.start_pos[1]-self.cur_pos[1])
         returned_action = None
-        if not self.player_timeout:
+        if (not self.player_timeout) and self.timeout_warning_count < 3:
             player_start = time.time()
             try:
                 # Call the player's move function for turn on this move
@@ -385,6 +388,9 @@ class TimingMazeGame:
 
             player_time_taken = time.time() - player_start
             self.logger.debug("Player {} took {:.3f}s".format(self.player_name, player_time_taken))
+            if player_time_taken > 10:
+                self.logger.warning("Player {} took {:.3f}s".format(self.player_name, player_time_taken))
+                self.timeout_warning_count += 1
 
             self.player_time -= player_time_taken
             if self.player_time <= 0:
@@ -398,8 +404,8 @@ class TimingMazeGame:
                 self.logger.debug("Received move from {}".format(self.player_name))
                 self.valid_moves += 1
             else:
-                print("Invalid move as trying to cross some uncrossable boundaries hence cancelled: ", move,
-                      self.cur_pos[0], self.cur_pos[1], self.end_pos[0], self.end_pos[1])
+                # print("Invalid move as trying to cross some uncrossable boundaries hence cancelled: ", move,
+                #       self.cur_pos[0], self.cur_pos[1], self.end_pos[0], self.end_pos[1])
                 self.logger.info("Invalid move from {} as it does not follow the rules".format(self.player_name))
         else:
             print("Invalid move")
@@ -420,7 +426,7 @@ class TimingMazeGame:
             print("\nTime taken: {}\nValid moves: {}\n".format(self.end_time - self.start_time, self.valid_moves))
             return
 
-        if self.turns < self.max_turns:
+        if self.turns < self.max_turns and not self.player_timeout:
             if self.use_gui:
                 if self.game_state == "resume":
                     if self.game_speed == "normal":
@@ -430,7 +436,7 @@ class TimingMazeGame:
             else:
                 self.play_game()
         else:
-            print("Goal not reached...\n\n")
+            print("Goal not reached...\n\n", self.cur_pos, self.end_pos)
             self.game_state = "over"
             self.end_time = time.time()
             print("\nTime taken: {}\nValid moves: {}\n".format(self.end_time - self.start_time, self.valid_moves))

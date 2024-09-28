@@ -20,7 +20,7 @@ CLOSED = 1
 OPEN = 2
 BOUNDARY = 3
 
-timeout = 60 * 10
+timeout = 12000
 
 CELL_SIZE = 8
 
